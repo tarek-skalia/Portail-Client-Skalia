@@ -69,7 +69,7 @@ const LoginPage: React.FC = () => {
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-300">Croissance</span>
                 </h1>
                 <p className="text-xl text-indigo-200 max-w-md leading-relaxed">
-                    Bienvenue sur votre portail client Skalia. Connectez-vous à votre espace sécurisé.
+                    Bienvenue sur votre portail client Skalia. Suivez vos projets d'automatisation, consultez vos KPI's et gérez vos demandes en temps réel !
                 </p>
 
                 {/* Social Proof Section */}
