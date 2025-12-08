@@ -4,6 +4,7 @@ import { Bell, Info, AlertTriangle, XCircle, CheckCircle2, ChevronRight, Trash2 
 import { Notification } from '../types';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
+import { useToast } from './ToastProvider';
 
 interface NotificationsPanelProps {
   userId?: string;
@@ -17,6 +18,7 @@ interface NotificationsPanelProps {
 const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ userId, onClose, onNavigate, onRead, onAllRead, refreshTrigger }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const toast = useToast();
 
   // Charger les notifications
   useEffect(() => {
@@ -68,9 +70,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ userId, onClose
             }
 
             // Cas 2: Doublon Projet (Même lien 'projects' + Titre similaire + Temps proche)
-            // Ex: "Mise à jour projet" vs "Avancement Projet" pour le même événement
             if (t.link === 'projects' && notif.link === 'projects' && isVeryClose) {
-                // Si les deux parlent de "projet" ou "statut"
                 if ((t.title.includes('projet') || t.title.includes('Projet')) && 
                     (notif.title.includes('projet') || notif.title.includes('Projet'))) {
                     return true;
@@ -119,6 +119,8 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ userId, onClose
   const deleteAll = async () => {
     if (notifications.length === 0) return;
     
+    const previousNotifications = [...notifications];
+
     // UI Optimiste : on vide tout de suite pour l'utilisateur
     setNotifications([]);
     onAllRead(); // Remet le compteur (badge rouge) à 0
@@ -131,8 +133,11 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ userId, onClose
       
     if (error) {
         console.error("Erreur suppression notifications", error);
-        // En cas d'erreur critique, on pourrait recharger la liste ici, 
-        // mais pour une action "Vider", l'UX fluide est prioritaire.
+        // Rollback : on remet les notifications si erreur (ex: permission refusée)
+        setNotifications(previousNotifications);
+        toast.error("Erreur suppression", "Impossible de supprimer. Vérifiez que la règle DELETE est active sur Supabase.");
+    } else {
+        toast.success("Nettoyage effectué", "Toutes les notifications ont été supprimées.");
     }
   };
 
