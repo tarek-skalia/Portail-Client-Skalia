@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ArrowRight, Lock, Mail } from 'lucide-react';
+import { ArrowRight, Lock, Mail, Star } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Logo from './Logo';
 
@@ -29,6 +29,12 @@ const LoginPage: React.FC = () => {
         setIsLoading(false);
     }
   };
+
+  const clientLogos = [
+      'https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/68dfe97e9c5196724841369b_Design%20sans%20titre%20(24).png',
+      'https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/68dfdf7f2c7d81e132d4473a_Design%20sans%20titre%20(20).png',
+      'https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/68a352170f1a2e4d09fa898b_Design%20sans%20titre%20(18).png'
+  ];
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center relative overflow-hidden font-sans">
@@ -65,6 +71,32 @@ const LoginPage: React.FC = () => {
                 <p className="text-xl text-indigo-200 max-w-md leading-relaxed">
                     Bienvenue sur votre portail client Skalia. Connectez-vous à votre espace sécurisé.
                 </p>
+
+                {/* Social Proof Section */}
+                <div className="pt-8 border-t border-white/10 w-full max-w-lg">
+                    <p className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-4">
+                        Plus de 50+ entreprises nous ont déjà fait confiance
+                    </p>
+                    <div className="flex items-center gap-6">
+                        <div className="flex -space-x-4">
+                            {clientLogos.map((src, i) => (
+                                <div key={i} className="w-12 h-12 rounded-full border-2 border-slate-900 bg-white flex items-center justify-center overflow-hidden hover:scale-110 transition-transform duration-300 z-0 hover:z-10 relative">
+                                    <img src={src} alt="Client" className="w-full h-full object-cover" />
+                                </div>
+                            ))}
+                            <div className="w-12 h-12 rounded-full border-2 border-slate-900 bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white z-0 hover:z-10 relative">
+                                +50
+                            </div>
+                        </div>
+                        <div className="h-8 w-px bg-white/10"></div>
+                        <div className="flex flex-col">
+                            <div className="flex gap-0.5">
+                                {[1,2,3,4,5].map(i => <Star key={i} size={16} className="text-amber-400 fill-amber-400" />)}
+                            </div>
+                            <span className="text-xs text-indigo-200 mt-1">4.9/5 satisfaction client</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Right: Login Form */}
