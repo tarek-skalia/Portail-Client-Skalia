@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import GenericPage from './components/GenericPage';
@@ -13,11 +13,11 @@ import ProjectRoadmap from './components/ProjectRoadmap';
 import LoginPage from './components/LoginPage';
 import BackgroundBlobs from './components/BackgroundBlobs'; 
 import NotificationsPanel from './components/NotificationsPanel';
+import GlobalListeners from './components/GlobalListeners';
 import { MENU_ITEMS } from './constants';
 import { MoreHorizontal, ChevronRight, Bell } from 'lucide-react';
 import { Client } from './types';
 import { supabase } from './lib/supabase';
-// import { useToast } from './components/ToastProvider'; // Toast n'est plus utilisé ici
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -29,12 +29,10 @@ const App: React.FC = () => {
   // États pour notifications
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [notificationListTrigger, setNotificationListTrigger] = useState(0); 
   const notificationRef = useRef<HTMLDivElement>(null);
   
-  // État pour gérer la navigation depuis la Roadmap vers le Pipeline avec focus
   const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
-
-  // const toast = useToast(); // Désactivé pour les notifs globales
 
   // Initialisation de l'auth Supabase
   useEffect(() => {
@@ -74,35 +72,10 @@ const App: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [notificationRef]);
 
-  // Gestion Globale des Notifications (Compteur UNIQUEMENT)
+  // Chargement initial du compteur de notifications
   useEffect(() => {
     if (currentUser?.id) {
-        // 1. Initialiser le compteur
         fetchUnreadCount();
-
-        // 2. Écouter les nouvelles notifications pour mettre à jour le compteur (SILENCIEUX)
-        const channel = supabase
-            .channel(`app-counter-${currentUser.id}`) 
-            .on(
-                'postgres_changes', 
-                { 
-                    event: 'INSERT', 
-                    schema: 'public', 
-                    table: 'notifications',
-                }, 
-                (payload) => {
-                    const newNotif = payload.new as any;
-                    
-                    // Filtrage Client-Side
-                    if (newNotif.user_id === currentUser.id) {
-                        // Mise à jour du compteur uniquement, pas de toast
-                        setUnreadNotifications(prev => prev + 1);
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
     }
   }, [currentUser]);
 
@@ -119,9 +92,16 @@ const App: React.FC = () => {
              setUnreadNotifications(count || 0);
          }
      } catch (e) {
-         console.warn("Impossible de récupérer les notifications (Mode hors ligne)");
+         console.warn("Erreur fetch notifications count", e);
      }
   };
+
+  // Callback appelé par GlobalListeners quand une notification est insérée en base
+  const handleNewNotificationEvent = useCallback(() => {
+      console.log("App: Mise à jour des notifications demandée.");
+      fetchUnreadCount(); 
+      setNotificationListTrigger(prev => prev + 1); // Force le panel à recharger la liste
+  }, [currentUser]);
 
   const fetchUserProfile = async (userId: string, email: string) => {
     try {
@@ -132,7 +112,7 @@ const App: React.FC = () => {
         .single();
 
       if (error) {
-        console.warn('Profil non trouvé ou erreur Supabase, utilisation du profil par défaut.');
+        console.warn('Profil non trouvé, utilisation du défaut.');
         setCurrentUser({
             id: userId,
             name: 'Utilisateur',
@@ -152,10 +132,10 @@ const App: React.FC = () => {
       }
       setIsAuthenticated(true);
     } catch (error: any) {
-        console.warn("Mode hors ligne activé ou erreur réseau:", error.message);
+        console.warn("Erreur chargement profil", error.message);
         setCurrentUser({
             id: userId,
-            name: 'Utilisateur (Hors ligne)',
+            name: 'Utilisateur',
             company: 'Connexion instable',
             avatarInitials: 'HF',
             email: email,
@@ -242,6 +222,12 @@ const App: React.FC = () => {
     <div className="flex h-screen w-full bg-slate-50/80 overflow-hidden font-sans text-slate-800 relative selection:bg-indigo-100 selection:text-indigo-700">
       
       <BackgroundBlobs />
+      
+      {/* Composant Invisible qui écoute les événements DB et insère les notifications */}
+      <GlobalListeners 
+        userId={currentUser.id} 
+        onNewNotification={handleNewNotificationEvent} 
+      />
 
       <Sidebar 
         activePage={activePage} 
@@ -282,6 +268,7 @@ const App: React.FC = () => {
                       onNavigate={setActivePage}
                       onRead={handleNotificationRead}
                       onAllRead={handleAllNotificationsRead}
+                      refreshTrigger={notificationListTrigger}
                     />
                 )}
             </div>
