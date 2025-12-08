@@ -1,0 +1,5 @@
+{
+  "name": "Portail Client Skalia",
+  "description": "Un portail client professionnel pour l'agence d'automatisation Skalia, incluant un tableau de bord des KPI, la facturation et la gestion de projet.",
+  "requestFramePermissions": []
+}
