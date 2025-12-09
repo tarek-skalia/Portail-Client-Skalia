@@ -11,6 +11,7 @@ import ExpensesPage from './components/ExpensesPage';
 import ProjectsPipeline from './components/ProjectsPipeline';
 import ProjectRoadmap from './components/ProjectRoadmap';
 import LoginPage from './components/LoginPage';
+import UpdatePasswordPage from './components/UpdatePasswordPage';
 import BackgroundBlobs from './components/BackgroundBlobs'; 
 import NotificationsPanel from './components/NotificationsPanel';
 import GlobalListeners from './components/GlobalListeners';
@@ -25,6 +26,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Client | null>(null);
   const [activePage, setActivePage] = useState<string>('dashboard');
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
   
   // États pour notifications
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -47,7 +49,14 @@ const App: React.FC = () => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth Event:", event);
+      
+      // Détection de la récupération de mot de passe
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecoveryMode(true);
+      }
+
       setSession(session);
       if (session) {
         fetchUserProfile(session.user.id, session.user.email || '');
@@ -57,6 +66,7 @@ const App: React.FC = () => {
         setIsAuthenticated(false);
         setIsLoadingAuth(false);
         setUnreadNotifications(0);
+        setIsPasswordRecoveryMode(false); // Reset mode
       }
     });
 
@@ -64,7 +74,6 @@ const App: React.FC = () => {
   }, []);
 
   // SÉCURITÉ : Écouteur de suppression de compte
-  // Si l'admin supprime le profil dans Supabase, l'utilisateur est éjecté immédiatement.
   useEffect(() => {
     if (!currentUser?.id) return;
 
@@ -81,7 +90,7 @@ const App: React.FC = () => {
         async () => {
           console.warn("Compte supprimé détecté. Déconnexion immédiate.");
           await supabase.auth.signOut();
-          window.location.reload(); // Force le rafraîchissement pour retourner au login
+          window.location.reload(); 
         }
       )
       .subscribe();
@@ -126,11 +135,10 @@ const App: React.FC = () => {
      }
   };
 
-  // Callback appelé par GlobalListeners quand une notification est insérée en base
   const handleNewNotificationEvent = useCallback(() => {
       console.log("App: Mise à jour des notifications demandée.");
       fetchUnreadCount(); 
-      setNotificationListTrigger(prev => prev + 1); // Force le panel à recharger la liste
+      setNotificationListTrigger(prev => prev + 1); 
   }, [currentUser]);
 
   const fetchUserProfile = async (userId: string, email: string) => {
@@ -196,6 +204,11 @@ const App: React.FC = () => {
       setUnreadNotifications(0);
   };
 
+  const handlePasswordUpdated = () => {
+      setIsPasswordRecoveryMode(false);
+      // L'utilisateur est déjà connecté, on le laisse accéder au dashboard
+  };
+
   const getPageTitle = (id: string) => {
     return MENU_ITEMS.find(item => item.id === id)?.label || 'Skalia';
   };
@@ -244,6 +257,11 @@ const App: React.FC = () => {
       );
   }
 
+  // Cas spécial : Récupération de mot de passe
+  if (isPasswordRecoveryMode) {
+      return <UpdatePasswordPage onSuccess={handlePasswordUpdated} />;
+  }
+
   if (!isAuthenticated || !currentUser) {
     return <LoginPage />;
   }
@@ -253,7 +271,6 @@ const App: React.FC = () => {
       
       <BackgroundBlobs />
       
-      {/* Composant Invisible qui écoute les événements DB et insère les notifications */}
       <GlobalListeners 
         userId={currentUser.id} 
         onNewNotification={handleNewNotificationEvent} 
@@ -267,7 +284,6 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
-        {/* Top Header */}
         <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm">
           <div className="flex items-center text-sm text-slate-500 gap-2">
             <span>Portail client</span>
@@ -277,7 +293,6 @@ const App: React.FC = () => {
           
           <div className="flex items-center gap-6">
             
-            {/* Notifications Center */}
             <div className="relative" ref={notificationRef}>
                 <button 
                   onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
@@ -310,7 +325,6 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-8 scroll-smooth">
           <div className="max-w-7xl mx-auto w-full h-full">
             {renderContent()}
