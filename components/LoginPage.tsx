@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { ArrowRight, Lock, Mail, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, Lock, Mail, Star, Eye, EyeOff, ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Logo from './Logo';
 
@@ -8,15 +8,36 @@ const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Nouveaux états
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [view, setView] = useState<'login' | 'forgot_password'>('login');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Chargement de l'email si "Se souvenir de moi" était coché
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('skalia_remember_email');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
-        // Mode Connexion uniquement
+        // Gestion du "Se souvenir de moi"
+        if (rememberMe) {
+            localStorage.setItem('skalia_remember_email', email);
+        } else {
+            localStorage.removeItem('skalia_remember_email');
+        }
+
         const { error: signInError } = await supabase.auth.signInWithPassword({
             email,
             password,
@@ -24,10 +45,36 @@ const LoginPage: React.FC = () => {
         if (signInError) throw signInError;
         // La redirection est gérée par le listener dans App.tsx
     } catch (err: any) {
-        setError(err.message || 'Une erreur est survenue. Vérifiez vos identifiants.');
+        let errorMessage = err.message || 'Une erreur est survenue.';
+        if (errorMessage === 'Invalid login credentials') {
+            errorMessage = 'Identifiants incorrects. En cas de problème, veuillez contacter Skalia directement.';
+        }
+        setError(errorMessage);
     } finally {
         setIsLoading(false);
     }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError('');
+      setSuccessMsg('');
+      setIsLoading(true);
+
+      try {
+          // L'URL de redirection doit être ton site actuel
+          const { error } = await supabase.auth.resetPasswordForEmail(email, {
+              redirectTo: window.location.origin,
+          });
+
+          if (error) throw error;
+          
+          setSuccessMsg("Un email de réinitialisation a été envoyé. Vérifiez votre boîte de réception.");
+      } catch (err: any) {
+          setError(err.message || "Impossible d'envoyer l'email.");
+      } finally {
+          setIsLoading(false);
+      }
   };
 
   const clientLogos = [
@@ -52,11 +99,8 @@ const LoginPage: React.FC = () => {
             {/* Left: Branding */}
             <div className="hidden md:flex flex-col justify-center p-8 text-white space-y-8 animate-fade-in-up">
                 <div className="mb-4 inline-flex">
-                    {/* Framed Logo with Text - Increased horizontal padding (px-10) */}
                     <div className="bg-gradient-to-br from-white/10 to-indigo-900/20 border border-white/10 rounded-3xl py-4 px-10 shadow-2xl backdrop-blur-sm flex items-center justify-center relative overflow-hidden group">
-                        {/* Glossy shine effect */}
                         <div className="absolute top-0 left-0 w-full h-[40%] bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
-                        
                         <Logo 
                             className="w-24 h-24 md:w-28 md:h-28" 
                             classNameText="text-4xl md:text-5xl drop-shadow-lg tracking-wider font-bold" 
@@ -72,7 +116,6 @@ const LoginPage: React.FC = () => {
                     Bienvenue sur votre portail client Skalia. Suivez vos projets d'automatisation, consultez vos KPI's et gérez vos demandes en temps réel !
                 </p>
 
-                {/* Social Proof Section */}
                 <div className="pt-8 border-t border-white/10 w-full max-w-lg">
                     <p className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-4">
                         Plus de 50+ entreprises nous ont déjà fait confiance
@@ -100,88 +143,182 @@ const LoginPage: React.FC = () => {
             </div>
 
             {/* Right: Login Form */}
-            <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-[2.5rem] p-8 md:p-14 shadow-2xl animate-fade-in-up delay-100 relative overflow-hidden">
-                {/* Glossy effect */}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-[2.5rem] p-8 md:p-14 shadow-2xl animate-fade-in-up delay-100 relative overflow-hidden transition-all duration-500">
                 <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
 
                 <div className="md:hidden mb-10 flex justify-center">
-                     {/* Mobile Logo with Frame */}
                      <div className="bg-gradient-to-br from-white/10 to-indigo-900/20 border border-white/10 rounded-2xl py-3 px-8 shadow-xl backdrop-blur-sm flex items-center justify-center relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-[40%] bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
-                        <Logo 
-                            className="w-14 h-14" 
-                            classNameText="text-3xl drop-shadow-md tracking-wider"
-                            showText={true}
-                        />
+                        <Logo className="w-14 h-14" classNameText="text-3xl drop-shadow-md tracking-wider" showText={true} />
                      </div>
                 </div>
 
-                <div className="mb-10">
-                    <h2 className="text-3xl font-bold text-white mb-2">Connexion</h2>
-                    <p className="text-indigo-200 text-base">
-                        Entrez vos identifiants pour accéder à l'espace.
-                    </p>
-                </div>
+                {view === 'login' ? (
+                    // --- VUE CONNEXION ---
+                    <>
+                        <div className="mb-8">
+                            <h2 className="text-3xl font-bold text-white mb-2">Connexion</h2>
+                            <p className="text-indigo-200 text-base">
+                                Entrez vos identifiants pour accéder à l'espace.
+                            </p>
+                        </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-indigo-200 uppercase tracking-wider ml-1">Email</label>
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-indigo-400">
-                                <Mail className="h-5 w-5 text-indigo-300" />
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-indigo-200 uppercase tracking-wider ml-1">Email</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-indigo-400">
+                                        <Mail className="h-5 w-5 text-indigo-300" />
+                                    </div>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="block w-full pl-11 pr-4 py-4 border border-white/10 rounded-2xl leading-5 bg-black/20 text-white placeholder-indigo-300/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-black/30 transition-all duration-300"
+                                        placeholder="name@company.com"
+                                    />
+                                </div>
                             </div>
-                            <input
-                                type="email"
-                                required
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="block w-full pl-11 pr-4 py-4 border border-white/10 rounded-2xl leading-5 bg-black/20 text-white placeholder-indigo-300/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-black/30 transition-all duration-300"
-                                placeholder="name@company.com"
-                            />
-                        </div>
-                    </div>
 
-                    <div className="space-y-2">
-                         <label className="text-xs font-bold text-indigo-200 uppercase tracking-wider ml-1">Mot de passe</label>
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-indigo-400">
-                                <Lock className="h-5 w-5 text-indigo-300" />
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-indigo-200 uppercase tracking-wider ml-1">Mot de passe</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-indigo-400">
+                                        <Lock className="h-5 w-5 text-indigo-300" />
+                                    </div>
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        required
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="block w-full pl-11 pr-12 py-4 border border-white/10 rounded-2xl leading-5 bg-black/20 text-white placeholder-indigo-300/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-black/30 transition-all duration-300"
+                                        placeholder="••••••••"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-indigo-300 hover:text-white transition-colors focus:outline-none"
+                                    >
+                                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                    </button>
+                                </div>
                             </div>
-                            <input
-                                type="password"
-                                required
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="block w-full pl-11 pr-4 py-4 border border-white/10 rounded-2xl leading-5 bg-black/20 text-white placeholder-indigo-300/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-black/30 transition-all duration-300"
-                                placeholder="••••••••"
-                            />
+
+                            <div className="flex items-center justify-between">
+                                <label className="flex items-center gap-2 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border border-white/20 flex items-center justify-center transition-all ${rememberMe ? 'bg-indigo-600 border-indigo-600' : 'bg-black/20 group-hover:border-white/40'}`}>
+                                        {rememberMe && <Check size={14} className="text-white" />}
+                                    </div>
+                                    <input 
+                                        type="checkbox" 
+                                        className="hidden" 
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                    />
+                                    <span className="text-sm text-indigo-200 group-hover:text-white transition-colors select-none">Se souvenir de moi</span>
+                                </label>
+
+                                <button 
+                                    type="button"
+                                    onClick={() => setView('forgot_password')}
+                                    className="text-sm font-semibold text-indigo-400 hover:text-white transition-colors"
+                                >
+                                    Mot de passe oublié ?
+                                </button>
+                            </div>
+
+                            {error && (
+                                <div className="p-4 rounded-xl bg-red-500/20 border border-red-500/30 text-red-100 text-sm flex items-center animate-fade-in backdrop-blur-md">
+                                    <span className="w-1.5 h-1.5 bg-red-400 rounded-full mr-2"></span>
+                                    {error}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={isLoading}
+                                className={`w-full flex items-center justify-center py-4 px-6 rounded-2xl shadow-xl shadow-indigo-900/20 text-base font-bold text-indigo-950 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-white transition-all transform hover:scale-[1.02] active:scale-[0.98] ${
+                                    isLoading ? 'opacity-80 cursor-not-allowed' : ''
+                                }`}
+                            >
+                                {isLoading ? (
+                                    <div className="w-5 h-5 border-2 border-indigo-900/30 border-t-indigo-900 rounded-full animate-spin"></div>
+                                ) : (
+                                    <>
+                                        Se connecter
+                                        <ArrowRight size={20} className="ml-2" />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+                    </>
+                ) : (
+                    // --- VUE MOT DE PASSE OUBLIÉ ---
+                    <div className="animate-fade-in">
+                        <div className="mb-8">
+                            <button 
+                                onClick={() => setView('login')}
+                                className="flex items-center gap-2 text-indigo-300 hover:text-white transition-colors text-sm font-medium mb-6"
+                            >
+                                <ArrowLeft size={16} /> Retour à la connexion
+                            </button>
+                            <h2 className="text-3xl font-bold text-white mb-2">Mot de passe oublié</h2>
+                            <p className="text-indigo-200 text-base">
+                                Entrez votre adresse email. Nous vous enverrons un lien pour réinitialiser votre mot de passe.
+                            </p>
                         </div>
+
+                        <form onSubmit={handleResetPassword} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-indigo-200 uppercase tracking-wider ml-1">Email</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-indigo-400">
+                                        <Mail className="h-5 w-5 text-indigo-300" />
+                                    </div>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="block w-full pl-11 pr-4 py-4 border border-white/10 rounded-2xl leading-5 bg-black/20 text-white placeholder-indigo-300/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-black/30 transition-all duration-300"
+                                        placeholder="name@company.com"
+                                    />
+                                </div>
+                            </div>
+
+                            {error && (
+                                <div className="p-4 rounded-xl bg-red-500/20 border border-red-500/30 text-red-100 text-sm flex items-center animate-fade-in backdrop-blur-md">
+                                    <span className="w-1.5 h-1.5 bg-red-400 rounded-full mr-2"></span>
+                                    {error}
+                                </div>
+                            )}
+
+                            {successMsg && (
+                                <div className="p-4 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-100 text-sm flex items-center animate-fade-in backdrop-blur-md">
+                                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-2"></span>
+                                    {successMsg}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={isLoading || !!successMsg}
+                                className={`w-full flex items-center justify-center py-4 px-6 rounded-2xl shadow-xl shadow-indigo-900/20 text-base font-bold text-indigo-950 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-white transition-all transform hover:scale-[1.02] active:scale-[0.98] ${
+                                    isLoading || !!successMsg ? 'opacity-80 cursor-not-allowed' : ''
+                                }`}
+                            >
+                                {isLoading ? (
+                                    <div className="w-5 h-5 border-2 border-indigo-900/30 border-t-indigo-900 rounded-full animate-spin"></div>
+                                ) : successMsg ? (
+                                    <>Email envoyé !</>
+                                ) : (
+                                    <>Envoyer le lien</>
+                                )}
+                            </button>
+                        </form>
                     </div>
-
-                    {error && (
-                        <div className="p-4 rounded-xl bg-red-500/20 border border-red-500/30 text-red-100 text-sm flex items-center animate-fade-in backdrop-blur-md">
-                            <span className="w-1.5 h-1.5 bg-red-400 rounded-full mr-2"></span>
-                            {error}
-                        </div>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={isLoading}
-                        className={`w-full flex items-center justify-center py-4 px-6 rounded-2xl shadow-xl shadow-indigo-900/20 text-base font-bold text-indigo-950 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-white transition-all transform hover:scale-[1.02] active:scale-[0.98] ${
-                            isLoading ? 'opacity-80 cursor-not-allowed' : ''
-                        }`}
-                    >
-                        {isLoading ? (
-                             <div className="w-5 h-5 border-2 border-indigo-900/30 border-t-indigo-900 rounded-full animate-spin"></div>
-                        ) : (
-                            <>
-                                Se connecter
-                                <ArrowRight size={20} className="ml-2" />
-                            </>
-                        )}
-                    </button>
-                </form>
+                )}
             </div>
         </div>
     </div>
