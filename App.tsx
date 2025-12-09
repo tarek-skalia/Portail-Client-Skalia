@@ -52,14 +52,44 @@ const App: React.FC = () => {
       if (session) {
         fetchUserProfile(session.user.id, session.user.email || '');
       } else {
+        // Déconnexion propre
         setCurrentUser(null);
         setIsAuthenticated(false);
         setIsLoadingAuth(false);
+        setUnreadNotifications(0);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // SÉCURITÉ : Écouteur de suppression de compte
+  // Si l'admin supprime le profil dans Supabase, l'utilisateur est éjecté immédiatement.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const channel = supabase
+      .channel('force_logout_on_delete')
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${currentUser.id}`,
+        },
+        async () => {
+          console.warn("Compte supprimé détecté. Déconnexion immédiate.");
+          await supabase.auth.signOut();
+          window.location.reload(); // Force le rafraîchissement pour retourner au login
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id]);
 
   // Fermer les notifications si on clique ailleurs
   useEffect(() => {
