@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Lock, Mail, Star, Eye, EyeOff, ArrowLeft, Check, Phone, ArrowUp } from 'lucide-react';
+import { ArrowRight, Lock, Mail, Star, Eye, EyeOff, ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Logo from './Logo';
 
@@ -14,7 +14,6 @@ const LoginPage: React.FC = () => {
   // États UX/UI
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [capsLock, setCapsLock] = useState(false); // État pour Caps Lock
   const [view, setView] = useState<'login' | 'forgot_password'>('login');
   
   // États d'Animation
@@ -97,13 +96,6 @@ const LoginPage: React.FC = () => {
       }
   };
 
-  // Détection du Caps Lock
-  const checkCapsLock = (e: React.KeyboardEvent | React.MouseEvent | React.FocusEvent) => {
-    if (e.nativeEvent instanceof KeyboardEvent) {
-      setCapsLock(e.nativeEvent.getModifierState('CapsLock'));
-    }
-  };
-
   const clientLogos = [
       'https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/68dfe97e9c5196724841369b_Design%20sans%20titre%20(24).png',
       'https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/68dfdf7f2c7d81e132d4473a_Design%20sans%20titre%20(20).png',
@@ -111,10 +103,10 @@ const LoginPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center relative overflow-hidden font-sans pb-28">
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center relative overflow-hidden font-sans">
         
         {/* Animated Background with Parallax */}
-        <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
+        <div className="absolute inset-0 w-full h-full">
             {/* Blob Violet */}
             <div 
                 className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/30 rounded-full blur-[120px] transition-transform duration-100 ease-out opacity-70"
@@ -184,7 +176,7 @@ const LoginPage: React.FC = () => {
             </div>
 
             {/* Right: Login Form */}
-            <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-[2.5rem] p-8 md:p-14 shadow-2xl animate-fade-in-up delay-100 relative overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)] z-20">
+            <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-[2.5rem] p-8 md:p-14 shadow-2xl animate-fade-in-up delay-100 relative overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)]">
                 <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
 
                 <div className="md:hidden mb-10 flex justify-center">
@@ -233,9 +225,6 @@ const LoginPage: React.FC = () => {
                                         required
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        onKeyDown={checkCapsLock}
-                                        onKeyUp={checkCapsLock}
-                                        onFocus={checkCapsLock}
                                         className="block w-full pl-11 pr-12 py-4 border border-white/10 rounded-2xl leading-5 bg-black/20 text-white placeholder-indigo-300/40 focus:outline-none focus:border-indigo-400 focus:bg-black/30 focus:shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-all duration-300"
                                         placeholder="••••••••"
                                     />
@@ -247,14 +236,6 @@ const LoginPage: React.FC = () => {
                                         {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                     </button>
                                 </div>
-                                {capsLock && (
-                                    <div className="flex items-center gap-2 text-amber-400 text-xs font-bold animate-fade-in pl-1 pt-1">
-                                        <div className="w-4 h-4 rounded border border-amber-400 flex items-center justify-center">
-                                            <ArrowUp size={10} strokeWidth={4} />
-                                        </div>
-                                        MAJUSCULES ACTIVÉES
-                                    </div>
-                                )}
                             </div>
 
                             <div className="flex items-center justify-between">
@@ -372,52 +353,6 @@ const LoginPage: React.FC = () => {
                     </div>
                 )}
             </div>
-        </div>
-
-        {/* Footer: Legal & Contact */}
-        <div className="absolute bottom-6 left-0 w-full text-center z-20 animate-fade-in delay-500">
-            <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 mb-2 relative z-30">
-                <a 
-                    href="mailto:contact@skalia.io" 
-                    className="flex items-center gap-2 text-xs font-medium text-indigo-300/50 hover:text-white transition-colors duration-300 group relative z-30"
-                >
-                    <div className="p-1.5 rounded-full bg-white/5 group-hover:bg-indigo-500/20 transition-colors">
-                        <Mail size={12} />
-                    </div>
-                    contact@skalia.io
-                </a>
-                <div className="hidden md:block w-px h-3 bg-white/10"></div>
-                <a 
-                    href="tel:+32465580790" 
-                    className="flex items-center gap-2 text-xs font-medium text-indigo-300/50 hover:text-white transition-colors duration-300 group relative z-30"
-                >
-                    <div className="p-1.5 rounded-full bg-white/5 group-hover:bg-indigo-500/20 transition-colors">
-                        <Phone size={12} />
-                    </div>
-                    +32 465 580 790
-                </a>
-            </div>
-            <p className="text-[10px] text-indigo-400/30 font-medium tracking-wide flex items-center justify-center gap-2 relative z-30">
-                <span>© 2026 SKALIA</span>
-                <span>•</span>
-                <a 
-                  href="https://www.skalia.io/mentions-legales" 
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-indigo-300 transition-colors cursor-pointer"
-                >
-                   MENTIONS LÉGALES
-                </a>
-                <span>•</span>
-                <a 
-                  href="https://www.skalia.io/politique-de-confidentialite" 
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-indigo-300 transition-colors cursor-pointer"
-                >
-                   CONFIDENTIALITÉ
-                </a>
-            </p>
         </div>
     </div>
   );
