@@ -10,15 +10,27 @@ interface ProjectRoadmapProps {
   onProjectClick?: (projectId: string) => void;
 }
 
-// Palette de couleurs pour les projets
+// Palette de couleurs VIVES uniquement (Suppression des gris/slates/zinc)
+// 18 variations distinctes pour éviter les collisions visuelles
 const PROJECT_COLORS = [
-  { bg: 'bg-blue-100', border: 'border-blue-500', text: 'text-blue-800' },
-  { bg: 'bg-emerald-100', border: 'border-emerald-500', text: 'text-emerald-800' },
-  { bg: 'bg-purple-100', border: 'border-purple-500', text: 'text-purple-800' },
-  { bg: 'bg-amber-100', border: 'border-amber-500', text: 'text-amber-800' },
-  { bg: 'bg-rose-100', border: 'border-rose-500', text: 'text-rose-800' },
-  { bg: 'bg-indigo-100', border: 'border-indigo-500', text: 'text-indigo-800' },
-  { bg: 'bg-cyan-100', border: 'border-cyan-500', text: 'text-cyan-800' },
+  { bg: 'bg-blue-100', border: 'border-blue-500', text: 'text-blue-900' },
+  { bg: 'bg-emerald-100', border: 'border-emerald-500', text: 'text-emerald-900' },
+  { bg: 'bg-purple-100', border: 'border-purple-500', text: 'text-purple-900' },
+  { bg: 'bg-orange-100', border: 'border-orange-500', text: 'text-orange-900' },
+  { bg: 'bg-rose-100', border: 'border-rose-500', text: 'text-rose-900' },
+  { bg: 'bg-cyan-100', border: 'border-cyan-500', text: 'text-cyan-900' },
+  { bg: 'bg-lime-100', border: 'border-lime-500', text: 'text-lime-900' },
+  { bg: 'bg-indigo-100', border: 'border-indigo-500', text: 'text-indigo-900' },
+  { bg: 'bg-amber-100', border: 'border-amber-500', text: 'text-amber-900' },
+  { bg: 'bg-fuchsia-100', border: 'border-fuchsia-500', text: 'text-fuchsia-900' },
+  { bg: 'bg-teal-100', border: 'border-teal-500', text: 'text-teal-900' },
+  { bg: 'bg-pink-100', border: 'border-pink-500', text: 'text-pink-900' },
+  { bg: 'bg-sky-100', border: 'border-sky-500', text: 'text-sky-900' },
+  { bg: 'bg-red-100', border: 'border-red-500', text: 'text-red-900' },
+  { bg: 'bg-green-100', border: 'border-green-500', text: 'text-green-900' },
+  { bg: 'bg-violet-100', border: 'border-violet-500', text: 'text-violet-900' },
+  { bg: 'bg-yellow-100', border: 'border-yellow-500', text: 'text-yellow-900' },
+  { bg: 'bg-blue-200', border: 'border-blue-600', text: 'text-blue-950' }, // Variante bleu plus fort
 ];
 
 const ProjectRoadmap: React.FC<ProjectRoadmapProps> = ({ userId, onProjectClick }) => {
@@ -98,8 +110,18 @@ const ProjectRoadmap: React.FC<ProjectRoadmapProps> = ({ userId, onProjectClick 
     return new Date(dateStr);
   };
 
-  const getColorForProject = (index: number) => {
-    return PROJECT_COLORS[index % PROJECT_COLORS.length];
+  // Génère une couleur STABLE basée sur l'ID du projet
+  // Algorithme de hachage "DJB2" (plus robuste que le précédent pour éviter les collisions)
+  const getColorForProject = (projectId: string) => {
+    let hash = 5381;
+    for (let i = 0; i < projectId.length; i++) {
+        // hash * 33 + c
+        hash = ((hash << 5) + hash) + projectId.charCodeAt(i); 
+    }
+    
+    // On force un nombre positif et on prend le modulo
+    const index = Math.abs(hash) % PROJECT_COLORS.length;
+    return PROJECT_COLORS[index];
   };
 
   // --- Grid Generation ---
@@ -200,7 +222,7 @@ const ProjectRoadmap: React.FC<ProjectRoadmapProps> = ({ userId, onProjectClick 
                         {/* Projects Layer (Grille par dessus pour l'alignement précis) */}
                         <div className="relative pt-12 pb-2 px-0 z-10 w-full">
                            <div className="flex flex-col gap-1 w-full">
-                               {activeProjects.map((project, projIndex) => {
+                               {activeProjects.map((project) => {
                                    const pStart = parseDate(project.startDate);
                                    const pEnd = parseDate(project.endDate);
                                    if (!pStart || !pEnd) return null;
@@ -235,7 +257,8 @@ const ProjectRoadmap: React.FC<ProjectRoadmapProps> = ({ userId, onProjectClick 
                                    const gridStart = startCol + 1;
                                    const span = (endCol - startCol) + 1;
                                    
-                                   const color = getColorForProject(projIndex);
+                                   // Utilisation de l'ID pour une couleur constante
+                                   const color = getColorForProject(project.id);
 
                                    return (
                                        <div 
