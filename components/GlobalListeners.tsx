@@ -13,7 +13,7 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
   
   // Refs pour éviter les doublons (Debounce)
   const hasCheckedInvoicesRef = useRef(false);
-  const recentToastsRef = useRef<{id: string, time: number, contentHash: string}[]>([]);
+  const recentToastsRef = useRef<{id: string; time: number; contentHash: string}[]>([]);
 
   // Reset du flag si l'utilisateur change
   useEffect(() => {
@@ -26,8 +26,6 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
   // =========================================================================
   useEffect(() => {
     if (!userId) return;
-
-    console.log('[GlobalListeners] Abonnement aux notifications pour:', userId);
 
     const channel = supabase
       .channel('public:notifications')
@@ -45,7 +43,9 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
           
           // Création d'une signature unique pour cette notification (Titre + Lien)
           // Si deux notifs parlent du même lien avec un titre similaire en < 3s, c'est un doublon
-          const contentHash = `${newNotif.link || 'nolink'}-${newNotif.title?.substring(0, 10)}`;
+          const notifLink = newNotif.link || 'nolink';
+          const notifTitleSnippet = newNotif.title ? newNotif.title.substring(0, 10) : 'notitle';
+          const contentHash = `${notifLink}-${notifTitleSnippet}`;
 
           // Nettoyage des vieux logs (> 5s)
           recentToastsRef.current = recentToastsRef.current.filter(t => now - t.time < 5000);
@@ -60,9 +60,7 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
           });
 
           if (isDuplicate) {
-            console.log('[GlobalListeners] Toast doublon ignoré:', newNotif.title);
-            // On déclenche quand même le refresh de la liste pour être sûr d'avoir les données, 
-            // le Panel fera son propre tri.
+            // On déclenche quand même le refresh de la liste pour être sûr d'avoir les données
             onNewNotification(); 
             return; 
           }
@@ -74,19 +72,20 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
               contentHash 
           });
 
-          console.log('[GlobalListeners] Nouvelle notification affichée:', newNotif.title);
-          
           // Mise à jour de la pastille
           onNewNotification();
           
           // Affichage du Toast
           const { title, message, type } = newNotif;
+          
+          // Petit délai pour s'assurer que le rendu React est prêt
           setTimeout(() => {
-             if (type === 'success') toast.success(title, message || '');
-             else if (type === 'error') toast.error(title, message || '');
-             else if (type === 'warning') toast.warning(title, message || '');
-             else toast.info(title, message || '');
-          }, 100);
+             const safeMessage = message || '';
+             if (type === 'success') toast.success(title, safeMessage);
+             else if (type === 'error') toast.error(title, safeMessage);
+             else if (type === 'warning') toast.warning(title, safeMessage);
+             else toast.info(title, safeMessage);
+          }, 50);
         }
       )
       .subscribe();
@@ -111,7 +110,7 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
             .eq('user_id', userId)
             .neq('status', 'paid');
 
-        if (!invoices) return;
+        if (!invoices || invoices.length === 0) return;
 
         const today = new Date();
         today.setHours(0,0,0,0);
@@ -128,6 +127,7 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
                 const title = `Échéance proche (${diffDays}j)`;
                 const todayStr = new Date().toISOString().split('T')[0];
                 
+                // Vérification anti-doublon en base avant d'insérer
                 const { data: existing } = await supabase
                     .from('notifications')
                     .select('id')
