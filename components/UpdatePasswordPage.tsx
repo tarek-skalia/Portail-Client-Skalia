@@ -37,11 +37,23 @@ const UpdatePasswordPage: React.FC<UpdatePasswordPageProps> = ({ onSuccess }) =>
 
         if (error) throw error;
 
-        // Succès !
+        // 2. Déconnexion forcée pour rediriger vers le Login
+        await supabase.auth.signOut();
+
+        // Déclenche le retour à l'état initial dans App.tsx
         onSuccess();
 
     } catch (err: any) {
-        setError(err.message || "Erreur lors de la mise à jour.");
+        let errorMessage = err.message || "Erreur lors de la mise à jour.";
+        
+        // 1. Traduction des erreurs Supabase
+        if (errorMessage.includes("different from the old password")) {
+            errorMessage = "Le nouveau mot de passe doit être différent de l'ancien.";
+        } else if (errorMessage.includes("Password should be")) {
+             errorMessage = "Le mot de passe est trop faible.";
+        }
+
+        setError(errorMessage);
     } finally {
         setIsLoading(false);
     }
@@ -58,14 +70,14 @@ const UpdatePasswordPage: React.FC<UpdatePasswordPageProps> = ({ onSuccess }) =>
 
         <div className="relative z-10 w-full max-w-md p-6">
             
-            <div className="flex justify-center mb-8">
-                 <div className="bg-gradient-to-br from-white/10 to-indigo-900/20 border border-white/10 rounded-2xl py-3 px-8 shadow-xl backdrop-blur-sm flex items-center justify-center relative overflow-hidden">
+            <div className="flex justify-center mb-10 animate-fade-in-up">
+                 <div className="bg-gradient-to-br from-white/10 to-indigo-900/20 border border-white/10 rounded-3xl py-6 px-10 shadow-2xl backdrop-blur-sm flex items-center justify-center relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-full h-[40%] bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
-                    <Logo className="w-12 h-12" classNameText="text-2xl drop-shadow-md tracking-wider" showText={true} />
+                    <Logo className="w-20 h-20" classNameText="text-3xl drop-shadow-md tracking-wider" showText={true} />
                  </div>
             </div>
 
-            <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-[2rem] p-8 shadow-2xl animate-fade-in-up relative overflow-hidden">
+            <div className="bg-white/5 backdrop-blur-xl border border-white/20 rounded-[2rem] p-8 shadow-2xl animate-fade-in-up delay-100 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
 
                 <div className="mb-8 text-center">
@@ -128,7 +140,7 @@ const UpdatePasswordPage: React.FC<UpdatePasswordPageProps> = ({ onSuccess }) =>
                             <div className="w-5 h-5 border-2 border-indigo-900/30 border-t-indigo-900 rounded-full animate-spin"></div>
                         ) : (
                             <>
-                                Valider le changement
+                                Valider et se reconnecter
                                 <ArrowRight size={18} className="ml-2" />
                             </>
                         )}
