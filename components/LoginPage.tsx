@@ -111,7 +111,7 @@ const LoginPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center relative overflow-hidden font-sans pb-28">
         
         {/* Animated Background with Parallax */}
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
