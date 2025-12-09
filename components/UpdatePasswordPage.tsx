@@ -37,16 +37,17 @@ const UpdatePasswordPage: React.FC<UpdatePasswordPageProps> = ({ onSuccess }) =>
 
         if (error) throw error;
 
-        // 2. Déconnexion forcée pour rediriger vers le Login
+        // 1. Déconnexion explicite pour être sûr que l'utilisateur ne reste pas connecté
         await supabase.auth.signOut();
 
-        // Déclenche le retour à l'état initial dans App.tsx
-        onSuccess();
+        // 2. Redirection forcée vers la racine (Login)
+        // Cela permet de nettoyer l'URL (enlever le token de récupération) et de recharger l'état de l'app à zéro
+        window.location.href = '/';
 
     } catch (err: any) {
         let errorMessage = err.message || "Erreur lors de la mise à jour.";
         
-        // 1. Traduction des erreurs Supabase
+        // Traduction des erreurs Supabase
         if (errorMessage.includes("different from the old password")) {
             errorMessage = "Le nouveau mot de passe doit être différent de l'ancien.";
         } else if (errorMessage.includes("Password should be")) {
@@ -54,7 +55,6 @@ const UpdatePasswordPage: React.FC<UpdatePasswordPageProps> = ({ onSuccess }) =>
         }
 
         setError(errorMessage);
-    } finally {
         setIsLoading(false);
     }
   };
