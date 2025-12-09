@@ -15,7 +15,7 @@ import BackgroundBlobs from './components/BackgroundBlobs';
 import NotificationsPanel from './components/NotificationsPanel';
 import GlobalListeners from './components/GlobalListeners';
 import { MENU_ITEMS } from './constants';
-import { MoreHorizontal, ChevronRight, Bell } from 'lucide-react';
+import { ChevronRight, Bell } from 'lucide-react';
 import { Client } from './types';
 import { supabase } from './lib/supabase';
 
@@ -277,10 +277,6 @@ const App: React.FC = () => {
                <p className="text-xs font-bold text-slate-900">{currentUser.company}</p>
                <p className="text-xs text-slate-400 uppercase tracking-wider">ID: {currentUser.id.slice(0, 8)}...</p>
             </div>
-            
-            <button className="p-2 hover:bg-white/50 rounded-lg text-slate-500 transition-colors">
-                <MoreHorizontal size={20} />
-            </button>
           </div>
         </header>
 
