@@ -1,9 +1,51 @@
 
 import React, { useEffect, useState } from 'react';
 import { Automation, AutomationLog } from '../types';
-import { X, Clock, CheckCircle2, XCircle, AlertTriangle, History, Zap, LayoutDashboard, Workflow, BookOpen, ChevronDown } from 'lucide-react';
+import { X, Clock, CheckCircle2, XCircle, AlertTriangle, History, Zap, LayoutDashboard, Workflow, BookOpen, ChevronDown, Calendar, Copy } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
+import { useToast } from './ToastProvider';
+
+// Composant interne pour l'animation des nombres (CountUp)
+const AnimatedNumber = ({ value, formatter = (v: number) => v.toString() }: { value: number, formatter?: (v: number) => string | React.ReactNode }) => {
+    const [displayValue, setDisplayValue] = useState(0);
+  
+    useEffect(() => {
+      let start = 0;
+      const end = value;
+      if (start === end) {
+          setDisplayValue(end);
+          return;
+      }
+  
+      // Durée ajustée à 1.2s pour un effet "Premium"
+      const duration = 1200;
+      const startTime = performance.now();
+  
+      const animate = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function (easeOutExpo)
+        const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+        
+        // Math.floor pour garder des entiers
+        const current = Math.floor(start + (end - start) * ease);
+        
+        setDisplayValue(current);
+  
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          setDisplayValue(end);
+        }
+      };
+  
+      requestAnimationFrame(animate);
+    }, [value]);
+  
+    return <>{formatter(displayValue)}</>;
+};
 
 interface AutomationSlideOverProps {
   isOpen: boolean;
@@ -13,17 +55,23 @@ interface AutomationSlideOverProps {
 }
 
 const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClose, automation, onNavigateToSupport }) => {
-  const [logs, setLogs] = useState<AutomationLog[]>([]);
+  const toast = useToast();
+
+  // Stockage des données
+  const [allLogs, setAllLogs] = useState<AutomationLog[]>([]);
+  const [displayedLogs, setDisplayedLogs] = useState<AutomationLog[]>([]);
   const [stats, setStats] = useState({
     totalTimeSaved: 0,
     successRate: 0,
     totalExecutions: 0
   });
+
   const [isLoading, setIsLoading] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'pipeline' | 'docs'>('overview');
+  const [timeRange, setTimeRange] = useState<'all' | 'month' | '30days'>('all');
 
-  // Animation d'entrée : On attend le montage pour activer la classe visible
+  // Animation d'entrée
   useEffect(() => {
     if (isOpen) {
         const timer = setTimeout(() => setIsVisible(true), 50);
@@ -33,16 +81,22 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
     }
   }, [isOpen]);
 
-  // Effet pour charger les données quand une automatisation est sélectionnée
+  // Chargement initial & Reset
   useEffect(() => {
     if (isOpen && automation) {
-      setActiveTab('overview'); // Reset tab
-      fetchLogsAndStats();
+      setAllLogs([]);
+      setDisplayedLogs([]);
+      setStats({ totalTimeSaved: 0, successRate: 0, totalExecutions: 0 });
+      setIsLoading(true);
+
+      setActiveTab('overview');
+      setTimeRange('all');
+      fetchLogs();
     } else {
-      // Reset à la fermeture (après l'animation)
       if (!isOpen) {
         const timer = setTimeout(() => {
-            setLogs([]);
+            setAllLogs([]);
+            setDisplayedLogs([]);
             setStats({ totalTimeSaved: 0, successRate: 0, totalExecutions: 0 });
         }, 300);
         return () => clearTimeout(timer);
@@ -50,12 +104,31 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
     }
   }, [isOpen, automation]);
 
-  const fetchLogsAndStats = async () => {
-    if (!automation) return;
-    setIsLoading(true);
+  // Filtrage & Calculs
+  useEffect(() => {
+      if (allLogs.length === 0) return;
 
+      const now = new Date();
+      let filtered = allLogs;
+
+      if (timeRange === 'month') {
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          filtered = allLogs.filter(l => new Date(l.createdAt) >= startOfMonth);
+      } else if (timeRange === '30days') {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(now.getDate() - 30);
+          filtered = allLogs.filter(l => new Date(l.createdAt) >= thirtyDaysAgo);
+      }
+
+      calculateStats(filtered);
+      // Limite à 20 items pour l'affichage
+      setDisplayedLogs(filtered.slice(0, 20));
+
+  }, [timeRange, allLogs]);
+
+  const fetchLogs = async () => {
+    if (!automation) return;
     try {
-      // Récupération de TOUS les logs pour cette automatisation (sans limite) pour calculer les stats exactes
       const { data, error } = await supabase
         .from('automation_logs')
         .select('*')
@@ -64,10 +137,9 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
 
       if (error) {
         console.error("Erreur fetch logs:", error);
-        setLogs([]);
-        setStats({ totalTimeSaved: 0, successRate: 0, totalExecutions: 0 });
+        setAllLogs([]);
       } else {
-        const allLogs: AutomationLog[] = (data || []).map((log: any) => ({
+        const logsData: AutomationLog[] = (data || []).map((log: any) => ({
           id: log.id,
           automationId: log.automation_id,
           status: log.status,
@@ -75,38 +147,26 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
           duration: log.duration || '0s',
           minutesSaved: log.minutes_saved || 0
         }));
-
-        // Calcul des KPIs sur l'ensemble des données
-        calculateStats(allLogs);
-
-        // On ne garde que les 10 derniers pour l'affichage du tableau
-        setLogs(allLogs.slice(0, 10));
+        setAllLogs(logsData);
       }
     } catch (e) {
       console.error("Exception fetch logs:", e);
-      setLogs([]);
-      setStats({ totalTimeSaved: 0, successRate: 0, totalExecutions: 0 });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const calculateStats = (allLogs: AutomationLog[]) => {
-    // 1. Temps Gagné Total (Somme de minutes_saved UNIQUEMENT si succès)
-    const totalMinutes = allLogs.reduce((acc, log) => {
-      // On n'ajoute le temps gagné que si le statut est 'success'
+  const calculateStats = (logsToCalculate: AutomationLog[]) => {
+    const totalMinutes = logsToCalculate.reduce((acc, log) => {
       if (log.status === 'success') {
           return acc + (log.minutesSaved || 0);
       }
       return acc;
     }, 0);
     
-    // 2. Taux de Succès (% de status === 'success')
-    const successCount = allLogs.filter(l => l.status === 'success').length;
-    const rate = allLogs.length > 0 ? (successCount / allLogs.length) * 100 : 0;
-
-    // 3. Exécutions Totales (Nombre total de logs)
-    const count = allLogs.length;
+    const successCount = logsToCalculate.filter(l => l.status === 'success').length;
+    const rate = logsToCalculate.length > 0 ? (successCount / logsToCalculate.length) * 100 : 0;
+    const count = logsToCalculate.length;
 
     setStats({
       totalTimeSaved: totalMinutes,
@@ -116,9 +176,10 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
   };
 
   const formatDuration = (minutes: number) => {
-    if (minutes < 60) return `${minutes} min`;
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const m = Math.floor(minutes);
+    if (m < 60) return `${m} min`;
+    const hours = Math.floor(m / 60);
+    const mins = m % 60;
     return `${hours}h ${mins}m`;
   };
 
@@ -130,122 +191,89 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
     }
   };
 
+  const handleCopyId = () => {
+      if (automation) {
+          navigator.clipboard.writeText(automation.id);
+          toast.success("ID Copié", "Identifiant copié dans le presse-papier.");
+      }
+  };
+
+  // Textes dynamiques pour les KPIs
+  const getSubtext = (type: 'time' | 'count' | 'rate') => {
+      if (timeRange === 'month') return type === 'count' ? "ce mois-ci" : type === 'time' ? "sur ce mois-ci" : "sur ce mois-ci";
+      if (timeRange === '30days') return "sur les 30 derniers jours";
+      
+      // Default
+      if (type === 'time') return "estimé sur l'historique";
+      if (type === 'count') return "depuis le lancement";
+      if (type === 'rate') return "taux de réussite global";
+      return "";
+  };
+
+  // --- RENDER VUE D'ENSEMBLE ---
   const renderOverview = () => (
-    <div className="space-y-8 animate-fade-in pb-4">
-        {/* KPI Grid - Couleurs RENFORCÉES et DISTINCTES + SOUS-TITRES */}
-        <div className="grid grid-cols-3 gap-4">
-            {/* Temps Gagné - VIOLET (Valeur) */}
-            <div className="p-4 rounded-xl bg-purple-100 border border-purple-200 flex flex-col items-center text-center shadow-sm hover:shadow-md transition-shadow">
-                <div className="mb-2 text-purple-700">
+    <div className="flex flex-col h-full animate-fade-in p-6 space-y-6">
+        
+        {/* KPI Cards */}
+        <div className="grid grid-cols-3 gap-4 shrink-0 select-none">
+            {/* Temps Gagné - Violet */}
+            <div className="p-4 rounded-xl bg-violet-100 border border-violet-200 flex flex-col items-center text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md cursor-default group">
+                <div className="mb-2 text-violet-700 transition-transform group-hover:scale-110 duration-300">
                     <Clock size={24} />
                 </div>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-purple-600 mb-0.5">Temps gagné</span>
-                <span className="text-xl font-extrabold text-purple-900 mb-1">
-                    {isLoading ? <Skeleton className="h-7 w-20 bg-purple-200" /> : formatDuration(stats.totalTimeSaved)}
+                <span className="text-[10px] uppercase font-bold tracking-widest text-violet-900 mb-0.5 opacity-70">Temps gagné</span>
+                <span className="text-xl font-extrabold text-violet-900 mb-1">
+                    {isLoading ? <Skeleton className="h-7 w-20 bg-violet-200" /> : (
+                        <AnimatedNumber value={stats.totalTimeSaved} formatter={formatDuration} />
+                    )}
                 </span>
-                <span className="text-[10px] text-purple-700/70 font-medium">estimé sur l'historique</span>
+                <span className="text-[10px] text-violet-900/60 font-medium whitespace-nowrap">
+                    {getSubtext('time')}
+                </span>
             </div>
 
-            {/* Exécutions - BLEU (Volume) */}
-            <div className="p-4 rounded-xl bg-blue-100 border border-blue-200 flex flex-col items-center text-center shadow-sm hover:shadow-md transition-shadow">
-                <div className="mb-2 text-blue-700">
+            {/* Exécutions - Bleu */}
+            <div className="p-4 rounded-xl bg-blue-100 border border-blue-200 flex flex-col items-center text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md cursor-default group">
+                <div className="mb-2 text-blue-700 transition-transform group-hover:scale-110 duration-300">
                     <Zap size={24} />
                 </div>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-blue-600 mb-0.5">Exécutions</span>
+                <span className="text-[10px] uppercase font-bold tracking-widest text-blue-900 mb-0.5 opacity-70">Exécutions</span>
                 <span className="text-xl font-extrabold text-blue-900 mb-1">
-                        {isLoading ? <Skeleton className="h-7 w-12 bg-blue-200" /> : stats.totalExecutions}
+                        {isLoading ? <Skeleton className="h-7 w-12 bg-blue-200" /> : (
+                            <AnimatedNumber value={stats.totalExecutions} />
+                        )}
                 </span>
-                <span className="text-[10px] text-blue-700/70 font-medium">depuis le lancement</span>
+                <span className="text-[10px] text-blue-900/60 font-medium whitespace-nowrap">
+                    {getSubtext('count')}
+                </span>
             </div>
 
-            {/* Succès - VERT (Qualité) */}
-            <div className="p-4 rounded-xl bg-emerald-100 border border-emerald-200 flex flex-col items-center text-center shadow-sm hover:shadow-md transition-shadow">
-                <div className="mb-2 text-emerald-700">
+            {/* Succès - Vert */}
+            <div className="p-4 rounded-xl bg-emerald-100 border border-emerald-200 flex flex-col items-center text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md cursor-default group">
+                <div className="mb-2 text-emerald-700 transition-transform group-hover:scale-110 duration-300">
                     <CheckCircle2 size={24} />
                 </div>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-600 mb-0.5">Succès</span>
+                <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-900 mb-0.5 opacity-70">Succès</span>
                 <span className="text-xl font-extrabold text-emerald-900 mb-1">
-                        {isLoading ? <Skeleton className="h-7 w-12 bg-emerald-200" /> : `${stats.successRate}%`}
-                </span>
-                <span className="text-[10px] text-emerald-700/70 font-medium">taux de réussite global</span>
-            </div>
-        </div>
-
-        {/* History Table */}
-        <div>
-            <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <History size={18} className="text-slate-400" />
-                Dernières exécutions
-            </h3>
-
-            <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-500 font-medium text-xs uppercase">
-                        <tr>
-                            <th className="px-4 py-3">Statut</th>
-                            <th className="px-4 py-3">Date</th>
-                            <th className="px-4 py-3 text-right">Durée</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {isLoading ? (
-                            [1,2,3,4,5].map(i => (
-                                <tr key={i}>
-                                    <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
-                                    <td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
-                                    <td className="px-4 py-3"><Skeleton className="h-4 w-10 ml-auto" /></td>
-                                </tr>
-                            ))
-                        ) : logs.length === 0 ? (
-                            <tr>
-                                <td colSpan={3} className="px-4 py-8 text-center text-slate-400 italic">
-                                    Aucun historique disponible pour le moment.
-                                </td>
-                            </tr>
-                        ) : (
-                            logs.map(log => (
-                                <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                                    <td className="px-4 py-3">
-                                        {log.status === 'success' ? (
-                                            <div className="flex items-center gap-1.5 text-emerald-600 font-medium text-xs">
-                                                <CheckCircle2 size={14} /> Succès
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-1.5 text-red-600 font-medium text-xs">
-                                                <XCircle size={14} /> Erreur
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-600">
-                                        {new Date(log.createdAt).toLocaleString('fr-FR', {
-                                            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                                        })}
-                                    </td>
-                                    <td className="px-4 py-3 text-right text-slate-500 font-mono text-xs">
-                                        {log.duration}
-                                    </td>
-                                </tr>
-                            ))
+                        {isLoading ? <Skeleton className="h-7 w-12 bg-emerald-200" /> : (
+                            <AnimatedNumber value={stats.successRate} formatter={(v) => `${v}%`} />
                         )}
-                    </tbody>
-                </table>
+                </span>
+                <span className="text-[10px] text-emerald-900/60 font-medium whitespace-nowrap">
+                    {getSubtext('rate')}
+                </span>
             </div>
-            {stats.totalExecutions > 10 && (
-                    <p className="text-center text-xs text-slate-400 mt-2 italic">
-                        Affichage des 10 dernières exécutions sur {stats.totalExecutions}.
-                    </p>
-            )}
         </div>
 
-        {/* Integration Details (Outils connectés) - DESIGN COMPACT (Pills) */}
+        {/* Outils Connectés (Design Compact) */}
         {automation?.toolIcons && automation.toolIcons.length > 0 && (
-            <div className="pt-2">
+            <div className="shrink-0 select-none cursor-default">
                 <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
                     <Zap size={16} className="text-indigo-500" /> Outils connectés
                 </h4>
                 <div className="flex flex-wrap gap-2">
                     {automation.toolIcons.map((tool, i) => (
-                        <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-indigo-100 rounded-full text-xs font-semibold text-slate-700 shadow-sm hover:border-indigo-300 hover:text-indigo-600 transition-colors cursor-default select-none">
+                        <span key={i} className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs font-bold text-slate-700 shadow-sm hover:border-indigo-200 transition-colors">
                             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                             {tool}
                         </span>
@@ -253,56 +281,126 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
                 </div>
             </div>
         )}
+
+        {/* Tableau Historique */}
+        <div className="flex-1 flex flex-col min-h-0 border border-slate-100 rounded-xl overflow-hidden shadow-sm bg-white">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0 select-none">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <History size={16} className="text-slate-400" />
+                    Les 20 dernières exécutions
+                </h3>
+            </div>
+
+            {/* En-tête Tableau */}
+            <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-slate-50/50 border-b border-slate-100 text-xs uppercase font-bold text-slate-400 shrink-0 select-none">
+                <div className="col-span-4">Statut</div>
+                <div className="col-span-5">Date</div>
+                <div className="col-span-3 text-right">Durée</div>
+            </div>
+
+            {/* Corps Tableau */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {isLoading ? (
+                    <div className="p-4 space-y-3">
+                        {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-8 w-full" />)}
+                    </div>
+                ) : displayedLogs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 italic py-10 select-none">
+                        <p>Aucune donnée pour cette période.</p>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-slate-50">
+                        {displayedLogs.map(log => (
+                            <div key={log.id} className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-slate-50 transition-colors items-center text-sm cursor-default">
+                                <div className="col-span-4">
+                                    {log.status === 'success' ? (
+                                        <div className="flex items-center gap-1.5 text-emerald-600 font-medium text-xs">
+                                            <CheckCircle2 size={14} /> Succès
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1.5 text-red-600 font-medium text-xs">
+                                            <XCircle size={14} /> Erreur
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="col-span-5 text-slate-600 text-xs">
+                                    {new Date(log.createdAt).toLocaleString('fr-FR', {
+                                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                                    })}
+                                </div>
+                                <div className="col-span-3 text-right text-slate-500 font-mono text-xs">
+                                    {log.duration}
+                                </div>
+                            </div>
+                        ))}
+                        
+                        {/* Indicateur de limite */}
+                        <div className="py-4 text-center border-t border-slate-50">
+                            <p className="text-[10px] text-slate-400 italic select-none">
+                                Affichage des {displayedLogs.length} dernières exécutions.
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
     </div>
   );
 
+  // --- RENDER PIPELINE (Flux Visuel) ---
   const renderPipeline = () => {
       const steps = automation?.pipelineSteps || [];
       if (steps.length === 0) {
           return (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex flex-col items-center justify-center py-12 text-center h-full select-none">
                   <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                       <Workflow size={32} className="text-slate-300" />
                   </div>
                   <p className="text-slate-500 font-medium">Aucun flux visuel disponible.</p>
-                  <p className="text-xs text-slate-400 mt-1">Les étapes de cette automatisation n'ont pas encore été documentées.</p>
               </div>
           );
       }
 
       return (
-          <div className="py-2 animate-fade-in relative">
-              {/* Ligne verticale connectrice (Centrée mathématiquement avec translate-x-1/2) */}
-              <div className="absolute left-6 -translate-x-1/2 top-4 bottom-8 w-0.5 bg-indigo-100 z-0"></div>
+          <div className="p-6 animate-fade-in relative overflow-y-auto custom-scrollbar h-full">
+              {/* Conteneur relatif pour le trait */}
+              <div className="relative">
+                  {/* Ligne Verticale Connectrice (Centrée à 24px = 1.5rem = left-6) */}
+                  {/* Grid utilise 3rem (w-12), donc le milieu est 1.5rem. */}
+                  <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-indigo-100 -translate-x-1/2 z-0"></div>
 
-              <div className="space-y-6 relative z-10">
-                  {steps.map((step, index) => (
-                      <div key={index} className="flex items-start gap-4">
-                          <div className="w-12 h-12 rounded-full bg-white border-2 border-indigo-100 shadow-sm flex items-center justify-center shrink-0 text-indigo-600 font-bold text-sm z-10">
-                              {index + 1}
-                          </div>
-                          <div className="flex-1 bg-white rounded-xl border border-slate-100 p-4 shadow-sm hover:shadow-md transition-shadow">
-                              <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs font-bold text-indigo-600 uppercase tracking-wide bg-indigo-50 px-2 py-0.5 rounded-md">
-                                      {step.tool}
-                                  </span>
+                  <div className="space-y-8 relative z-10">
+                      {steps.map((step, index) => (
+                          <div key={index} className="grid grid-cols-[3rem_1fr] gap-6 items-start group">
+                              {/* Colonne 1 : Cercle Numéro (w-12 = 3rem) */}
+                              <div className="w-12 h-12 rounded-full bg-white border-2 border-indigo-100 shadow-sm flex items-center justify-center shrink-0 text-indigo-600 font-bold text-sm z-10 select-none group-hover:scale-110 transition-transform bg-white">
+                                  {index + 1}
                               </div>
-                              <p className="text-slate-700 font-medium text-sm leading-relaxed">
-                                  {step.action}
-                              </p>
+                              
+                              {/* Colonne 2 : Carte Détail */}
+                              <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
+                                  <div className="flex items-center justify-between mb-1 select-none">
+                                      <span className="text-xs font-bold text-indigo-600 uppercase tracking-wide bg-indigo-50 px-2 py-0.5 rounded-md">
+                                          {step.tool}
+                                      </span>
+                                  </div>
+                                  <p className="text-slate-700 font-medium text-sm leading-relaxed">
+                                      {step.action}
+                                  </p>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+                  
+                  {/* Flèche de fin (Alignée avec le même grid) */}
+                  <div className="mt-8 grid grid-cols-[3rem_1fr] gap-6 items-center">
+                      <div className="w-12 flex justify-center relative z-10">
+                          <div className="bg-white rounded-full p-1 border border-indigo-50 shadow-sm text-indigo-300">
+                              <ChevronDown size={16} />
                           </div>
                       </div>
-                  ))}
-              </div>
-              
-              {/* Flèche de fin (Ajustée avec background blanc pour masquer la ligne) */}
-              <div className="flex items-center gap-4 mt-8 text-slate-400 text-xs relative z-10">
-                  <div className="w-12 flex justify-center shrink-0">
-                      <div className="bg-white rounded-full p-1 border border-indigo-50 shadow-sm z-20">
-                        <ChevronDown size={16} className="text-indigo-300" />
-                      </div>
+                      <span className="italic font-medium text-slate-400 text-xs select-none">Fin du processus</span>
                   </div>
-                  <span className="italic font-medium text-slate-400">Fin du processus</span>
               </div>
           </div>
       );
@@ -312,7 +410,7 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
       const guide = automation?.userGuide;
       if (!guide) {
           return (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="flex flex-col items-center justify-center py-12 text-center h-full select-none">
                 <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                     <BookOpen size={32} className="text-slate-300" />
                 </div>
@@ -322,10 +420,12 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
       }
 
       return (
-          <div className="prose prose-sm prose-indigo max-w-none text-slate-600 bg-slate-50 rounded-xl p-6 border border-slate-100 animate-fade-in">
-              <div className="whitespace-pre-wrap font-sans leading-relaxed">
-                  {guide}
-              </div>
+          <div className="p-6 h-full overflow-y-auto custom-scrollbar">
+            <div className="prose prose-sm prose-indigo max-w-none text-slate-600 bg-slate-50 rounded-xl p-6 border border-slate-100 animate-fade-in selection:bg-indigo-100 selection:text-indigo-800">
+                <div className="whitespace-pre-wrap font-sans leading-relaxed">
+                    {guide}
+                </div>
+            </div>
           </div>
       );
   };
@@ -334,7 +434,6 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
 
   return (
     <>
-      {/* Backdrop (Fond sombre) */}
       <div 
         className={`fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-[60] transition-opacity duration-300 ${
           isVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -342,19 +441,18 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
         onClick={onClose}
       />
 
-      {/* Panel (Glissant depuis la droite) */}
       <div 
         className={`fixed inset-y-0 right-0 w-full md:w-[600px] bg-white shadow-2xl z-[70] transform transition-transform duration-300 ease-out flex flex-col ${
           isVisible ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        {/* Header */}
-        <div className="px-6 pt-6 pb-2 border-b border-slate-100 bg-white shrink-0">
+        {/* HEADER */}
+        <div className="px-6 pt-6 border-b border-slate-100 bg-white shrink-0">
             <div className="flex items-start justify-between mb-6">
-                <div>
-                    <div className="flex items-center gap-3 mb-1.5">
-                        <h2 className="text-xl font-bold text-slate-800 line-clamp-1">{automation.name}</h2>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider border ${
+                <div className="group">
+                    <div className="flex items-center gap-3 mb-1.5 select-none">
+                        <h2 className="text-xl font-bold text-slate-800 line-clamp-1 cursor-default">{automation.name}</h2>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider border cursor-default ${
                             automation.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                             automation.status === 'error' ? 'bg-red-50 text-red-600 border-red-100' :
                             automation.status === 'maintenance' ? 'bg-amber-50 text-amber-600 border-amber-100' :
@@ -365,7 +463,16 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
                             automation.status === 'maintenance' ? 'Maintenance' : 'Inactif'}
                         </span>
                     </div>
-                    <p className="text-xs text-slate-400 font-mono">ID: {automation.id}</p>
+                    
+                    {/* ID Copy-able */}
+                    <button 
+                        onClick={handleCopyId}
+                        className="flex items-center gap-1.5 text-xs text-slate-400 font-mono hover:text-indigo-500 hover:bg-indigo-50 px-1.5 py-0.5 -ml-1.5 rounded-md transition-colors duration-200"
+                        title="Cliquez pour copier"
+                    >
+                        <span>ID: {automation.id}</span>
+                        <Copy size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
                 </div>
                 <button 
                     onClick={onClose}
@@ -375,58 +482,78 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
                 </button>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex gap-6">
-                <button 
-                    onClick={() => setActiveTab('overview')}
-                    className={`pb-3 text-sm font-medium transition-all relative ${
-                        activeTab === 'overview' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                >
-                    <div className="flex items-center gap-2">
-                        <LayoutDashboard size={16} /> Vue d'ensemble
-                    </div>
-                    {activeTab === 'overview' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
-                </button>
-                
-                <button 
-                    onClick={() => setActiveTab('pipeline')}
-                    className={`pb-3 text-sm font-medium transition-all relative ${
-                        activeTab === 'pipeline' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                >
-                    <div className="flex items-center gap-2">
-                        <Workflow size={16} /> Flux Visuel
-                    </div>
-                    {activeTab === 'pipeline' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
-                </button>
+            {/* Navigation Tabs + Filter */}
+            <div className="flex items-end justify-between">
+                <div className="flex gap-6 select-none">
+                    <button 
+                        onClick={() => setActiveTab('overview')}
+                        className={`pb-3 text-sm font-medium transition-all relative ${
+                            activeTab === 'overview' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <div className="flex items-center gap-2">
+                            <LayoutDashboard size={16} /> Vue d'ensemble
+                        </div>
+                        {activeTab === 'overview' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
+                    </button>
+                    
+                    <button 
+                        onClick={() => setActiveTab('pipeline')}
+                        className={`pb-3 text-sm font-medium transition-all relative ${
+                            activeTab === 'pipeline' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <div className="flex items-center gap-2">
+                            <Workflow size={16} /> Flux Visuel
+                        </div>
+                        {activeTab === 'pipeline' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
+                    </button>
 
-                <button 
-                    onClick={() => setActiveTab('docs')}
-                    className={`pb-3 text-sm font-medium transition-all relative ${
-                        activeTab === 'docs' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                >
-                    <div className="flex items-center gap-2">
-                        <BookOpen size={16} /> Mode d'emploi
+                    <button 
+                        onClick={() => setActiveTab('docs')}
+                        className={`pb-3 text-sm font-medium transition-all relative ${
+                            activeTab === 'docs' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <div className="flex items-center gap-2">
+                            <BookOpen size={16} /> Mode d'emploi
+                        </div>
+                        {activeTab === 'docs' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
+                    </button>
+                </div>
+
+                {activeTab === 'overview' && (
+                    <div className="pb-2">
+                        <div className="relative inline-flex items-center group">
+                            <Calendar size={12} className="absolute left-2.5 text-slate-500 pointer-events-none group-hover:text-indigo-500 transition-colors" />
+                            <select 
+                                value={timeRange}
+                                onChange={(e) => setTimeRange(e.target.value as any)}
+                                className="pl-7 pr-6 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                            >
+                                <option value="all">Tout l'historique</option>
+                                <option value="month">Ce mois-ci</option>
+                                <option value="30days">30 derniers jours</option>
+                            </select>
+                            <ChevronDown size={12} className="absolute right-2 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
+                        </div>
                     </div>
-                    {activeTab === 'docs' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
-                </button>
+                )}
             </div>
         </div>
 
-        {/* Content Scrollable */}
-        <div className="flex-1 overflow-y-auto p-6 bg-white">
+        {/* CONTENU */}
+        <div className="flex-1 overflow-hidden bg-white">
             {activeTab === 'overview' && renderOverview()}
             {activeTab === 'pipeline' && renderPipeline()}
             {activeTab === 'docs' && renderDocs()}
         </div>
 
-        {/* Footer Actions */}
+        {/* FOOTER */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
             <button 
                 onClick={handleReportProblem}
-                className="w-full py-3 bg-white border border-slate-200 text-slate-700 hover:text-red-600 hover:border-red-200 hover:bg-red-50 font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 group"
+                className="w-full py-3 bg-white border border-slate-200 text-slate-700 hover:text-red-600 hover:border-red-200 hover:bg-red-50 font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 group transform active:scale-[0.99]"
             >
                 <AlertTriangle size={18} className="text-slate-400 group-hover:text-red-500 transition-colors" />
                 Signaler un problème

@@ -24,7 +24,12 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<Client | null>(null);
-  const [activePage, setActivePage] = useState<string>('dashboard');
+  
+  // NAVIGATION PERSISTANTE : On initialise avec la valeur stockée ou 'dashboard' par défaut
+  const [activePage, setActivePage] = useState<string>(() => {
+      return localStorage.getItem('skalia_last_page') || 'dashboard';
+  });
+
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
   
@@ -37,6 +42,11 @@ const App: React.FC = () => {
   // États pour la navigation contextuelle
   const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
   const [supportPreFill, setSupportPreFill] = useState<{subject: string, description: string} | null>(null);
+
+  // SAUVEGARDE NAVIGATION : À chaque changement de page, on enregistre dans le navigateur
+  useEffect(() => {
+      localStorage.setItem('skalia_last_page', activePage);
+  }, [activePage]);
 
   // Initialisation de l'auth Supabase
   useEffect(() => {
@@ -69,6 +79,8 @@ const App: React.FC = () => {
         setIsLoadingAuth(false);
         setUnreadNotifications(0);
         setIsPasswordRecoveryMode(false); // Reset mode
+        // Optionnel : On peut reset la page au login si on préfère
+        // localStorage.removeItem('skalia_last_page'); 
       }
     });
 
