@@ -1,3 +1,4 @@
+
 import { ReactNode } from 'react';
 
 export interface MenuItem {
@@ -40,6 +41,18 @@ export interface Automation {
   lastRun: string;
   runsThisMonth: number;
   toolIcons: string[]; // Noms des outils (ex: 'Make', 'Airtable')
+  pipelineSteps?: { tool: string; action: string }[]; // Étapes visuelles
+  userGuide?: string; // Documentation Markdown
+}
+
+// Nouvelle interface pour les logs d'exécution (Enfant de Automation)
+export interface AutomationLog {
+  id: string;
+  automationId: string;
+  status: 'success' | 'error' | 'warning';
+  createdAt: string;
+  duration: string; // ex: '2.5s'
+  minutesSaved: number; // Temps gagné par cette exécution
 }
 
 export interface Project {

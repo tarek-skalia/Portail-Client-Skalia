@@ -34,7 +34,9 @@ const App: React.FC = () => {
   const [notificationListTrigger, setNotificationListTrigger] = useState(0); 
   const notificationRef = useRef<HTMLDivElement>(null);
   
+  // États pour la navigation contextuelle
   const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
+  const [supportPreFill, setSupportPreFill] = useState<{subject: string, description: string} | null>(null);
 
   // Initialisation de l'auth Supabase
   useEffect(() => {
@@ -195,6 +197,16 @@ const App: React.FC = () => {
         setHighlightedProjectId(null);
     }, 3000);
   };
+  
+  const handleNavigateToSupport = (subject: string, description: string) => {
+    setSupportPreFill({ subject, description });
+    setActivePage('support');
+  };
+
+  // Nouvelle fonction pour nettoyer les données une fois consommées
+  const handleConsumeSupportData = () => {
+    setSupportPreFill(null);
+  };
 
   const handleNotificationRead = () => {
       setUnreadNotifications(prev => Math.max(0, prev - 1));
@@ -220,7 +232,7 @@ const App: React.FC = () => {
       case 'dashboard':
         return <Dashboard userId={userId} />;
       case 'automations':
-        return <AutomationsList userId={userId} />;
+        return <AutomationsList userId={userId} onNavigateToSupport={handleNavigateToSupport} />;
       case 'projects':
         return (
             <ProjectsPipeline 
@@ -237,7 +249,13 @@ const App: React.FC = () => {
             />
         );
       case 'support':
-        return currentUser ? <SupportPage currentUser={currentUser} /> : null;
+        return currentUser ? (
+            <SupportPage 
+                currentUser={currentUser} 
+                initialData={supportPreFill} 
+                onConsumeData={handleConsumeSupportData}
+            />
+        ) : null;
       case 'history':
         return <TicketsHistory userId={userId} />;
       case 'invoices':

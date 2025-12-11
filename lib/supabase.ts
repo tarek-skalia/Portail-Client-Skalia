@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 // IMPORTANT : REMPLACEZ CES VALEURS PAR CELLES DE VOTRE PROJET SUPABASE
@@ -87,9 +88,9 @@ export interface Database {
           name: string
           description: string | null
           status: 'active' | 'inactive' | 'error' | 'maintenance'
-          last_run: string | null
-          runs_this_month: number
           tool_icons: string[] | null
+          pipeline_steps: Json | null
+          user_guide: string | null
           created_at: string
         }
         Insert: {
@@ -98,10 +99,21 @@ export interface Database {
             name: string
             description?: string | null
             status?: 'active' | 'inactive' | 'error' | 'maintenance'
-            last_run?: string | null
-            runs_this_month?: number
             tool_icons?: string[] | null
+            pipeline_steps?: Json | null
+            user_guide?: string | null
             created_at?: string
+        }
+      }
+      automation_logs: {
+        Row: {
+          id: string
+          automation_id: string
+          status: 'success' | 'error' | 'warning'
+          minutes_saved: number
+          duration: string | null
+          error_message: string | null
+          created_at: string
         }
       }
       invoices: {

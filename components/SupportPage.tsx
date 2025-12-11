@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Client } from '../types';
 import { Send, Paperclip, FileText, UploadCloud, X, Bug, FileCode, Zap, AlertCircle, HelpCircle, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -7,9 +7,11 @@ import { useToast } from './ToastProvider';
 
 interface SupportPageProps {
   currentUser: Client;
+  initialData?: { subject: string, description: string } | null;
+  onConsumeData?: () => void;
 }
 
-const SupportPage: React.FC<SupportPageProps> = ({ currentUser }) => {
+const SupportPage: React.FC<SupportPageProps> = ({ currentUser, initialData, onConsumeData }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const toast = useToast();
 
@@ -21,6 +23,23 @@ const SupportPage: React.FC<SupportPageProps> = ({ currentUser }) => {
   const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Effet pour pré-remplir le formulaire si des données sont passées (ex: depuis l'onglet Automatisations)
+  useEffect(() => {
+    if (initialData) {
+        setSubject(initialData.subject);
+        setDescription(initialData.description);
+        // On scroll vers le haut pour voir le formulaire rempli
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        // IMPORTANT : On signale au parent que les données ont été utilisées
+        // Cela permet de vider le state du parent pour que si l'utilisateur vide le champ, 
+        // les données ne reviennent pas automatiquement s'il change de page et revient.
+        if (onConsumeData) {
+            onConsumeData();
+        }
+    }
+  }, [initialData, onConsumeData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
