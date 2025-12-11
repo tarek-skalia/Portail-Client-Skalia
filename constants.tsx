@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { 
   LayoutDashboard, 
@@ -98,7 +99,32 @@ export const MOCK_AUTOMATIONS: Automation[] = [
     status: 'active',
     lastRun: 'Il y a 2 min',
     runsThisMonth: 1450,
-    toolIcons: ['Facebook', 'Make', 'HubSpot']
+    toolIcons: ['Facebook', 'Make', 'HubSpot'],
+    pipelineSteps: [
+        { tool: 'Facebook Lead Ads', action: 'Détection d\'un nouveau prospect' },
+        { tool: 'Make (Integromat)', action: 'Formatage des données (Nom, Email, Tél)' },
+        { tool: 'API Société.com', action: 'Enrichissement des données légales' },
+        { tool: 'HubSpot CRM', action: 'Création de la fiche contact et deal' },
+        { tool: 'Slack', action: 'Notification à l\'équipe commerciale' }
+    ],
+    userGuide: `# Guide d'utilisation
+
+Ce workflow permet d'automatiser l'intégration de vos prospects dans votre CRM sans aucune saisie manuelle.
+
+## Fonctionnement général
+Dès qu'un prospect remplit un formulaire sur Facebook ou Instagram, ses informations sont instantanément envoyées vers HubSpot.
+
+## Données traitées
+Voici les champs qui sont récupérés et synchronisés :
+- Nom et Prénom
+- Adresse Email professionnelle
+- Numéro de téléphone
+- **Nom de l'entreprise** (Enrichi automatiquement)
+
+## En cas de problème
+Si vous ne recevez pas la notification Slack :
+- Vérifiez que le prospect a bien rempli un email valide.
+- Assurez-vous que votre compte Facebook Business est bien connecté.`
   },
   {
     id: 'auto_2',
@@ -108,7 +134,13 @@ export const MOCK_AUTOMATIONS: Automation[] = [
     status: 'active',
     lastRun: 'Il y a 2 heures',
     runsThisMonth: 34,
-    toolIcons: ['Google Docs', 'Drive', 'Gmail']
+    toolIcons: ['Google Docs', 'Drive', 'Gmail'],
+    pipelineSteps: [
+        { tool: 'HubSpot', action: 'Déclencheur : Deal passe en "Gagné"' },
+        { tool: 'Google Docs', action: 'Remplissage du template de contrat' },
+        { tool: 'Google Drive', action: 'Conversion en PDF et stockage' },
+        { tool: 'Gmail', action: 'Envoi du contrat au client pour signature' }
+    ]
   },
   {
     id: 'auto_3',

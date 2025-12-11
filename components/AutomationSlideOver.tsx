@@ -47,6 +47,48 @@ const AnimatedNumber = ({ value, formatter = (v: number) => v.toString() }: { va
     return <>{formatter(displayValue)}</>;
 };
 
+// --- Utilitaires pour le Markdown (Formatage) ---
+const parseBold = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={index} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>;
+        }
+        return part;
+    });
+};
+
+const renderMarkdown = (text: string) => {
+    if (!text) return null;
+    return text.split('\n').map((line, i) => {
+        const trimmed = line.trim();
+        
+        // H1 (# Titre)
+        if (line.startsWith('# ')) {
+            return <h1 key={i} className="text-xl font-bold text-slate-900 mt-6 mb-3 border-b border-slate-200 pb-2">{line.replace('# ', '')}</h1>
+        }
+        // H2 (## Titre)
+        if (line.startsWith('## ')) {
+            return <h2 key={i} className="text-lg font-bold text-slate-800 mt-5 mb-2 flex items-center gap-2"><span className="w-1 h-4 bg-indigo-500 rounded-full"></span>{line.replace('## ', '')}</h2>
+        }
+        // Liste à puces (- item)
+        if (trimmed.startsWith('- ')) {
+            return (
+                <div key={i} className="flex items-start gap-3 mb-1.5 pl-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0 opacity-70"></span>
+                    <span className="text-slate-600 leading-relaxed">{parseBold(trimmed.replace('- ', ''))}</span>
+                </div>
+            )
+        }
+        // Paragraphe vide
+        if (trimmed === '') {
+            return <div key={i} className="h-3"></div>
+        }
+        // Texte standard
+        return <p key={i} className="text-slate-600 mb-1.5 leading-relaxed">{parseBold(line)}</p>
+    });
+};
+
 interface AutomationSlideOverProps {
   isOpen: boolean;
   onClose: () => void;
@@ -366,7 +408,6 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
               {/* Conteneur relatif pour le trait */}
               <div className="relative">
                   {/* Ligne Verticale Connectrice (Centrée à 24px = 1.5rem = left-6) */}
-                  {/* Grid utilise 3rem (w-12), donc le milieu est 1.5rem. */}
                   <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-indigo-100 -translate-x-1/2 z-0"></div>
 
                   <div className="space-y-8 relative z-10">
@@ -392,7 +433,7 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
                       ))}
                   </div>
                   
-                  {/* Flèche de fin (Alignée avec le même grid) */}
+                  {/* Flèche de fin */}
                   <div className="mt-8 grid grid-cols-[3rem_1fr] gap-6 items-center">
                       <div className="w-12 flex justify-center relative z-10">
                           <div className="bg-white rounded-full p-1 border border-indigo-50 shadow-sm text-indigo-300">
@@ -421,10 +462,8 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
 
       return (
           <div className="p-6 h-full overflow-y-auto custom-scrollbar">
-            <div className="prose prose-sm prose-indigo max-w-none text-slate-600 bg-slate-50 rounded-xl p-6 border border-slate-100 animate-fade-in selection:bg-indigo-100 selection:text-indigo-800">
-                <div className="whitespace-pre-wrap font-sans leading-relaxed">
-                    {guide}
-                </div>
+            <div className="bg-slate-50 rounded-xl p-8 border border-slate-100 animate-fade-in shadow-inner">
+                {renderMarkdown(guide)}
             </div>
           </div>
       );
