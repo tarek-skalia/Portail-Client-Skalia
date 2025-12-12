@@ -571,18 +571,18 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
 
                 {activeTab === 'overview' && (
                     <div className="pb-2">
-                        <div className="relative inline-flex items-center group">
-                            <Calendar size={12} className="absolute left-2 text-slate-500 pointer-events-none group-hover:text-indigo-500 transition-colors" />
+                        <div className="relative group">
+                            <Calendar size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
                             <select 
                                 value={timeRange}
                                 onChange={(e) => setTimeRange(e.target.value as any)}
-                                className="pl-6 pr-6 py-1 bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                                className="pl-8 pr-8 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-100 hover:text-indigo-600 transition-colors min-w-[140px]"
                             >
                                 <option value="all">Tout l'historique</option>
                                 <option value="month">Ce mois-ci</option>
                                 <option value="30days">30 derniers jours</option>
                             </select>
-                            <ChevronDown size={10} className="absolute right-1.5 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
+                            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
                         </div>
                     </div>
                 )}
