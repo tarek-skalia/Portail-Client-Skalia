@@ -49,9 +49,11 @@ const AnimatedNumber = ({ value, formatter = (v: number) => v.toString() }: { va
 
 // --- Utilitaires pour le Markdown (Formatage) ---
 const parseBold = (text: string) => {
+    // Regex pour capturer **texte**
     const parts = text.split(/(\*\*.*?\*\*)/g);
     return parts.map((part, index) => {
         if (part.startsWith('**') && part.endsWith('**')) {
+            // On retire les ** et on affiche en gras
             return <strong key={index} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>;
         }
         return part;
@@ -63,14 +65,20 @@ const renderMarkdown = (text: string) => {
     return text.split('\n').map((line, i) => {
         const trimmed = line.trim();
         
-        // H1 (# Titre)
-        if (line.startsWith('# ')) {
-            return <h1 key={i} className="text-xl font-bold text-slate-900 mt-6 mb-3 border-b border-slate-200 pb-2">{line.replace('# ', '')}</h1>
+        // H2 (## Titre ou ##Titre) - On vérifie H2 avant H1 car il commence aussi par #
+        if (trimmed.startsWith('##')) {
+            // On enlève les ## et les espaces éventuels au début
+            const content = trimmed.replace(/^##\s*/, '');
+            return <h2 key={i} className="text-lg font-bold text-slate-800 mt-5 mb-2 flex items-center gap-2"><span className="w-1 h-4 bg-indigo-500 rounded-full"></span>{content}</h2>
         }
-        // H2 (## Titre)
-        if (line.startsWith('## ')) {
-            return <h2 key={i} className="text-lg font-bold text-slate-800 mt-5 mb-2 flex items-center gap-2"><span className="w-1 h-4 bg-indigo-500 rounded-full"></span>{line.replace('## ', '')}</h2>
+
+        // H1 (# Titre ou #Titre)
+        if (trimmed.startsWith('#')) {
+             // On enlève le # et les espaces éventuels au début
+            const content = trimmed.replace(/^#\s*/, '');
+            return <h1 key={i} className="text-xl font-bold text-slate-900 mt-6 mb-3 border-b border-slate-200 pb-2">{content}</h1>
         }
+
         // Liste à puces (- item)
         if (trimmed.startsWith('- ')) {
             return (
