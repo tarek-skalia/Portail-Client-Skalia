@@ -570,19 +570,19 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
                 </div>
 
                 {activeTab === 'overview' && (
-                    <div className="pb-2">
+                    <div className="pb-3 pl-4">
                         <div className="relative inline-flex items-center group">
-                            <Calendar size={12} className="absolute left-2.5 text-slate-500 pointer-events-none group-hover:text-indigo-500 transition-colors" />
+                            <Calendar size={10} className="absolute left-2 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
                             <select 
                                 value={timeRange}
                                 onChange={(e) => setTimeRange(e.target.value as any)}
-                                className="pl-7 pr-6 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                                className="pl-6 pr-5 py-1 bg-white border border-slate-200 text-slate-600 text-[10px] font-medium rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-50 hover:text-indigo-600 transition-all"
                             >
                                 <option value="all">Tout l'historique</option>
                                 <option value="month">Ce mois-ci</option>
                                 <option value="30days">30 derniers jours</option>
                             </select>
-                            <ChevronDown size={12} className="absolute right-2 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
+                            <ChevronDown size={10} className="absolute right-1.5 text-slate-300 pointer-events-none group-hover:text-indigo-500 transition-colors" />
                         </div>
                     </div>
                 )}
