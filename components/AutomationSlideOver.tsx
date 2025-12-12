@@ -570,7 +570,7 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
                 </div>
 
                 {activeTab === 'overview' && (
-                    <div className="pb-3 pl-4">
+                    <div className="pb-2 pl-4">
                         <div className="relative inline-flex items-center group">
                             <Calendar size={10} className="absolute left-2 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
                             <select 
