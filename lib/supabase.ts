@@ -58,6 +58,9 @@ export interface Database {
           status: 'uncategorized' | 'onboarding' | 'in_progress' | 'review' | 'completed'
           start_date: string | null
           end_date: string | null
+          owner_name: string | null
+          resources: Json | null
+          tags: string[] | null
           created_at: string
         }
         Insert: {
@@ -68,6 +71,9 @@ export interface Database {
           status: 'uncategorized' | 'onboarding' | 'in_progress' | 'review' | 'completed'
           start_date?: string | null
           end_date?: string | null
+          owner_name?: string | null
+          resources?: Json | null
+          tags?: string[] | null
           created_at?: string
         }
         Update: {
@@ -78,6 +84,9 @@ export interface Database {
           status?: 'uncategorized' | 'onboarding' | 'in_progress' | 'review' | 'completed'
           start_date?: string | null
           end_date?: string | null
+          owner_name?: string | null
+          resources?: Json | null
+          tags?: string[] | null
           created_at?: string
         }
       }

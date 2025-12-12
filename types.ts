@@ -28,8 +28,8 @@ export interface Client {
   company: string;
   avatarInitials: string;
   email: string;
-  password?: string; // Ajout du mot de passe (optionnel pour éviter les erreurs de typage strict sur l'existant, mais utilisé pour le login)
-  logoUrl?: string; // URL du logo de l'entreprise cliente
+  password?: string;
+  logoUrl?: string;
 }
 
 export interface Automation {
@@ -40,19 +40,33 @@ export interface Automation {
   status: 'active' | 'inactive' | 'error' | 'maintenance';
   lastRun: string;
   runsThisMonth: number;
-  toolIcons: string[]; // Noms des outils (ex: 'Make', 'Airtable')
-  pipelineSteps?: { tool: string; action: string }[]; // Étapes visuelles
-  userGuide?: string; // Documentation Markdown
+  toolIcons: string[];
+  pipelineSteps?: { tool: string; action: string }[];
+  userGuide?: string;
 }
 
-// Nouvelle interface pour les logs d'exécution (Enfant de Automation)
 export interface AutomationLog {
   id: string;
   automationId: string;
   status: 'success' | 'error' | 'warning';
   createdAt: string;
-  duration: string; // ex: '2.5s'
-  minutesSaved: number; // Temps gagné par cette exécution
+  duration: string;
+  minutesSaved: number;
+}
+
+export interface ProjectResource {
+  id: string;
+  type: 'file' | 'link';
+  name: string;
+  url: string;
+  addedAt: string;
+  size?: string; // Pour les fichiers
+}
+
+export interface ProjectTask {
+  id: string;
+  name: string;
+  completed: boolean;
 }
 
 export interface Project {
@@ -63,13 +77,20 @@ export interface Project {
   status: 'uncategorized' | 'onboarding' | 'in_progress' | 'review' | 'completed';
   startDate: string;
   endDate: string;
+  tags?: string[];
+  progress?: number; // Calculé dynamiquement (frontend)
+  tasks?: ProjectTask[]; // Liste détaillée (issue de la jointure)
+  resources?: ProjectResource[]; // Fichiers et liens (JSONB)
+  tasksCount?: number;
+  tasksCompleted?: number;
+  ownerName?: string; 
 }
 
 export interface Ticket {
   id: string;
   clientId: string;
   subject: string;
-  category: string; // 'bug', 'modify', 'new', etc.
+  category: string;
   priority: 'low' | 'medium' | 'high';
   status: 'open' | 'in_progress' | 'resolved' | 'closed';
   date: string;
@@ -79,21 +100,21 @@ export interface Ticket {
 export interface Invoice {
   id: string;
   clientId: string;
-  number: string; // ex: INV-2023-001
+  number: string;
   projectName: string;
   amount: number;
   status: 'paid' | 'pending' | 'overdue';
   issueDate: string;
   dueDate: string;
-  pdfUrl: string; // Lien fictif pour le PDF
-  paymentLink: string; // Lien fictif Stripe/autre
+  pdfUrl: string;
+  paymentLink: string;
 }
 
 export interface Expense {
   id: string;
   clientId: string;
-  serviceName: string; // ex: OpenAI API, Make Standard
-  provider: string; // ex: OpenAI, Make
+  serviceName: string;
+  provider: string;
   amount: number;
   billingCycle: 'monthly' | 'yearly';
   nextBillingDate: string;
