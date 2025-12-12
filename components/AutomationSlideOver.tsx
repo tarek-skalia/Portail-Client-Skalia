@@ -530,8 +530,8 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
             </div>
 
             {/* Navigation Tabs + Filter */}
-            <div className="flex items-end justify-between mt-4">
-                <div className="flex gap-8 select-none">
+            <div className="flex items-end justify-between">
+                <div className="flex gap-6 select-none">
                     <button 
                         onClick={() => setActiveTab('overview')}
                         className={`pb-3 text-sm font-medium transition-all relative ${
@@ -570,19 +570,19 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
                 </div>
 
                 {activeTab === 'overview' && (
-                    <div className="pb-2 pl-6 ml-auto">
-                        <div className="relative group">
-                            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 transition-colors z-10" />
+                    <div className="pb-2">
+                        <div className="relative inline-flex items-center group">
+                            <Calendar size={12} className="absolute left-2 text-slate-500 pointer-events-none group-hover:text-indigo-500 transition-colors" />
                             <select 
                                 value={timeRange}
                                 onChange={(e) => setTimeRange(e.target.value as any)}
-                                className="pl-9 pr-8 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 appearance-none cursor-pointer hover:border-indigo-300 hover:text-indigo-600 transition-all w-full min-w-[160px]"
+                                className="pl-6 pr-6 py-1 bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-100 hover:text-indigo-600 transition-colors"
                             >
                                 <option value="all">Tout l'historique</option>
                                 <option value="month">Ce mois-ci</option>
                                 <option value="30days">30 derniers jours</option>
                             </select>
-                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
+                            <ChevronDown size={10} className="absolute right-1.5 text-slate-400 pointer-events-none group-hover:text-indigo-500 transition-colors" />
                         </div>
                     </div>
                 )}
