@@ -1,9 +1,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Project, ProjectResource, ProjectTask } from '../types';
-import { X, Calendar, CheckSquare, Paperclip, Clock, AlertCircle, Copy, User, Tag, Plus, Link as LinkIcon, FileText, UploadCloud, Trash2, ExternalLink } from 'lucide-react';
+import { X, CheckSquare, Paperclip, Copy, Tag, Plus, Link as LinkIcon, FileText, UploadCloud, Trash2, ExternalLink, CheckCircle2, Briefcase } from 'lucide-react';
 import { useToast } from './ToastProvider';
-import Skeleton from './Skeleton';
 import { supabase } from '../lib/supabase';
 
 interface ProjectSlideOverProps {
@@ -26,7 +25,7 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Gestion des tâches (Lecture seule)
+  // Gestion des tâches
   const [currentTasks, setCurrentTasks] = useState<ProjectTask[]>([]);
   const [computedProgress, setComputedProgress] = useState(0);
 
@@ -42,7 +41,6 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
   }, [isOpen]);
 
   // 1. Reset de l'interface UNIQUEMENT à l'ouverture du panneau
-  // Cela empêche l'onglet de sauter quand les données se mettent à jour en arrière-plan
   useEffect(() => {
     if (isOpen) {
         setActiveTab('details');
@@ -51,7 +49,6 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
   }, [isOpen]);
 
   // 2. Synchronisation des données (Realtime)
-  // Se déclenche à chaque modification du projet (ajout/suppression fichier) sans toucher à l'onglet actif
   useEffect(() => {
     if (project) {
         setResources(project.resources || []);
@@ -79,6 +76,36 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
     }
   };
 
+  // --- Gestion Tâches ---
+  const toggleTaskCompletion = async (task: ProjectTask) => {
+      if (!project) return;
+      if (task.type !== 'client') return; // Sécurité frontend
+
+      // 1. Mise à jour optimiste
+      const updatedTasks = currentTasks.map(t => 
+          t.id === task.id ? { ...t, completed: !t.completed } : t
+      );
+      setCurrentTasks(updatedTasks);
+      calculateProgress(updatedTasks);
+
+      // 2. Mise à jour Supabase
+      const { error } = await supabase
+          .from('project_tasks')
+          .update({ completed: !task.completed })
+          .eq('id', task.id);
+
+      if (error) {
+          console.error("Erreur update task:", error);
+          toast.error("Erreur", "Impossible de mettre à jour la tâche.");
+          // Rollback
+          setCurrentTasks(currentTasks); 
+      } else {
+          if (!task.completed) {
+              toast.success("Tâche terminée", "Merci pour votre action !");
+          }
+      }
+  };
+
   // --- Gestion Ressources ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -88,21 +115,15 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
 
   const updateResourcesInDb = async (newResources: ProjectResource[]) => {
       if (!project) return false;
-      setIsSaving(true);
-      
-      // On force le type 'any' pour éviter les conflits de type TS avec Jsonb
       const jsonPayload = newResources as any;
-
       const { error } = await supabase
         .from('projects')
         .update({ resources: jsonPayload })
         .eq('id', project.id);
 
-      setIsSaving(false);
-
       if (error) {
           console.error("Erreur update resources:", error);
-          toast.error("Erreur de sauvegarde", "Vérifiez vos permissions ou votre connexion.");
+          toast.error("Erreur de sauvegarde", "Vérifiez vos permissions.");
           return false;
       }
       return true;
@@ -110,71 +131,122 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
 
   const handleAddResource = async () => {
       if (!project) return;
+      setIsSaving(true);
       let newResource: ProjectResource | null = null;
 
-      if (resourceType === 'link') {
-          if (!linkName || !linkUrl) {
-              toast.error("Erreur", "Veuillez remplir le nom et l'URL.");
-              return;
-          }
-          newResource = {
-              id: Math.random().toString(36).substr(2, 9),
-              type: 'link',
-              name: linkName,
-              url: linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`,
-              addedAt: new Date().toISOString()
-          };
-      } else if (resourceType === 'file') {
-          if (!uploadedFile) {
-              toast.error("Erreur", "Veuillez sélectionner un fichier.");
-              return;
-          }
-          // Note: Pour un vrai upload de fichier, il faudrait d'abord uploader sur Supabase Storage
-          // et récupérer l'URL publique. Ici on simule le stockage du fichier.
-          newResource = {
-              id: Math.random().toString(36).substr(2, 9),
-              type: 'file',
-              name: uploadedFile.name,
-              url: '#', 
-              addedAt: new Date().toISOString(),
-              size: (uploadedFile.size / 1024).toFixed(1) + ' KB'
-          };
-      }
+      try {
+          if (resourceType === 'link') {
+              if (!linkName || !linkUrl) {
+                  toast.error("Erreur", "Veuillez remplir le nom et l'URL.");
+                  setIsSaving(false);
+                  return;
+              }
+              newResource = {
+                  id: Math.random().toString(36).substr(2, 9),
+                  type: 'link',
+                  name: linkName,
+                  url: linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`,
+                  addedAt: new Date().toISOString()
+              };
+          } else if (resourceType === 'file') {
+              if (!uploadedFile) {
+                  toast.error("Erreur", "Veuillez sélectionner un fichier.");
+                  setIsSaving(false);
+                  return;
+              }
 
-      if (newResource) {
-          const updatedResources = [newResource, ...resources];
-          
-          // Mise à jour Optimiste
-          setResources(updatedResources);
-          
-          const success = await updateResourcesInDb(updatedResources);
-          
-          if (success) {
-              toast.success("Ajouté", "Ressource enregistrée.");
-              resetResourceForm();
-          } else {
-              // Rollback si échec
-              setResources(resources);
+              // Nettoyage nom de fichier
+              const fileExt = uploadedFile.name.split('.').pop();
+              const cleanName = uploadedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+              const fileName = `${Date.now()}_${cleanName}`;
+              const filePath = `${project.id}/${fileName}`;
+
+              const { error: uploadError } = await supabase.storage
+                  .from('project_files')
+                  .upload(filePath, uploadedFile);
+
+              if (uploadError) throw new Error("Échec upload.");
+
+              const { data: { publicUrl } } = supabase.storage
+                  .from('project_files')
+                  .getPublicUrl(filePath);
+
+              newResource = {
+                  id: Math.random().toString(36).substr(2, 9),
+                  type: 'file',
+                  name: uploadedFile.name,
+                  url: publicUrl,
+                  addedAt: new Date().toISOString(),
+                  size: (uploadedFile.size / 1024).toFixed(1) + ' KB'
+              };
           }
+
+          if (newResource) {
+              const updatedResources = [newResource, ...resources];
+              const success = await updateResourcesInDb(updatedResources);
+              if (success) {
+                  setResources(updatedResources);
+                  toast.success("Ajouté", "Ressource enregistrée.");
+                  resetResourceForm();
+              }
+          }
+
+      } catch (error: any) {
+          toast.error("Erreur", error.message || "Une erreur est survenue.");
+      } finally {
+          setIsSaving(false);
       }
   };
 
-  const deleteResource = async (id: string) => {
+  const deleteResource = async (resourceId: string) => {
       if (!project) return;
       
+      const resourceToDelete = resources.find(r => r.id === resourceId);
+      if (!resourceToDelete) return;
+
       const previousResources = [...resources];
-      const updated = resources.filter(r => r.id !== id);
+      const updated = resources.filter(r => r.id !== resourceId);
       
-      // Mise à jour Optimiste
-      setResources(updated);
-      
-      const success = await updateResourcesInDb(updated);
-      
-      if (success) {
-        toast.info("Supprimé", "Ressource retirée définitivement.");
-      } else {
-        // Rollback si échec
-        setResources(previousResources);
+      setIsSaving(true);
+      setResources(updated); // UI Optimiste
+
+      try {
+          // 1. Si c'est un fichier, on le supprime du Storage
+          if (resourceToDelete.type === 'file' && resourceToDelete.url) {
+              // L'URL est du type: https://.../storage/v1/object/public/project_files/PROJECT_ID/FILENAME
+              // On doit extraire: PROJECT_ID/FILENAME
+              const urlParts = resourceToDelete.url.split('/project_files/');
+              if (urlParts.length > 1) {
+                  const filePath = urlParts[1]; // ex: "proj_123/169888_monfichier.pdf"
+                  
+                  // Décodage des caractères spéciaux (%20, etc) pour le storage
+                  const decodedPath = decodeURIComponent(filePath);
+
+                  const { error: storageError } = await supabase.storage
+                      .from('project_files')
+                      .remove([decodedPath]);
+
+                  if (storageError) {
+                      console.warn("Fichier non trouvé ou erreur storage:", storageError);
+                      // On continue quand même pour supprimer la référence en base
+                  }
+              }
+          }
+
+          // 2. Mise à jour de la base de données (Tableau JSON)
+          const success = await updateResourcesInDb(updated);
+          if (success) {
+              toast.info("Supprimé", "Ressource retirée.");
+          } else {
+              throw new Error("Erreur DB");
+          }
+
+      } catch (e) {
+          // Rollback en cas d'erreur critique
+          setResources(previousResources);
+          toast.error("Erreur", "Impossible de supprimer la ressource.");
+      } finally {
+          setIsSaving(false);
       }
   };
 
@@ -194,49 +266,6 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
         completed: 'Terminé'
     };
     return labels[status] || status;
-  };
-
-  // --- Rendu Liste Tâches (Lecture Seule) ---
-  const renderTasksList = () => {
-      if (currentTasks.length > 0) {
-          return (
-              <div className="space-y-2">
-                  {currentTasks.map((task, i) => (
-                      <div 
-                        key={i} 
-                        className={`flex items-center gap-3 p-3 bg-white rounded-lg border transition-all cursor-default ${
-                            task.completed 
-                            ? 'border-emerald-100 bg-emerald-50/30' 
-                            : 'border-slate-100'
-                        }`}
-                      >
-                          {/* Case à cocher visuelle uniquement (Non-cliquable) */}
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                              task.completed 
-                              ? 'bg-emerald-500 border-emerald-500 text-white' 
-                              : 'border-slate-300 bg-slate-50'
-                          }`}>
-                              {task.completed && <CheckSquare size={14} />}
-                          </div>
-                          
-                          <span className={`text-sm select-none ${
-                              task.completed 
-                              ? 'text-slate-400 line-through decoration-slate-300' 
-                              : 'text-slate-700 font-medium'
-                          }`}>
-                              {task.name}
-                          </span>
-                      </div>
-                  ))}
-              </div>
-          );
-      }
-
-      return (
-        <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-            <p className="text-slate-400 text-sm">Aucune tâche définie pour ce projet.</p>
-        </div>
-      );
   };
 
   if (!project) return null;
@@ -272,7 +301,9 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
                              #{project.id.slice(0,6)} <Copy size={10} />
                         </span>
                      </div>
-                     <h2 className="text-xl font-bold text-slate-900 leading-tight">{project.title}</h2>
+                     <h2 className="text-xl font-bold text-slate-900 leading-tight">
+                        {project.title}
+                     </h2>
                 </div>
                 <button 
                     onClick={onClose}
@@ -290,7 +321,7 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
                         activeTab === 'details' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
                     }`}
                 >
-                    Détails du projet
+                    Détails & Tâches
                     {activeTab === 'details' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
                 </button>
                 <button 
@@ -299,7 +330,7 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
                         activeTab === 'files' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
                     }`}
                 >
-                    Fichiers & Liens
+                    Fichiers
                     {activeTab === 'files' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
                 </button>
             </div>
@@ -321,68 +352,122 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
                         </p>
                     </div>
 
-                    {/* Meta Info Grid */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                            <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">
-                                <Calendar size={14} /> Dates
-                            </div>
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Début :</span>
-                                    <span className="font-semibold text-slate-700">{project.startDate}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500">Fin :</span>
-                                    <span className="font-semibold text-slate-700">{project.endDate}</span>
-                                </div>
-                            </div>
+                    {/* Avancement */}
+                     <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
+                        <div className="flex justify-between items-end mb-2">
+                            <span className="text-sm font-medium text-slate-600">Progression globale</span>
+                            <span className="text-xl font-bold text-indigo-600">{computedProgress}%</span>
                         </div>
-
-                        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                            <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
-                                <User size={14} /> Responsable
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
-                                    {project.ownerName ? project.ownerName.substring(0,2).toUpperCase() : 'SK'}
-                                </div>
-                                <div>
-                                    <p className="text-sm font-semibold text-slate-800">{project.ownerName || 'Skalia Team'}</p>
-                                    <p className="text-xs text-slate-400">Chef de projet</p>
-                                </div>
-                            </div>
+                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                                className="h-full bg-indigo-500 rounded-full transition-all duration-500 ease-out" 
+                                style={{ width: `${computedProgress}%` }}
+                            ></div>
                         </div>
                     </div>
 
-                    <div className="border-t border-slate-200 my-2"></div>
-
-                    {/* Section Avancement & Tâches Interactives */}
+                    {/* --- SECTION TÂCHES CLIENTS (INTERACTIVE) --- */}
                     <div>
-                         <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <CheckSquare size={16} className="text-indigo-500" /> Avancement & Tâches
+                         <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <CheckCircle2 size={16} className="text-emerald-500" /> Vos actions requises
                         </h3>
                         
-                        {/* Barre de Progression Live */}
-                        <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm mb-4">
-                            <div className="flex justify-between items-end mb-2">
-                                <span className="text-sm font-medium text-slate-600">Progression globale</span>
-                                <span className="text-xl font-bold text-indigo-600">{computedProgress}%</span>
-                            </div>
-                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div 
-                                    className="h-full bg-indigo-500 rounded-full transition-all duration-500 ease-out" 
-                                    style={{ width: `${computedProgress}%` }}
-                                ></div>
-                            </div>
-                            <div className="mt-2 text-xs text-slate-400 text-right">
-                                {currentTasks.filter(t => t.completed).length}/{currentTasks.length} tâches
-                            </div>
+                        <div className="space-y-2">
+                            {currentTasks.filter(t => t.type === 'client').length === 0 ? (
+                                <div className="text-center py-4 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                    <p className="text-slate-400 text-sm italic">Aucune action requise de votre part pour le moment.</p>
+                                </div>
+                            ) : (
+                                currentTasks.filter(t => t.type === 'client').map((task) => (
+                                    <div 
+                                        key={task.id} 
+                                        onClick={() => toggleTaskCompletion(task)}
+                                        className={`flex items-center gap-3 p-3 bg-white rounded-lg border transition-all cursor-pointer group ${
+                                            task.completed 
+                                            ? 'border-emerald-100 bg-emerald-50/30 opacity-70' 
+                                            : 'border-indigo-100 hover:border-indigo-300 hover:shadow-sm'
+                                        }`}
+                                    >
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                            task.completed 
+                                            ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                            : 'border-slate-300 bg-white group-hover:border-indigo-500'
+                                        }`}>
+                                            {task.completed && <CheckSquare size={14} />}
+                                        </div>
+                                        
+                                        <span className={`text-sm ${
+                                            task.completed 
+                                            ? 'text-slate-400 line-through decoration-slate-300' 
+                                            : 'text-slate-800 font-medium'
+                                        }`}>
+                                            {task.name}
+                                        </span>
+                                    </div>
+                                ))
+                            )}
                         </div>
-
-                        {/* Liste des tâches (Lecture Seule) */}
-                        {renderTasksList()}
                     </div>
+
+                    {/* --- SECTION TÂCHES AGENCE (LECTURE SEULE - VERSION COLORÉE) --- */}
+                    <div>
+                         <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <Briefcase size={16} className="text-indigo-500" /> Avancement Agence
+                        </h3>
+                        
+                        <div className="space-y-3">
+                             {currentTasks.filter(t => t.type !== 'client').length === 0 ? (
+                                <div className="text-center py-4 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                    <p className="text-slate-400 text-sm italic">Planning agence non défini.</p>
+                                </div>
+                            ) : (
+                                currentTasks.filter(t => t.type !== 'client').map((task, i) => (
+                                    <div 
+                                        key={i} 
+                                        className={`flex items-center gap-3 p-4 rounded-xl border shadow-sm transition-all cursor-default relative overflow-hidden ${
+                                            task.completed 
+                                            ? 'bg-slate-50 border-slate-200' 
+                                            : 'bg-indigo-50/40 border-indigo-100'
+                                        }`}
+                                    >
+                                        {/* Colored Left Border Accent */}
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                                            task.completed ? 'bg-slate-300' : 'bg-indigo-500'
+                                        }`}></div>
+
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                            task.completed 
+                                            ? 'border-slate-300 bg-slate-100 text-slate-400' 
+                                            : 'border-indigo-500 bg-indigo-500 text-white shadow-sm'
+                                        }`}>
+                                            {task.completed ? <CheckSquare size={12} /> : <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                                        </div>
+                                        
+                                        <span className={`text-sm font-semibold ${
+                                            task.completed 
+                                            ? 'text-slate-400 line-through' 
+                                            : 'text-indigo-950'
+                                        }`}>
+                                            {task.name}
+                                        </span>
+
+                                        {/* Badge Agence */}
+                                        {!task.completed && (
+                                            <span className="ml-auto text-[10px] uppercase font-bold text-indigo-600 bg-white border border-indigo-100 px-2 py-0.5 rounded-md shadow-sm">
+                                                En cours
+                                            </span>
+                                        )}
+                                        {task.completed && (
+                                            <span className="ml-auto text-[10px] uppercase font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                                                Fait
+                                            </span>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
                 </div>
             )}
 

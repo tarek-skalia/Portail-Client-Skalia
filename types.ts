@@ -67,6 +67,8 @@ export interface ProjectTask {
   id: string;
   name: string;
   completed: boolean;
+  type?: 'client' | 'agency'; // Distinction propriétaire de la tâche
+  createdAt?: string; // Ajouté pour le tri stable
 }
 
 export interface Project {

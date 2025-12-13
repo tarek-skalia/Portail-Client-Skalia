@@ -60,6 +60,7 @@ export interface Database {
           end_date: string | null
           owner_name: string | null
           resources: Json | null
+          messages: Json | null
           tags: string[] | null
           created_at: string
         }
@@ -73,6 +74,7 @@ export interface Database {
           end_date?: string | null
           owner_name?: string | null
           resources?: Json | null
+          messages?: Json | null
           tags?: string[] | null
           created_at?: string
         }
@@ -86,7 +88,34 @@ export interface Database {
           end_date?: string | null
           owner_name?: string | null
           resources?: Json | null
+          messages?: Json | null
           tags?: string[] | null
+          created_at?: string
+        }
+      }
+      project_tasks: {
+        Row: {
+          id: string
+          project_id: string
+          name: string
+          completed: boolean
+          type: 'client' | 'agency'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          name: string
+          completed?: boolean
+          type?: 'client' | 'agency'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          name?: string
+          completed?: boolean
+          type?: 'client' | 'agency'
           created_at?: string
         }
       }

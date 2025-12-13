@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Project } from '../types';
-import { Search, Filter, Calendar, CheckSquare, AlertTriangle, Layers } from 'lucide-react';
+import { Project, ProjectTask } from '../types';
+import { Search, Calendar, CheckSquare, AlertTriangle, Layers } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import ProjectSlideOver from './ProjectSlideOver';
@@ -27,21 +27,21 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
 
   useEffect(() => {
     if (userId) {
-        fetchProjects();
+        fetchProjectsAndTasks();
 
-        // Écoute les changements sur la table projects
+        // Écoute les changements sur la table projects (pour infos générales)
         const projectChannel = supabase
             .channel('realtime:projects_pipeline')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
-                fetchProjects();
+                fetchProjectsAndTasks();
             })
             .subscribe();
 
-        // Écoute AUSSI les changements sur la nouvelle table des tâches pour mettre à jour la barre de progression en temps réel
+        // Écoute les changements sur la table des tâches (pour la barre de progression)
         const tasksChannel = supabase
             .channel('realtime:project_tasks_update')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'project_tasks' }, () => {
-                fetchProjects();
+                fetchProjectsAndTasks();
             })
             .subscribe();
 
@@ -52,13 +52,11 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
     }
   }, [userId]);
 
-  // NOUVEAU : Synchronisation en temps réel du panneau latéral
-  // Si 'projects' change (via fetchProjects), on met à jour 'selectedProject' pour que le SlideOver affiche les nouvelles tâches/ressources
+  // Synchronisation en temps réel du panneau latéral
   useEffect(() => {
       if (selectedProject && projects.length > 0) {
           const updatedSelectedProject = projects.find(p => p.id === selectedProject.id);
           if (updatedSelectedProject) {
-              // Vérification profonde simplifiée pour voir si on doit rafraîchir le slideover
               const hasTasksChanged = JSON.stringify(updatedSelectedProject.tasks) !== JSON.stringify(selectedProject.tasks);
               const hasResourcesChanged = JSON.stringify(updatedSelectedProject.resources) !== JSON.stringify(selectedProject.resources);
               const hasProgressChanged = updatedSelectedProject.progress !== selectedProject.progress;
@@ -70,7 +68,7 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
       }
   }, [projects]);
 
-  // Scroll automatique vers un projet mis en avant
+  // Scroll automatique
   useEffect(() => {
     if (highlightedProjectId && projects.length > 0 && hasScrolledRef.current !== highlightedProjectId) {
         setTimeout(() => {
@@ -86,65 +84,104 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
     }
   }, [highlightedProjectId, projects]);
 
-  const fetchProjects = async () => {
-    // On joint la table project_tasks
-    const { data, error } = await supabase
+  const fetchProjectsAndTasks = async () => {
+    // 1. D'ABORD : On récupère les PROJETS (Table 'projects')
+    const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select(`
-            *,
-            project_tasks (
-                id,
-                name,
-                completed,
-                created_at
-            )
-        `)
+        .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-    if (error) {
-        console.error('Erreur chargement projets:', error);
-    } else if (data) {
-        const mappedProjects: Project[] = data.map((p: any) => {
-            
-            // Les tâches viennent maintenant de la relation
-            const tasks = p.project_tasks ? p.project_tasks.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) : [];
-            
-            const tasksCount = tasks.length;
-            const tasksCompleted = tasks.filter((t: any) => t.completed).length;
-            
-            // Calcul progression (Toujours calculé dynamiquement, on n'utilise plus p.progress de la DB)
-            const calculatedProgress = tasksCount === 0 ? 0 : Math.round((tasksCompleted / tasksCount) * 100);
-
-            // Gestion sécurisée des ressources (JSONB)
-            let resources = [];
-            if (p.resources && Array.isArray(p.resources)) {
-                resources = p.resources;
-            }
-
-            return {
-                id: p.id,
-                clientId: p.user_id,
-                title: p.title,
-                description: p.description || '',
-                status: p.status,
-                startDate: p.start_date ? new Date(p.start_date).toLocaleDateString('fr-FR') : '-',
-                endDate: p.end_date ? new Date(p.end_date).toLocaleDateString('fr-FR') : '-',
-                
-                tags: p.tags || [], 
-                tasks: tasks,
-                resources: resources,
-                
-                // Champs Calculés dynamiquement
-                progress: calculatedProgress,
-                tasksCount: tasksCount,
-                tasksCompleted: tasksCompleted,
-                
-                ownerName: p.owner_name || 'Skalia Team'
-            };
-        });
-        setProjects(mappedProjects);
+    if (projectsError) {
+        console.error('Erreur chargement projets:', projectsError);
+        setIsLoading(false);
+        return;
     }
+
+    if (!projectsData || projectsData.length === 0) {
+        setProjects([]);
+        setIsLoading(false);
+        return;
+    }
+
+    // 2. ENSUITE : On récupère les TÂCHES associées (Table 'project_tasks')
+    // AJOUT : On demande explicitement à la DB de trier par created_at pour avoir un ordre stable dès la réception
+    const projectIds = projectsData.map((p: any) => p.id);
+    const { data: tasksData, error: tasksError } = await supabase
+        .from('project_tasks')
+        .select('*')
+        .in('project_id', projectIds)
+        .order('created_at', { ascending: true }); // Tri DB
+
+    if (tasksError) {
+        console.warn('Erreur chargement tâches (la table existe-t-elle ?):', tasksError);
+    }
+
+    // 3. FUSION : On associe les tâches à chaque projet manuellement
+    const mappedProjects: Project[] = projectsData.map((p: any) => {
+        
+        // On filtre les tâches correspondant à ce projet précis
+        // On effectue un SECOND tri JavaScript (Date + ID) pour garantir que l'ordre est 100% déterministe et ne change jamais
+        const projectTasksRaw = tasksData 
+            ? tasksData.filter((t: any) => t.project_id === p.id)
+                       .sort((a: any, b: any) => {
+                           // Tri par date
+                           const timeA = new Date(a.created_at).getTime();
+                           const timeB = new Date(b.created_at).getTime();
+                           if (timeA !== timeB) return timeA - timeB;
+                           // Fallback : Tri par ID si dates identiques (garantit la stabilité)
+                           return a.id.localeCompare(b.id);
+                       })
+            : [];
+        
+        // Mapping propre des tâches
+        const tasks: ProjectTask[] = projectTasksRaw.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            completed: t.completed,
+            type: t.type || 'agency', // Par défaut agence si non spécifié
+            createdAt: t.created_at
+        }));
+
+        // Calcul de la progression (Prend bien en compte TOUTES les tâches filtrées ci-dessus, donc Client + Agence)
+        const tasksCount = tasks.length;
+        const tasksCompleted = tasks.filter(t => t.completed).length;
+        
+        // Calcul progression
+        let calculatedProgress = 0;
+        if (tasksCount > 0) {
+            calculatedProgress = Math.round((tasksCompleted / tasksCount) * 100);
+        } else {
+            // Legacy support
+            calculatedProgress = (p.progress !== undefined && p.progress !== null) ? p.progress : 0;
+        }
+
+        // Gestion sécurisée des JSONB
+        let resources = [];
+        if (p.resources && Array.isArray(p.resources)) resources = p.resources;
+
+        return {
+            id: p.id,
+            clientId: p.user_id,
+            title: p.title,
+            description: p.description || '',
+            status: p.status,
+            startDate: p.start_date ? new Date(p.start_date).toLocaleDateString('fr-FR') : '-',
+            endDate: p.end_date ? new Date(p.end_date).toLocaleDateString('fr-FR') : '-',
+            
+            tags: p.tags || [], 
+            tasks: tasks, // Liste complète et triée
+            resources: resources,
+            
+            progress: calculatedProgress,
+            tasksCount: tasksCount,
+            tasksCompleted: tasksCompleted,
+            
+            ownerName: p.owner_name || 'Skalia Team'
+        };
+    });
+
+    setProjects(mappedProjects);
     setIsLoading(false);
   };
 
@@ -161,7 +198,6 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
     { id: 'completed', label: 'Terminé', color: 'bg-emerald-500 text-white border-transparent' },
   ];
 
-  // Logique de Filtrage (Recherche)
   const getProjectsByStatus = (status: string) => {
     return projects.filter(p => {
         const matchesStatus = p.status === status;
@@ -204,9 +240,6 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
                         className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
                     />
                 </div>
-                <button className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-colors shadow-sm">
-                    <Filter size={18} />
-                </button>
             </div>
         </div>
 

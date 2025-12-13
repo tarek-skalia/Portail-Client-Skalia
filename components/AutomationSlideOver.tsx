@@ -179,11 +179,14 @@ const AutomationSlideOver: React.FC<AutomationSlideOverProps> = ({ isOpen, onClo
   const fetchLogs = async () => {
     if (!automation) return;
     try {
+      // LIMITATION DE PERFORMANCE : On ne récupère que les 100 derniers logs max
+      // Pour éviter de charger des milliers de lignes inutilement côté client
       const { data, error } = await supabase
         .from('automation_logs')
         .select('*')
         .eq('automation_id', automation.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (error) {
         console.error("Erreur fetch logs:", error);
