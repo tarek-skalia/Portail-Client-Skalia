@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Project, ProjectTask } from '../types';
-import { Search, Calendar, CheckSquare, AlertTriangle, Layers } from 'lucide-react';
+import { Search, Calendar, CheckSquare, AlertTriangle, Layers, Plus, Filter, History } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import ProjectSlideOver from './ProjectSlideOver';
@@ -11,12 +11,16 @@ interface ProjectsPipelineProps {
   projects: Project[];
   userId?: string;
   highlightedProjectId?: string | null;
+  onNavigateToSupport?: (subject: string, description: string) => void;
 }
 
-const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialProjects, userId, highlightedProjectId }) => {
+const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialProjects, userId, highlightedProjectId, onNavigateToSupport }) => {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // État pour le filtre historique
+  const [showAllHistory, setShowAllHistory] = useState(false);
   
   // SlideOver State
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -50,7 +54,7 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
             supabase.removeChannel(tasksChannel);
         };
     }
-  }, [userId]);
+  }, [userId, showAllHistory]); // Re-fetch quand on change le filtre d'historique
 
   // Synchronisation en temps réel du panneau latéral
   useEffect(() => {
@@ -85,12 +89,23 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
   }, [highlightedProjectId, projects]);
 
   const fetchProjectsAndTasks = async () => {
-    // 1. D'ABORD : On récupère les PROJETS (Table 'projects')
-    const { data: projectsData, error: projectsError } = await supabase
+    setIsLoading(true);
+
+    // Construction de la requête de base
+    let query = supabase
         .from('projects')
         .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .eq('user_id', userId);
+
+    // Si on ne veut PAS tout l'historique, on filtre sur 6 mois
+    if (!showAllHistory) {
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        query = query.gte('created_at', sixMonthsAgo.toISOString());
+    }
+
+    // Exécution de la requête Projets
+    const { data: projectsData, error: projectsError } = await query.order('created_at', { ascending: false });
 
     if (projectsError) {
         console.error('Erreur chargement projets:', projectsError);
@@ -217,27 +232,57 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
       return date < new Date() && date.getFullYear() > 2000;
   };
 
+  const handleRequestProject = () => {
+      if (onNavigateToSupport) {
+          onNavigateToSupport('new', "Bonjour, je souhaite démarrer un nouveau projet concernant :\n\n- Objectif :\n- Délai souhaité :\n");
+      }
+  };
+
   return (
     <>
         <div className="flex flex-col h-[calc(100vh-8rem)] animate-fade-in-up">
         {/* Toolbar */}
-        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6 px-1">
+        <div className="flex flex-col xl:flex-row justify-between items-end xl:items-center gap-4 mb-6 px-1">
             <div>
                 <h2 className="text-2xl font-bold text-slate-900">Pipeline Projets</h2>
                 <p className="text-sm text-slate-500">Gérez l'avancement de vos missions en temps réel.</p>
             </div>
             
-            <div className="flex items-center gap-3 w-full md:w-auto">
-                <div className="relative flex-1 md:w-64">
+            <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto">
+                {/* Bouton Nouveau Projet */}
+                <button 
+                    onClick={handleRequestProject}
+                    className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all hover:shadow-indigo-200 active:scale-95 order-1 md:order-1"
+                >
+                    <Plus size={18} />
+                    <span>Nouveau projet</span>
+                </button>
+
+                {/* Filtre Historique */}
+                <button
+                    onClick={() => setShowAllHistory(!showAllHistory)}
+                    className={`w-full md:w-auto px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border transition-all shadow-sm active:scale-95 order-2 md:order-2 ${
+                        showAllHistory 
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-inner' 
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                    title={showAllHistory ? "Afficher seulement les récents" : "Afficher tout l'historique"}
+                >
+                    {showAllHistory ? <History size={18} /> : <Filter size={18} />}
+                    <span className="whitespace-nowrap">{showAllHistory ? "Tout l'historique" : "6 derniers mois"}</span>
+                </button>
+
+                {/* Barre de recherche */}
+                <div className="relative w-full md:w-64 order-3 md:order-3">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                         <Search size={16} />
                     </div>
                     <input 
                         type="text"
-                        placeholder="Rechercher un projet, un tag..."
+                        placeholder="Rechercher..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                        className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
                     />
                 </div>
             </div>

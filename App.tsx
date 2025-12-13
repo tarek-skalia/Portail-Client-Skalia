@@ -250,7 +250,8 @@ const App: React.FC = () => {
             <ProjectsPipeline 
                 userId={userId} 
                 projects={[]} 
-                highlightedProjectId={highlightedProjectId} 
+                highlightedProjectId={highlightedProjectId}
+                onNavigateToSupport={handleNavigateToSupport}
             />
         );
       case 'roadmap':
