@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Terminal, Activity, FileText, MessageSquare, Zap, AlertCircle } from 'lucide-react';
+import { Terminal } from 'lucide-react';
 import Skeleton from './Skeleton';
 
 interface ActivityItem {
@@ -37,7 +37,7 @@ const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({ userId }) => {
 
   const fetchActivity = async () => {
     try {
-      // Fetch data (identique, seule la présentation change)
+      // Fetch data
       const { data: logs } = await supabase.from('automation_logs').select(`id, status, created_at, automations (name)`).order('created_at', { ascending: false }).limit(5);
       const { data: messages } = await supabase.from('ticket_messages').select(`id, message, created_at, tickets (subject)`).eq('sender_type', 'admin').order('created_at', { ascending: false }).limit(3);
       const { data: invoices } = await supabase.from('invoices').select('id, number, amount, status, created_at').order('created_at', { ascending: false }).limit(2);
@@ -115,7 +115,7 @@ const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({ userId }) => {
        {/* Content Log Style */}
        <div className="font-mono text-xs space-y-3 relative z-10">
            {activities.length === 0 ? (
-               <p className="text-slate-600 italic">>> Waiting for system events...</p>
+               <p className="text-slate-600 italic">&gt;&gt; Waiting for system events...</p>
            ) : (
                activities.map((item, index) => (
                    <div key={item.id} className="flex items-start gap-3 opacity-90 hover:opacity-100 transition-opacity">
