@@ -7,13 +7,15 @@ import Skeleton from './Skeleton';
 import ProjectSlideOver from './ProjectSlideOver';
 import { useToast } from './ToastProvider';
 import { PROJECT_OWNERS } from '../constants';
+import { useAdmin } from './AdminContext';
+import Modal from './ui/Modal';
+import ProjectForm from './forms/ProjectForm';
 
 // Sous-composant pour gérer l'avatar avec Fallback
 const ProjectAvatar = ({ src, name }: { src?: string | null, name?: string }) => {
     const [imgError, setImgError] = useState(false);
     const initials = name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'SK';
 
-    // On priorise la source (qui vient potentiellement de la config constante)
     if (src && !imgError) {
         return (
             <img 
@@ -41,6 +43,7 @@ interface ProjectsPipelineProps {
 }
 
 const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialProjects, userId, highlightedProjectId, onNavigateToSupport }) => {
+  const { isAdminMode } = useAdmin();
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,17 +54,17 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
   // SlideOver State
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
+  
+  // Modal Creation
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const hasScrolledRef = useRef<string | null>(null);
   const toast = useToast();
 
   useEffect(() => {
     if (userId) {
-        // Chargement initial (avec indicateur de chargement visible)
         fetchProjectsAndTasks(true);
 
-        // Écoute les changements sur la table projects (pour infos générales)
-        // Note: On passe false pour faire une mise à jour silencieuse sans clignotement
         const projectChannel = supabase
             .channel('realtime:projects_pipeline')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
@@ -69,7 +72,6 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
             })
             .subscribe();
 
-        // Écoute les changements sur la table des tâches (pour la barre de progression)
         const tasksChannel = supabase
             .channel('realtime:project_tasks_update')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'project_tasks' }, () => {
@@ -82,9 +84,8 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
             supabase.removeChannel(tasksChannel);
         };
     }
-  }, [userId, showAllHistory]); // Re-fetch quand on change le filtre d'historique
+  }, [userId, showAllHistory]);
 
-  // Synchronisation en temps réel du panneau latéral
   useEffect(() => {
       if (selectedProject && projects.length > 0) {
           const updatedSelectedProject = projects.find(p => p.id === selectedProject.id);
@@ -100,7 +101,6 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
       }
   }, [projects]);
 
-  // Scroll automatique
   useEffect(() => {
     if (highlightedProjectId && projects.length > 0 && hasScrolledRef.current !== highlightedProjectId) {
         setTimeout(() => {
@@ -116,26 +116,19 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
     }
   }, [highlightedProjectId, projects]);
 
-  // AJOUT du paramètre showLoading (par défaut true pour la première fois)
   const fetchProjectsAndTasks = async (showLoading = true) => {
     if (showLoading) {
         setIsLoading(true);
     }
 
-    // Construction de la requête de base
-    let query = supabase
-        .from('projects')
-        .select('*')
-        .eq('user_id', userId);
+    let query = supabase.from('projects').select('*').eq('user_id', userId);
 
-    // Si on ne veut PAS tout l'historique, on filtre sur 6 mois
     if (!showAllHistory) {
         const sixMonthsAgo = new Date();
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
         query = query.gte('created_at', sixMonthsAgo.toISOString());
     }
 
-    // Exécution de la requête Projets
     const { data: projectsData, error: projectsError } = await query.order('created_at', { ascending: false });
 
     if (projectsError) {
@@ -150,68 +143,45 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
         return;
     }
 
-    // 2. ENSUITE : On récupère les TÂCHES associées (Table 'project_tasks')
-    // AJOUT : On demande explicitement à la DB de trier par created_at pour avoir un ordre stable dès la réception
     const projectIds = projectsData.map((p: any) => p.id);
-    const { data: tasksData, error: tasksError } = await supabase
+    const { data: tasksData } = await supabase
         .from('project_tasks')
         .select('*')
         .in('project_id', projectIds)
-        .order('created_at', { ascending: true }); // Tri DB
+        .order('created_at', { ascending: true });
 
-    if (tasksError) {
-        console.warn('Erreur chargement tâches (la table existe-t-elle ?):', tasksError);
-    }
-
-    // 3. FUSION : On associe les tâches à chaque projet manuellement
     const mappedProjects: Project[] = projectsData.map((p: any) => {
-        
-        // On filtre les tâches correspondant à ce projet précis
-        // On effectue un SECOND tri JavaScript (Date + ID) pour garantir que l'ordre est 100% déterministe et ne change jamais
         const projectTasksRaw = tasksData 
             ? tasksData.filter((t: any) => t.project_id === p.id)
                        .sort((a: any, b: any) => {
-                           // Tri par date
                            const timeA = new Date(a.created_at).getTime();
                            const timeB = new Date(b.created_at).getTime();
                            if (timeA !== timeB) return timeA - timeB;
-                           // Fallback : Tri par ID si dates identiques (garantit la stabilité)
                            return a.id.localeCompare(b.id);
                        })
             : [];
         
-        // Mapping propre des tâches
         const tasks: ProjectTask[] = projectTasksRaw.map((t: any) => ({
             id: t.id,
             name: t.name,
             completed: t.completed,
-            type: t.type || 'agency', // Par défaut agence si non spécifié
+            type: t.type || 'agency', 
             createdAt: t.created_at
         }));
 
-        // Calcul de la progression (Prend bien en compte TOUTES les tâches filtrées ci-dessus, donc Client + Agence)
         const tasksCount = tasks.length;
         const tasksCompleted = tasks.filter(t => t.completed).length;
-        
-        // Calcul progression
         let calculatedProgress = 0;
         if (tasksCount > 0) {
             calculatedProgress = Math.round((tasksCompleted / tasksCount) * 100);
         } else {
-            // Legacy support
             calculatedProgress = (p.progress !== undefined && p.progress !== null) ? p.progress : 0;
         }
 
-        // Gestion sécurisée des JSONB
         let resources = [];
         if (p.resources && Array.isArray(p.resources)) resources = p.resources;
 
-        // --- GESTION INTELLIGENTE DE L'AVATAR ---
-        // Modification : Fallback sur Skalia Team
         const ownerName = p.owner_name || 'Skalia Team';
-        
-        // Si le nom correspond à un propriétaire connu, on force l'avatar configuré
-        // Sinon on prend ce qu'il y a en DB
         const ownerAvatar = PROJECT_OWNERS[ownerName] || p.owner_avatar;
 
         return {
@@ -222,15 +192,12 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
             status: p.status,
             startDate: p.start_date ? new Date(p.start_date).toLocaleDateString('fr-FR') : '-',
             endDate: p.end_date ? new Date(p.end_date).toLocaleDateString('fr-FR') : '-',
-            
             tags: p.tags || [], 
-            tasks: tasks, // Liste complète et triée
+            tasks: tasks,
             resources: resources,
-            
             progress: calculatedProgress,
             tasksCount: tasksCount,
             tasksCompleted: tasksCompleted,
-            
             ownerName: ownerName,
             ownerAvatar: ownerAvatar
         };
@@ -238,7 +205,6 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
 
     setProjects(mappedProjects);
     
-    // On enlève le loading seulement si on l'avait mis (pour éviter des états incohérents)
     if (showLoading) {
         setIsLoading(false);
     }
@@ -277,7 +243,9 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
   };
 
   const handleRequestProject = () => {
-      if (onNavigateToSupport) {
+      if (isAdminMode) {
+          setIsModalOpen(true);
+      } else if (onNavigateToSupport) {
           onNavigateToSupport('new', "Bonjour, je souhaite démarrer un nouveau projet concernant :\n\n- Objectif :\n- Délai souhaité :\n");
       }
   };
@@ -310,7 +278,6 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
                             ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-inner' 
                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
-                    title={showAllHistory ? "Afficher seulement les récents" : "Afficher tout l'historique"}
                 >
                     {showAllHistory ? <History size={18} /> : <Filter size={18} />}
                     <span className="whitespace-nowrap">{showAllHistory ? "Tout l'historique" : "6 derniers mois"}</span>
@@ -364,9 +331,6 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
                                 <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm space-y-3">
                                     <Skeleton className="h-5 w-3/4" />
                                     <Skeleton className="h-20 w-full" />
-                                    <div className="flex justify-between pt-2">
-                                        <Skeleton className="h-3 w-16" />
-                                    </div>
                                 </div>
                             ) : colProjects.length === 0 ? (
                                 <div className="h-32 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/30">
@@ -409,7 +373,6 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
                                             </p>
 
                                             <div className="space-y-3 pt-3 border-t border-slate-50">
-                                                {/* Progress Bar (Calculé automatiquement) */}
                                                 <div className="space-y-1.5">
                                                     <div className="flex justify-between text-[10px] text-slate-400 font-medium">
                                                         <span>Progression</span>
@@ -436,11 +399,7 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
                                                                 <span>{project.tasksCompleted}/{project.tasksCount}</span>
                                                             </div>
                                                         )}
-                                                        {/* Avatar intelligent (Utilise PROJECT_OWNERS) */}
-                                                        <ProjectAvatar 
-                                                            src={project.ownerAvatar} 
-                                                            name={project.ownerName} 
-                                                        />
+                                                        <ProjectAvatar src={project.ownerAvatar} name={project.ownerName} />
                                                     </div>
                                                 </div>
                                             </div>
@@ -460,6 +419,10 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
             onClose={() => setIsSlideOverOpen(false)}
             project={selectedProject}
         />
+
+        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouveau Projet">
+            <ProjectForm onSuccess={() => { setIsModalOpen(false); fetchProjectsAndTasks(); }} onCancel={() => setIsModalOpen(false)} />
+        </Modal>
     </>
   );
 };

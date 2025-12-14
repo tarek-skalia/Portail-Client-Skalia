@@ -180,10 +180,14 @@ export interface Database {
             user_id: string
             service_name: string
             provider: string | null
+            category: string | null
+            description: string | null
             amount: number
             billing_cycle: 'monthly' | 'yearly'
             next_billing_date: string | null
             status: 'active' | 'inactive'
+            website_url: string | null
+            logo_url: string | null
             created_at: string
         }
       }
@@ -210,6 +214,47 @@ export interface Database {
             date?: string | null
             last_update?: string | null
             description?: string | null
+            created_at?: string
+        }
+        Update: {
+            id?: string
+            user_id?: string
+            subject?: string
+            category?: string | null
+            priority?: 'low' | 'medium' | 'high'
+            status?: 'open' | 'in_progress' | 'resolved' | 'closed'
+            date?: string | null
+            last_update?: string | null
+            description?: string | null
+            created_at?: string
+        }
+      }
+      ticket_messages: {
+        Row: {
+            id: string
+            ticket_id: string
+            sender_id: string
+            sender_type: 'client' | 'admin' | 'system'
+            message: string
+            attachments: string[] | null
+            created_at: string
+        }
+        Insert: {
+            id?: string
+            ticket_id: string
+            sender_id: string
+            sender_type: 'client' | 'admin' | 'system'
+            message: string
+            attachments?: string[] | null
+            created_at?: string
+        }
+        Update: {
+            id?: string
+            ticket_id?: string
+            sender_id?: string
+            sender_type?: 'client' | 'admin' | 'system'
+            message?: string
+            attachments?: string[] | null
             created_at?: string
         }
       }

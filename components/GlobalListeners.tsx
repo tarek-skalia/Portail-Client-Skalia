@@ -22,13 +22,15 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
   }, [userId]);
 
   // =========================================================================
-  // 1. ÉCOUTE UNIQUE : TABLE NOTIFICATIONS
+  // 1. ÉCOUTE TABLE NOTIFICATIONS (AFFICHAGE UNIQUEMENT)
+  // Le Trigger SQL se charge désormais de CRÉER la ligne dans la BDD.
+  // Ce composant ne sert plus qu'à afficher le Toast visuel quand ça arrive.
   // =========================================================================
   useEffect(() => {
     if (!userId) return;
 
     const channel = supabase
-      .channel('public:notifications')
+      .channel('public:notifications_display_v3')
       .on(
         'postgres_changes',
         {
@@ -41,8 +43,7 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
           const newNotif = payload.new;
           const now = Date.now();
           
-          // Création d'une signature unique pour cette notification (Titre + Lien)
-          // Si deux notifs parlent du même lien avec un titre similaire en < 3s, c'est un doublon
+          // --- LOGIQUE ANTI-DOUBLON D'AFFICHAGE (VISUEL) ---
           const notifLink = newNotif.link || 'nolink';
           const notifTitleSnippet = newNotif.title ? newNotif.title.substring(0, 10) : 'notitle';
           const contentHash = `${notifLink}-${notifTitleSnippet}`;
@@ -50,42 +51,35 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
           // Nettoyage des vieux logs (> 5s)
           recentToastsRef.current = recentToastsRef.current.filter(t => now - t.time < 5000);
 
-          // Vérification si doublon
+          // Si on a déjà affiché ce toast il y a moins de 2 secondes, on ignore l'affichage visuel
           const isDuplicate = recentToastsRef.current.some(t => {
-             // Soit c'est exactement le même ID (reçu deux fois par le websocket)
              if (t.id === newNotif.id) return true;
-             // Soit c'est le même contenu sémantique reçu il y a très peu de temps
-             if (t.contentHash === contentHash && (now - t.time) < 3000) return true;
+             if (t.contentHash === contentHash && (now - t.time) < 2000) return true;
              return false;
           });
 
-          if (isDuplicate) {
-            // On déclenche quand même le refresh de la liste pour être sûr d'avoir les données
-            onNewNotification(); 
-            return; 
-          }
+          // Mise à jour de la pastille (Compteur) dans tous les cas
+          onNewNotification();
 
-          // Ajout à la liste des récents
+          if (isDuplicate) return;
+
+          // Ajout à la liste des récents pour éviter le spam visuel
           recentToastsRef.current.push({ 
               id: newNotif.id, 
               time: now, 
               contentHash 
           });
-
-          // Mise à jour de la pastille
-          onNewNotification();
           
-          // Affichage du Toast
+          // Affichage du Toast Visuel
           const { title, message, type } = newNotif;
           
-          // Petit délai pour s'assurer que le rendu React est prêt
           setTimeout(() => {
              const safeMessage = message || '';
              if (type === 'success') toast.success(title, safeMessage);
              else if (type === 'error') toast.error(title, safeMessage);
              else if (type === 'warning') toast.warning(title, safeMessage);
              else toast.info(title, safeMessage);
-          }, 50);
+          }, 100);
         }
       )
       .subscribe();
@@ -96,7 +90,7 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
   }, [userId, onNewNotification, toast]);
 
   // =========================================================================
-  // 2. VÉRIFICATION ÉCHÉANCES FACTURES (Au démarrage)
+  // 2. VÉRIFICATION ÉCHÉANCES FACTURES (Au démarrage uniquement)
   // =========================================================================
   useEffect(() => {
     if (!userId || hasCheckedInvoicesRef.current) return;
@@ -127,7 +121,6 @@ const GlobalListeners: React.FC<GlobalListenersProps> = ({ userId, onNewNotifica
                 const title = `Échéance proche (${diffDays}j)`;
                 const todayStr = new Date().toISOString().split('T')[0];
                 
-                // Vérification anti-doublon en base avant d'insérer
                 const { data: existing } = await supabase
                     .from('notifications')
                     .select('id')

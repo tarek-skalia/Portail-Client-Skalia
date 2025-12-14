@@ -30,6 +30,7 @@ export interface Client {
   email: string;
   password?: string;
   logoUrl?: string;
+  role?: 'admin' | 'client'; // Ajout du rôle
 }
 
 export interface Automation {
@@ -98,6 +99,19 @@ export interface Ticket {
   status: 'open' | 'in_progress' | 'resolved' | 'closed';
   date: string;
   lastUpdate: string;
+  description?: string; // Description initiale
+}
+
+export interface TicketMessage {
+  id: string;
+  ticketId: string;
+  senderId: string;
+  senderType: 'client' | 'admin' | 'system';
+  message: string;
+  attachments?: string[];
+  createdAt: string;
+  senderName?: string;
+  avatar?: string;
 }
 
 export interface InvoiceItem {
@@ -127,10 +141,14 @@ export interface Expense {
   clientId: string;
   serviceName: string;
   provider: string;
+  category: string; // Ex: 'Automation', 'AI', 'Hosting'
   amount: number;
   billingCycle: 'monthly' | 'yearly';
   nextBillingDate: string;
   status: 'active' | 'inactive';
+  description?: string;
+  websiteUrl?: string;
+  logoUrl?: string;
 }
 
 export interface Notification {

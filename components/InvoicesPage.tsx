@@ -1,17 +1,21 @@
 
 import React, { useEffect, useState } from 'react';
 import { Invoice } from '../types';
-import { FileText, Download, ExternalLink, AlertCircle, CheckCircle2, Clock, Euro, Search, Filter, ArrowRight, Wallet, CreditCard, ChevronRight } from 'lucide-react';
+import { FileText, Download, AlertCircle, CheckCircle2, Clock, Euro, Search, Filter, Wallet, CreditCard, ChevronRight, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import InvoiceSlideOver from './InvoiceSlideOver';
 import { useToast } from './ToastProvider';
+import { useAdmin } from './AdminContext';
+import Modal from './ui/Modal';
+import InvoiceForm from './forms/InvoiceForm';
 
 interface InvoicesPageProps {
   userId?: string;
 }
 
 const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
+  const { isAdminMode } = useAdmin();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -23,13 +27,14 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
 
+  // Etat Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const toast = useToast();
 
   useEffect(() => {
     if (userId) {
         fetchInvoices();
-
-        // ÉCOUTE TEMPS RÉEL : Si n8n ajoute une facture, elle apparaît direct !
         const channel = supabase
             .channel('realtime:invoices')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => {
@@ -59,11 +64,10 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
             number: item.number,
             projectName: item.project_name || 'Facture Skalia',
             amount: item.amount,
-            status: mapStripeStatus(item.status), // Conversion statut Stripe -> App
+            status: mapStripeStatus(item.status),
             issueDate: item.issue_date ? new Date(item.issue_date).toLocaleDateString('fr-FR') : '-',
             dueDate: item.due_date ? new Date(item.due_date).toLocaleDateString('fr-FR') : '-',
             pdfUrl: item.pdf_url || '#',
-            // Fallback intelligent : Si payment_link est vide, on utilise pdf_url car c'est souvent la "Hosted Invoice Page" de Stripe
             paymentLink: item.payment_link || item.pdf_url || '#',
             stripeInvoiceId: item.stripe_invoice_id,
             items: item.items,
@@ -74,15 +78,13 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
     setIsLoading(false);
   };
 
-  // Helper pour normaliser les statuts Stripe (open, paid, uncollectible, etc.)
   const mapStripeStatus = (status: string): Invoice['status'] => {
       if (status === 'paid') return 'paid';
       if (status === 'open') return 'pending';
       if (status === 'void' || status === 'uncollectible' || status === 'overdue') return 'overdue';
-      return 'pending'; // Défaut
+      return 'pending';
   };
 
-  // --- LOGIQUE FILTRAGE ---
   const filteredInvoices = invoices.filter(inv => {
       const matchesSearch = 
         inv.number.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -93,15 +95,8 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
       return matchesSearch && matchesFilter;
   });
 
-  // KPIs
-  const totalPaid = invoices
-    .filter(i => i.status === 'paid')
-    .reduce((sum, i) => sum + i.amount, 0);
-
-  const totalDue = invoices
-    .filter(i => i.status !== 'paid')
-    .reduce((sum, i) => sum + i.amount, 0);
-
+  const totalPaid = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0);
+  const totalDue = invoices.filter(i => i.status !== 'paid').reduce((sum, i) => sum + i.amount, 0);
   const overdueCount = invoices.filter(i => i.status === 'overdue').length;
 
   const handleOpenInvoice = (inv: Invoice) => {
@@ -167,9 +162,8 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
     <>
     <div className="space-y-8 animate-fade-in-up pb-10">
       
-      {/* KPI Cards Redesignés */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Carte Reste à Payer (Orange Doux & Étiquette Blanche) */}
         <div className={`relative p-6 rounded-2xl shadow-sm border overflow-hidden transition-all duration-300 ${totalDue > 0 ? 'bg-gradient-to-br from-[#F59E0B] to-[#F97316] border-orange-200 text-white' : 'bg-white border-gray-100'}`}>
             {totalDue > 0 && (
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
@@ -194,7 +188,6 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
             </div>
         </div>
 
-        {/* Carte Total Payé */}
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-start justify-between">
             <div>
                 <p className="text-sm text-gray-500 font-medium mb-1">Total réglé</p>
@@ -211,8 +204,6 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
 
       {/* Barre d'outils (Filtres + Recherche) */}
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          
-          {/* Tabs Filtres */}
           <div className="flex p-1 bg-slate-100/80 rounded-xl">
               {(['all', 'pending', 'paid', 'overdue'] as const).map((status) => (
                   <button
@@ -232,22 +223,31 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
               ))}
           </div>
 
-          {/* Recherche */}
-          <div className="relative w-full md:w-72">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <Search size={16} />
-                </div>
-                <input 
-                    type="text" 
-                    placeholder="N° facture ou projet..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
-                />
+          <div className="flex gap-4 w-full md:w-auto">
+              <div className="relative w-full md:w-72">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <Search size={16} />
+                    </div>
+                    <input 
+                        type="text" 
+                        placeholder="N° facture ou projet..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                    />
+              </div>
+              {isAdminMode && (
+                  <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 flex items-center gap-2 text-sm font-bold whitespace-nowrap"
+                  >
+                      <Plus size={16} /> Créer
+                  </button>
+              )}
           </div>
       </div>
 
-      {/* Liste des factures (Style Cards Rows) */}
+      {/* Liste des factures */}
       <div className="space-y-3">
           {filteredInvoices.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
@@ -255,7 +255,6 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
                       <Filter size={24} />
                   </div>
                   <p className="text-slate-500 font-medium">Aucune facture trouvée</p>
-                  {searchTerm && <p className="text-xs text-slate-400 mt-1">Essayez de modifier votre recherche</p>}
               </div>
           ) : (
               filteredInvoices.map((inv) => {
@@ -296,7 +295,6 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
                                   </p>
                               </div>
                               
-                              {/* Bouton de paiement Direct */}
                               <div className="hidden md:flex flex-col gap-2 min-w-[140px] items-end">
                                   {inv.status !== 'paid' ? (
                                      inv.paymentLink && inv.paymentLink !== '#' ? (
@@ -332,12 +330,15 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
 
     </div>
     
-    {/* SlideOver */}
     <InvoiceSlideOver 
         isOpen={isSlideOverOpen}
         onClose={() => setIsSlideOverOpen(false)}
         invoice={selectedInvoice}
     />
+
+    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouvelle Facture">
+        <InvoiceForm onSuccess={() => { setIsModalOpen(false); fetchInvoices(); }} onCancel={() => setIsModalOpen(false)} />
+    </Modal>
     </>
   );
 };

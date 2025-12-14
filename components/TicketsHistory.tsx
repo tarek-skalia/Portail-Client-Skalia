@@ -1,37 +1,73 @@
 
 import React, { useEffect, useState } from 'react';
 import { Ticket } from '../types';
-import { CheckCircle2, Clock, Circle, MessageSquare, ArrowUpRight } from 'lucide-react';
+import { CheckCircle2, Clock, Circle, MessageSquare, ArrowUpRight, Search, Filter } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
+import TicketSlideOver from './TicketSlideOver';
+
+// Extension locale du type Ticket pour inclure l'info "non lu"
+interface ExtendedTicket extends Ticket {
+    hasUnreadMessages?: boolean;
+}
 
 interface TicketsHistoryProps {
   userId?: string;
+  initialTicketId?: string | null;
 }
 
-const TicketsHistory: React.FC<TicketsHistoryProps> = ({ userId }) => {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+const TicketsHistory: React.FC<TicketsHistoryProps> = ({ userId, initialTicketId }) => {
+  const [tickets, setTickets] = useState<ExtendedTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // UX State
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // SlideOver State
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
+
+  // --- AUTO-OUVERTURE DU TICKET (Redirection depuis Support) ---
+  useEffect(() => {
+      if (initialTicketId && tickets.length > 0) {
+          const target = tickets.find(t => t.id === initialTicketId);
+          if (target) {
+              setSelectedTicket(target);
+              setIsSlideOverOpen(true);
+          }
+      }
+  }, [initialTicketId, tickets]);
 
   useEffect(() => {
     if (userId) {
         fetchTickets();
 
         const channel = supabase
-            .channel('realtime:tickets')
+            .channel('realtime:tickets_history')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
+                fetchTickets();
+            })
+            .subscribe();
+
+        // On écoute aussi les messages pour mettre à jour la pastille rouge en temps réel
+        const msgChannel = supabase
+            .channel('realtime:tickets_history_messages')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ticket_messages' }, () => {
                 fetchTickets();
             })
             .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
+            supabase.removeChannel(msgChannel);
         };
     }
   }, [userId]);
 
   const fetchTickets = async () => {
-    const { data, error } = await supabase
+    // 1. Récupérer les tickets
+    const { data: ticketsData, error } = await supabase
         .from('tickets')
         .select('*')
         .eq('user_id', userId)
@@ -39,21 +75,74 @@ const TicketsHistory: React.FC<TicketsHistoryProps> = ({ userId }) => {
 
     if (error) {
         console.error('Erreur chargement tickets:', error);
-    } else if (data) {
-        const mapped: Ticket[] = data.map((item: any) => ({
-            id: item.id,
-            clientId: item.user_id,
-            subject: item.subject,
-            category: item.category || 'Support',
-            priority: item.priority,
-            status: item.status,
-            date: item.date ? new Date(item.date).toLocaleDateString('fr-FR') : '-',
-            lastUpdate: item.last_update || 'À l\'instant'
-        }));
+        setIsLoading(false);
+        return;
+    } 
+    
+    if (ticketsData) {
+        // 2. Pour chaque ticket, on veut savoir si le dernier message est 'admin'
+        // Optimisation: On récupère les messages récents de l'utilisateur globalement (ou par ticket)
+        // Pour faire simple et robuste : On fait un fetch des derniers messages pour ces tickets.
+        const ticketIds = ticketsData.map((t: any) => t.id);
+        
+        // On récupère TOUS les messages de ces tickets (si volume raisonnable) ou on utilise une RPC (pas dispo ici).
+        // On va filtrer côté client le dernier message de chaque ticket.
+        const { data: messagesData } = await supabase
+            .from('ticket_messages')
+            .select('ticket_id, sender_type, created_at')
+            .in('ticket_id', ticketIds)
+            .order('created_at', { ascending: true }); // On veut l'ordre chronologique pour trouver le dernier
+
+        const mapped: ExtendedTicket[] = ticketsData.map((item: any) => {
+            let hasUnread = false;
+            
+            if (messagesData) {
+                // Trouver les messages de ce ticket
+                const msgs = messagesData.filter((m: any) => m.ticket_id === item.id);
+                if (msgs.length > 0) {
+                    const lastMsg = msgs[msgs.length - 1];
+                    // SI le dernier message n'est PAS du client (donc admin ou system), c'est potentiellement non lu
+                    if (lastMsg.sender_type !== 'client') {
+                        hasUnread = true;
+                    }
+                }
+            }
+
+            return {
+                id: item.id,
+                clientId: item.user_id,
+                subject: item.subject,
+                category: item.category || 'Support',
+                priority: item.priority,
+                status: item.status,
+                date: item.date ? new Date(item.date).toLocaleDateString('fr-FR') : '-',
+                lastUpdate: item.last_update || 'À l\'instant',
+                description: item.description,
+                hasUnreadMessages: hasUnread // Indicateur UI
+            };
+        });
         setTickets(mapped);
     }
     setIsLoading(false);
   };
+
+  const handleRowClick = (ticket: Ticket) => {
+      setSelectedTicket(ticket);
+      setIsSlideOverOpen(true);
+      // Optionnel : Marquer comme lu localement instantanément pour UX
+      setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, hasUnreadMessages: false } : t));
+  };
+
+  const filteredTickets = tickets.filter(t => {
+      const matchesSearch = t.subject.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            t.id.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      let matchesFilter = true;
+      if (filterStatus === 'open') matchesFilter = ['open', 'in_progress'].includes(t.status);
+      if (filterStatus === 'closed') matchesFilter = ['resolved', 'closed'].includes(t.status);
+
+      return matchesSearch && matchesFilter;
+  });
 
   const getStatusConfig = (status: Ticket['status']) => {
     switch (status) {
@@ -102,113 +191,163 @@ const TicketsHistory: React.FC<TicketsHistoryProps> = ({ userId }) => {
   if (isLoading) {
       return (
         <div className="space-y-6 animate-fade-in-up">
-            <div className="flex justify-between items-end mb-6">
+             <div className="flex justify-between items-end mb-6">
                 <div className="space-y-2">
                     <Skeleton className="h-8 w-64" />
                     <Skeleton className="h-4 w-48" />
                 </div>
             </div>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden p-6 space-y-4">
-                 {[1, 2, 3, 4].map(i => (
-                     <div key={i} className="flex justify-between items-center py-4 border-b border-gray-50 last:border-0">
-                         <div className="flex-1 space-y-2">
-                             <Skeleton className="h-5 w-1/3" />
-                             <Skeleton className="h-3 w-1/4" />
-                         </div>
-                         <div className="w-1/4 flex gap-4">
-                            <Skeleton className="h-4 w-20" />
-                            <Skeleton className="h-6 w-24 rounded-full" />
-                         </div>
-                     </div>
-                 ))}
+            <div className="space-y-4">
+                 {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}
             </div>
         </div>
       );
   }
 
-  if (tickets.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[50vh] bg-white/50 rounded-3xl border border-dashed border-slate-300 animate-fade-in-up">
-        <div className="p-6 bg-indigo-50 rounded-full mb-6">
-          <MessageSquare className="text-indigo-400 w-10 h-10" />
-        </div>
-        <h3 className="text-lg font-semibold text-slate-800">Aucun ticket</h3>
-        <p className="text-slate-500 mt-2">Vous n'avez pas encore fait de demande de support.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 animate-fade-in-up">
-      <div className="flex justify-between items-end mb-6">
+    <>
+    <div className="space-y-8 animate-fade-in-up pb-10">
+      
+      {/* Header & Controls */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Historique des Tickets</h2>
-          <p className="text-gray-500 text-sm mt-1">Suivez l'avancement de vos demandes.</p>
+          <p className="text-gray-500 text-sm mt-1">Suivez l'avancement de vos demandes et échangez avec le support.</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+             {/* Filtres Rapides */}
+             <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                <button 
+                    onClick={() => setFilterStatus('all')}
+                    className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${filterStatus === 'all' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Tous
+                </button>
+                <button 
+                    onClick={() => setFilterStatus('open')}
+                    className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${filterStatus === 'open' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    En cours
+                </button>
+                <button 
+                    onClick={() => setFilterStatus('closed')}
+                    className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${filterStatus === 'closed' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Terminés
+                </button>
+             </div>
+
+             {/* Recherche */}
+             <div className="relative w-full sm:w-64">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Search size={16} />
+                </div>
+                <input 
+                    type="text" 
+                    placeholder="Rechercher..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                />
+            </div>
         </div>
       </div>
 
+      {/* Content */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                <th className="px-6 py-4">Sujet</th>
-                <th className="px-6 py-4 hidden sm:table-cell">ID Ticket</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Priorité</th>
-                <th className="px-6 py-4">Statut</th>
-                <th className="px-6 py-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {tickets.map((ticket) => {
-                const status = getStatusConfig(ticket.status);
-                const priorityClass = getPriorityStyle(ticket.priority);
-                
-                return (
-                  <tr 
-                    key={ticket.id} 
-                    className="hover:bg-gray-50/80 transition-colors group cursor-pointer"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-gray-800 group-hover:text-indigo-600 transition-colors">
-                          {ticket.subject}
+         {filteredTickets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="p-4 bg-slate-50 rounded-full mb-4">
+                    <Filter className="text-slate-300 w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-800">Aucun ticket trouvé</h3>
+                <p className="text-slate-500 text-sm mt-1">Modifiez vos filtres ou créez une nouvelle demande.</p>
+            </div>
+         ) : (
+            <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Sujet</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:table-cell">ID</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Créé le</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Priorité</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Statut</th>
+                    <th className="px-6 py-4"></th>
+                </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                {filteredTickets.map((ticket) => {
+                    const status = getStatusConfig(ticket.status);
+                    const priorityClass = getPriorityStyle(ticket.priority);
+                    
+                    return (
+                    <tr 
+                        key={ticket.id} 
+                        onClick={() => handleRowClick(ticket)}
+                        className="hover:bg-indigo-50/30 transition-colors cursor-pointer group"
+                    >
+                        <td className="px-6 py-4">
+                        <div className="flex flex-col max-w-[200px] md:max-w-xs relative">
+                            {/* INDICATEUR NON LU (Point Rouge Pulsant) */}
+                            {ticket.hasUnreadMessages && (
+                                <div className="absolute -left-3 top-1 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-sm" title="Nouveau message"></div>
+                            )}
+                            
+                            <span className={`font-bold truncate transition-colors ${ticket.hasUnreadMessages ? 'text-slate-900' : 'text-slate-800'} group-hover:text-indigo-600`}>
+                                {ticket.subject}
+                            </span>
+                            <span className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                                {ticket.category}
+                                {ticket.hasUnreadMessages && (
+                                    <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-md">
+                                        Nouveau message
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-400 font-mono hidden sm:table-cell">
+                        #{ticket.id.slice(0, 8)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                         {ticket.date}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${priorityClass}`}>
+                            {ticket.priority === 'high' ? 'Haute' : ticket.priority === 'medium' ? 'Moyenne' : 'Faible'}
                         </span>
-                        <span className="text-xs text-gray-400 mt-0.5">{ticket.category}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 font-mono hidden sm:table-cell">
-                      #{ticket.id.slice(0, 8)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {ticket.date}
-                      <div className="text-[10px] text-gray-400">Maj: {ticket.lastUpdate}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${priorityClass}`}>
-                        {ticket.priority === 'high' ? 'Haute' : ticket.priority === 'medium' ? 'Moyenne' : 'Faible'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
-                        {status.icon}
-                        {status.label}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                       <button className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                          <ArrowUpRight size={18} />
-                       </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium justify-center min-w-[100px] ${status.bg} ${status.text}`}>
+                            {status.icon}
+                            {status.label}
+                        </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                        <button className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                            <ArrowUpRight size={18} />
+                        </button>
+                        </td>
+                    </tr>
+                    );
+                })}
+                </tbody>
+            </table>
+            </div>
+         )}
       </div>
+
     </div>
+
+    <TicketSlideOver 
+        isOpen={isSlideOverOpen}
+        onClose={() => setIsSlideOverOpen(false)}
+        ticket={selectedTicket}
+        userId={userId}
+    />
+    </>
   );
 };
 

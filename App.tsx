@@ -15,43 +15,164 @@ import UpdatePasswordPage from './components/UpdatePasswordPage';
 import BackgroundBlobs from './components/BackgroundBlobs'; 
 import NotificationsPanel from './components/NotificationsPanel';
 import GlobalListeners from './components/GlobalListeners';
+import AdminToolbar from './components/AdminToolbar';
+import { AdminProvider, useAdmin } from './components/AdminContext'; // Import
 import { MENU_ITEMS } from './constants';
 import { ChevronRight, Bell } from 'lucide-react';
 import { Client } from './types';
 import { supabase } from './lib/supabase';
 
+// Composant Wrapper pour utiliser le hook useAdmin à l'intérieur
+const AppContent: React.FC<{ 
+    currentUser: Client, 
+    handleLogout: () => void,
+    isLoadingAuth: boolean 
+}> = ({ currentUser, handleLogout }) => {
+    
+    const { targetUserId, clients } = useAdmin();
+    
+    // CORRECTION : Fallback de sécurité. Si targetUserId est vide, on utilise currentUser.id
+    const effectiveUserId = targetUserId || currentUser.id;
+    
+    // Trouver le client cible pour l'affichage (Sidebar, Header)
+    const targetClient = clients.find(c => c.id === effectiveUserId) || currentUser;
+
+    const [activePage, setActivePage] = useState<string>(() => {
+        return localStorage.getItem('skalia_last_page') || 'dashboard';
+    });
+
+    const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+    const [unreadNotifications, setUnreadNotifications] = useState(0);
+    const [notificationListTrigger, setNotificationListTrigger] = useState(0);
+    const notificationRef = useRef<HTMLDivElement>(null);
+    const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
+    const [supportPreFill, setSupportPreFill] = useState<{subject: string, description: string} | null>(null);
+    const [autoOpenTicketId, setAutoOpenTicketId] = useState<string | null>(null);
+
+    useEffect(() => {
+        localStorage.setItem('skalia_last_page', activePage);
+    }, [activePage]);
+
+    // Fermer les notifications si on clique ailleurs
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+          if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+            setIsNotificationsOpen(false);
+          }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [notificationRef]);
+
+    useEffect(() => {
+        if (effectiveUserId) fetchUnreadCount();
+    }, [effectiveUserId]);
+
+    const fetchUnreadCount = async () => {
+         if (!effectiveUserId) return;
+         try {
+             const { count, error } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', effectiveUserId)
+                .eq('is_read', false);
+             if (!error) setUnreadNotifications(count || 0);
+         } catch (e) { console.warn("Erreur fetch notifications count", e); }
+    };
+
+    const handleNewNotificationEvent = useCallback(() => {
+        fetchUnreadCount(); 
+        setNotificationListTrigger(prev => prev + 1); 
+    }, [effectiveUserId]);
+
+    const handleNotificationRead = () => setUnreadNotifications(prev => Math.max(0, prev - 1));
+    const handleAllNotificationsRead = () => setUnreadNotifications(0);
+
+    const handleNavigateToProject = (projectId: string) => {
+        setHighlightedProjectId(projectId);
+        setActivePage('projects');
+        setTimeout(() => setHighlightedProjectId(null), 3000);
+    };
+      
+    const handleNavigateToSupport = (subject: string, description: string) => {
+        setSupportPreFill({ subject, description });
+        setActivePage('support');
+    };
+    
+    const handleConsumeSupportData = () => {
+        setSupportPreFill(null);
+    };
+    
+    const handleTicketCreated = (ticketId: string) => {
+        setAutoOpenTicketId(ticketId);
+        setActivePage('history');
+        setTimeout(() => setAutoOpenTicketId(null), 2000);
+    };
+
+    const getPageTitle = (id: string) => MENU_ITEMS.find(item => item.id === id)?.label || 'Skalia';
+
+    const renderContent = () => {
+        // On passe effectiveUserId qui est garanti d'avoir une valeur
+        const userIdToUse = effectiveUserId;
+
+        switch (activePage) {
+          case 'dashboard': return <Dashboard userId={userIdToUse} onNavigate={setActivePage} onNavigateToSupport={handleNavigateToSupport} />;
+          case 'automations': return <AutomationsList userId={userIdToUse} onNavigateToSupport={handleNavigateToSupport} />;
+          case 'projects': return <ProjectsPipeline userId={userIdToUse} projects={[]} highlightedProjectId={highlightedProjectId} onNavigateToSupport={handleNavigateToSupport} />;
+          case 'roadmap': return <ProjectRoadmap userId={userIdToUse} onProjectClick={handleNavigateToProject} />;
+          case 'support': return <SupportPage currentUser={targetClient} initialData={supportPreFill} onConsumeData={handleConsumeSupportData} onTicketCreated={handleTicketCreated} />;
+          case 'history': return <TicketsHistory userId={userIdToUse} initialTicketId={autoOpenTicketId} />;
+          case 'invoices': return <InvoicesPage userId={userIdToUse} />;
+          case 'expenses': return <ExpensesPage userId={userIdToUse} />;
+          default: return <GenericPage title={getPageTitle(activePage)} />;
+        }
+    };
+
+    return (
+        <div className="flex h-screen w-full bg-slate-50/80 overflow-hidden font-sans text-slate-800 relative selection:bg-indigo-100 selection:text-indigo-700">
+            <BackgroundBlobs />
+            <GlobalListeners userId={effectiveUserId} onNewNotification={handleNewNotificationEvent} />
+            
+            {/* Sidebar utilise targetClient pour afficher le bon avatar/nom */}
+            <Sidebar activePage={activePage} setActivePage={setActivePage} currentClient={targetClient} onLogout={handleLogout} />
+            
+            <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
+                
+                {/* ADMIN TOOLBAR INJECTED HERE */}
+                <AdminToolbar />
+
+                <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm">
+                    <div className="flex items-center text-sm text-slate-500 gap-2">
+                        <span>Portail client</span><ChevronRight size={14} className="opacity-50" /><span className="font-semibold text-slate-900">{getPageTitle(activePage)}</span>
+                    </div>
+                    <div className="flex items-center gap-6">
+                        <div className="relative" ref={notificationRef}>
+                            <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className={`p-2 rounded-xl transition-all duration-300 relative ${isNotificationsOpen ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-white/50 text-slate-500 hover:text-indigo-600'}`}>
+                                <Bell size={20} />
+                                {unreadNotifications > 0 && <span className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm animate-bounce">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}
+                            </button>
+                            {isNotificationsOpen && <NotificationsPanel userId={effectiveUserId} onClose={() => setIsNotificationsOpen(false)} onNavigate={setActivePage} onRead={handleNotificationRead} onAllRead={handleAllNotificationsRead} refreshTrigger={notificationListTrigger} />}
+                        </div>
+                        <div className="text-right hidden sm:block">
+                            <p className="text-xs font-bold text-slate-900">{targetClient.company}</p>
+                            <p className="text-xs text-slate-400 uppercase tracking-wider">ID: {targetClient.id.slice(0, 8)}...</p>
+                        </div>
+                    </div>
+                </header>
+                <div className="flex-1 overflow-y-auto p-8 scroll-smooth"><div className="max-w-7xl mx-auto w-full h-full">{renderContent()}</div></div>
+            </main>
+        </div>
+    );
+}
+
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [session, setSession] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<Client | null>(null);
-  
-  // NAVIGATION PERSISTANTE : On initialise avec la valeur stockée ou 'dashboard' par défaut
-  const [activePage, setActivePage] = useState<string>(() => {
-      return localStorage.getItem('skalia_last_page') || 'dashboard';
-  });
-
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
-  
-  // États pour notifications
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [notificationListTrigger, setNotificationListTrigger] = useState(0); 
-  const notificationRef = useRef<HTMLDivElement>(null);
-  
-  // États pour la navigation contextuelle
-  const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
-  const [supportPreFill, setSupportPreFill] = useState<{subject: string, description: string} | null>(null);
 
-  // SAUVEGARDE NAVIGATION : À chaque changement de page, on enregistre dans le navigateur
-  useEffect(() => {
-      localStorage.setItem('skalia_last_page', activePage);
-  }, [activePage]);
-
-  // Initialisation de l'auth Supabase
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
       if (session) {
         fetchUserProfile(session.user.id, session.user.email || '');
       } else {
@@ -59,138 +180,52 @@ const App: React.FC = () => {
       }
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("Auth Event:", event);
-      
-      // Détection de la récupération de mot de passe
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsPasswordRecoveryMode(true);
-      }
-
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setIsPasswordRecoveryMode(true);
       if (session) {
         fetchUserProfile(session.user.id, session.user.email || '');
       } else {
-        // Déconnexion propre
         setCurrentUser(null);
         setIsAuthenticated(false);
         setIsLoadingAuth(false);
-        setUnreadNotifications(0);
-        setIsPasswordRecoveryMode(false); // Reset mode
-        // Optionnel : On peut reset la page au login si on préfère
-        // localStorage.removeItem('skalia_last_page'); 
+        setIsPasswordRecoveryMode(false);
       }
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
-  // SÉCURITÉ : Écouteur de suppression de compte
-  useEffect(() => {
-    if (!currentUser?.id) return;
-
-    const channel = supabase
-      .channel('force_logout_on_delete')
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'profiles',
-          filter: `id=eq.${currentUser.id}`,
-        },
-        async () => {
-          console.warn("Compte supprimé détecté. Déconnexion immédiate.");
-          await supabase.auth.signOut();
-          window.location.reload(); 
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUser?.id]);
-
-  // Fermer les notifications si on clique ailleurs
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
-        setIsNotificationsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [notificationRef]);
-
-  // Chargement initial du compteur de notifications
-  useEffect(() => {
-    if (currentUser?.id) {
-        fetchUnreadCount();
-    }
-  }, [currentUser]);
-
-  const fetchUnreadCount = async () => {
-     if (!currentUser) return;
-     try {
-         const { count, error } = await supabase
-            .from('notifications')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', currentUser.id)
-            .eq('is_read', false);
-         
-         if (!error) {
-             setUnreadNotifications(count || 0);
-         }
-     } catch (e) {
-         console.warn("Erreur fetch notifications count", e);
-     }
-  };
-
-  const handleNewNotificationEvent = useCallback(() => {
-      console.log("App: Mise à jour des notifications demandée.");
-      fetchUnreadCount(); 
-      setNotificationListTrigger(prev => prev + 1); 
-  }, [currentUser]);
-
   const fetchUserProfile = async (userId: string, email: string) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      
       if (error) {
-        console.warn('Profil non trouvé, utilisation du défaut.');
-        setCurrentUser({
-            id: userId,
-            name: 'Utilisateur',
-            company: 'Ma Société',
-            avatarInitials: 'U',
-            email: email,
-        });
-      } else if (data) {
+          // Si erreur (ex: RLS bloquant), on crée un profil temporaire minimal
+          // pour permettre à l'interface de charger au moins en mode client de base
+          console.error("Erreur fetch profil (RLS possible) :", error);
+          throw error;
+      }
+
+      if (data) {
         setCurrentUser({
             id: data.id,
             name: data.full_name || 'Utilisateur',
             company: data.company_name || 'Ma Société',
             avatarInitials: data.avatar_initials || 'U',
             email: email,
-            logoUrl: data.logo_url || undefined
+            logoUrl: data.logo_url || undefined,
+            role: data.role
         });
       }
       setIsAuthenticated(true);
     } catch (error: any) {
-        console.warn("Erreur chargement profil", error.message);
-        setCurrentUser({
-            id: userId,
-            name: 'Utilisateur',
-            company: 'Connexion instable',
-            avatarInitials: 'HF',
-            email: email,
+        // Fallback profile si l'API bloque
+        setCurrentUser({ 
+            id: userId, 
+            name: 'Utilisateur', 
+            company: 'Ma Société', 
+            avatarInitials: 'U', 
+            email: email, 
+            role: 'client' // Fallback safe
         });
         setIsAuthenticated(true);
     } finally {
@@ -198,171 +233,21 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
+  const handleLogout = async () => { await supabase.auth.signOut(); };
+  const handlePasswordUpdated = () => setIsPasswordRecoveryMode(false);
 
-  const handleNavigateToProject = (projectId: string) => {
-    setHighlightedProjectId(projectId);
-    setActivePage('projects');
-    setTimeout(() => {
-        setHighlightedProjectId(null);
-    }, 3000);
-  };
-  
-  const handleNavigateToSupport = (subject: string, description: string) => {
-    setSupportPreFill({ subject, description });
-    setActivePage('support');
-  };
-
-  // Nouvelle fonction pour nettoyer les données une fois consommées
-  const handleConsumeSupportData = () => {
-    setSupportPreFill(null);
-  };
-
-  const handleNotificationRead = () => {
-      setUnreadNotifications(prev => Math.max(0, prev - 1));
-  };
-
-  const handleAllNotificationsRead = () => {
-      setUnreadNotifications(0);
-  };
-
-  const handlePasswordUpdated = () => {
-      setIsPasswordRecoveryMode(false);
-      // L'utilisateur est déjà connecté, on le laisse accéder au dashboard
-  };
-
-  const getPageTitle = (id: string) => {
-    return MENU_ITEMS.find(item => item.id === id)?.label || 'Skalia';
-  };
-
-  const renderContent = () => {
-    const userId = currentUser?.id;
-
-    switch (activePage) {
-      case 'dashboard':
-        return <Dashboard userId={userId} />;
-      case 'automations':
-        return <AutomationsList userId={userId} onNavigateToSupport={handleNavigateToSupport} />;
-      case 'projects':
-        return (
-            <ProjectsPipeline 
-                userId={userId} 
-                projects={[]} 
-                highlightedProjectId={highlightedProjectId}
-                onNavigateToSupport={handleNavigateToSupport}
-            />
-        );
-      case 'roadmap':
-        return (
-            <ProjectRoadmap 
-                userId={userId} 
-                onProjectClick={handleNavigateToProject}
-            />
-        );
-      case 'support':
-        return currentUser ? (
-            <SupportPage 
-                currentUser={currentUser} 
-                initialData={supportPreFill} 
-                onConsumeData={handleConsumeSupportData}
-            />
-        ) : null;
-      case 'history':
-        return <TicketsHistory userId={userId} />;
-      case 'invoices':
-        return <InvoicesPage userId={userId} />;
-      case 'expenses':
-        return <ExpensesPage userId={userId} />;
-      default:
-        return <GenericPage title={getPageTitle(activePage)} />;
-    }
-  };
-
-  if (isLoadingAuth) {
-      return (
-          <div className="h-screen w-full flex items-center justify-center bg-slate-900">
-              <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-      );
-  }
-
-  // Cas spécial : Récupération de mot de passe
-  if (isPasswordRecoveryMode) {
-      return <UpdatePasswordPage onSuccess={handlePasswordUpdated} />;
-  }
-
-  if (!isAuthenticated || !currentUser) {
-    return <LoginPage />;
-  }
+  if (isLoadingAuth) return <div className="h-screen w-full flex items-center justify-center bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  if (isPasswordRecoveryMode) return <UpdatePasswordPage onSuccess={handlePasswordUpdated} />;
+  if (!isAuthenticated || !currentUser) return <LoginPage />;
 
   return (
-    <div className="flex h-screen w-full bg-slate-50/80 overflow-hidden font-sans text-slate-800 relative selection:bg-indigo-100 selection:text-indigo-700">
-      
-      <BackgroundBlobs />
-      
-      <GlobalListeners 
-        userId={currentUser.id} 
-        onNewNotification={handleNewNotificationEvent} 
-      />
-
-      <Sidebar 
-        activePage={activePage} 
-        setActivePage={setActivePage} 
-        currentClient={currentUser}
-        onLogout={handleLogout}
-      />
-      
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
-        <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm">
-          <div className="flex items-center text-sm text-slate-500 gap-2">
-            <span>Portail client</span>
-            <ChevronRight size={14} className="opacity-50" />
-            <span className="font-semibold text-slate-900">{getPageTitle(activePage)}</span>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            
-            <div className="relative" ref={notificationRef}>
-                <button 
-                  onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                  className={`p-2 rounded-xl transition-all duration-300 relative ${isNotificationsOpen ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-white/50 text-slate-500 hover:text-indigo-600'}`}
-                >
-                    <Bell size={20} />
-                    {unreadNotifications > 0 && (
-                        <span className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm animate-bounce">
-                            {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                        </span>
-                    )}
-                </button>
-                
-                {isNotificationsOpen && (
-                    <NotificationsPanel 
-                      userId={currentUser.id} 
-                      onClose={() => setIsNotificationsOpen(false)}
-                      onNavigate={setActivePage}
-                      onRead={handleNotificationRead}
-                      onAllRead={handleAllNotificationsRead}
-                      refreshTrigger={notificationListTrigger}
-                    />
-                )}
-            </div>
-
-            <div className="text-right hidden sm:block">
-               <p className="text-xs font-bold text-slate-900">{currentUser.company}</p>
-               <p className="text-xs text-slate-400 uppercase tracking-wider">ID: {currentUser.id.slice(0, 8)}...</p>
-            </div>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-8 scroll-smooth">
-          <div className="max-w-7xl mx-auto w-full h-full">
-            {renderContent()}
-          </div>
-        </div>
-      </main>
-    </div>
+      <AdminProvider currentUser={currentUser}>
+          <AppContent 
+              currentUser={currentUser} 
+              handleLogout={handleLogout} 
+              isLoadingAuth={isLoadingAuth} 
+          />
+      </AdminProvider>
   );
 };
 

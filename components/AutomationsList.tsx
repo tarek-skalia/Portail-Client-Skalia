@@ -1,10 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { Automation } from '../types';
-import { Activity, CheckCircle2, XCircle, AlertCircle, Clock, PauseCircle, Play, ArrowRight, Zap, Search } from 'lucide-react';
+import { Activity, CheckCircle2, XCircle, AlertCircle, Clock, PauseCircle, Play, ArrowRight, Zap, Search, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import AutomationSlideOver from './AutomationSlideOver';
+import { useAdmin } from './AdminContext';
+import Modal from './ui/Modal';
+import AutomationForm from './forms/AutomationForm';
 
 interface AutomationsListProps {
   userId?: string;
@@ -12,6 +15,7 @@ interface AutomationsListProps {
 }
 
 const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToSupport }) => {
+  const { isAdminMode } = useAdmin(); // Context Admin
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,11 +24,13 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
   const [selectedAutomation, setSelectedAutomation] = useState<Automation | null>(null);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
 
+  // État Modal Création
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   useEffect(() => {
     if (userId) {
         fetchAutomationsAndStats();
 
-        // Écoute les changements sur la configuration des automatisations
         const automationsChannel = supabase
             .channel('realtime:automations_list')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'automations' }, () => {
@@ -32,7 +38,6 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
             })
             .subscribe();
 
-        // Écoute les nouveaux logs pour mettre à jour les compteurs en temps réel
         const logsChannel = supabase
             .channel('realtime:automation_logs_stats')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'automation_logs' }, () => {
@@ -60,7 +65,6 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
   };
 
   const fetchAutomationsAndStats = async () => {
-    // 1. Récupérer les automatisations
     const { data: autosData, error: autosError } = await supabase
         .from('automations')
         .select('*')
@@ -79,7 +83,6 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
         return;
     }
 
-    // 2. Récupérer les logs pour calculer les stats (Dernier run, Runs du mois)
     const automationIds = autosData.map((a: any) => a.id);
     const { data: logsData } = await supabase
         .from('automation_logs')
@@ -90,15 +93,10 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // 3. Mapper les données
     const mapped: Automation[] = autosData.map((item: any) => {
-        // Filtrer les logs pour cette automatisation
         const autoLogs = logsData ? logsData.filter((l: any) => l.automation_id === item.id) : [];
-        
-        // Calcul : Runs du mois
         const runsMonth = autoLogs.filter((l: any) => new Date(l.created_at) >= startOfMonth).length;
         
-        // Calcul : Dernier run
         let lastRunLabel = 'Jamais';
         if (autoLogs.length > 0) {
             lastRunLabel = getTimeAgo(autoLogs[0].created_at);
@@ -129,7 +127,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
 
   const handleCloseDetails = () => {
       setIsSlideOverOpen(false);
-      setTimeout(() => setSelectedAutomation(null), 300); // Wait for animation
+      setTimeout(() => setSelectedAutomation(null), 300);
   };
 
   const getStatusStyle = (status: Automation['status']) => {
@@ -157,7 +155,6 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
     return labels[status] || status;
   };
 
-  // Filtrage des automatisations (Recherche)
   const filteredAutomations = automations.filter(auto => {
       const searchLower = searchTerm.toLowerCase();
       return (
@@ -167,7 +164,6 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
       );
   });
 
-  // Calcul du nombre d'automatisations actives uniquement
   const activeAutomationsCount = automations.filter(a => a.status === 'active').length;
 
   if (isLoading) {
@@ -189,35 +185,13 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
                             <div className="flex-1 space-y-3">
                                 <Skeleton className="h-6 w-1/3" />
                                 <Skeleton className="h-4 w-3/4" />
-                                <div className="flex gap-2 pt-2">
-                                    <Skeleton className="h-6 w-16 rounded-lg" />
-                                    <Skeleton className="h-6 w-16 rounded-lg" />
-                                </div>
                             </div>
-                        </div>
-                        <div className="md:w-48 flex gap-4 border-t md:border-t-0 md:border-l border-slate-50 pt-4 md:pt-0 md:pl-6">
-                             <div className="space-y-2 flex-1">
-                                <Skeleton className="h-3 w-20" />
-                                <Skeleton className="h-5 w-24" />
-                             </div>
                         </div>
                     </div>
                 ))}
             </div>
         </div>
       );
-  }
-
-  if (automations.length === 0) {
-    return (
-        <div className="flex flex-col items-center justify-center h-[50vh] bg-white/50 rounded-3xl border border-dashed border-slate-300 animate-fade-in-up">
-            <div className="p-6 bg-indigo-50 rounded-full mb-6">
-                <Activity className="text-indigo-400 w-10 h-10" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-800">Aucune automatisation</h3>
-            <p className="text-slate-500 mt-2">Ce compte n'a pas encore de workflow configuré.</p>
-        </div>
-    );
   }
 
   return (
@@ -228,9 +202,20 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
                 <h2 className="text-2xl font-bold text-slate-900">Mes Automatisations</h2>
                 <p className="text-slate-500 text-sm mt-2">Vue d'ensemble de vos processus automatisés.</p>
             </div>
-            <div className="bg-white px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 shadow-sm border border-slate-100 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                {activeAutomationsCount} actifs
+            <div className="flex gap-2">
+                 <div className="bg-white px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 shadow-sm border border-slate-100 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    {activeAutomationsCount} actifs
+                </div>
+                {/* BOUTON ADMIN */}
+                {isAdminMode && (
+                    <button 
+                        onClick={() => setIsModalOpen(true)}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-indigo-700 flex items-center gap-2"
+                    >
+                        <Plus size={16} /> Ajouter
+                    </button>
+                )}
             </div>
         </div>
 
@@ -249,8 +234,16 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
         </div>
 
         <div className="grid grid-cols-1 gap-5">
-            {filteredAutomations.length === 0 ? (
-                <div className="text-center py-10 text-slate-400">
+            {filteredAutomations.length === 0 && automations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-[50vh] bg-white/50 rounded-3xl border border-dashed border-slate-300 animate-fade-in-up">
+                    <div className="p-6 bg-indigo-50 rounded-full mb-6">
+                        <Activity className="text-indigo-400 w-10 h-10" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-800">Aucune automatisation</h3>
+                    <p className="text-slate-500 mt-2">Ce compte n'a pas encore de workflow configuré.</p>
+                </div>
+            ) : filteredAutomations.length === 0 ? (
+                 <div className="text-center py-10 text-slate-400">
                     <p>Aucune automatisation ne correspond à votre recherche.</p>
                 </div>
             ) : (
@@ -283,7 +276,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
                                 {auto.description}
                             </p>
                             
-                            {/* Tools Tags (Outils connectés) - Version Premium */}
+                            {/* Tools Tags */}
                             {auto.toolIcons && auto.toolIcons.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-5 pt-3 border-t border-slate-50">
                                     {auto.toolIcons.map((tool, idx) => (
@@ -341,6 +334,18 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
             automation={selectedAutomation}
             onNavigateToSupport={onNavigateToSupport}
         />
+
+        {/* MODAL CREATION */}
+        <Modal 
+            isOpen={isModalOpen} 
+            onClose={() => setIsModalOpen(false)} 
+            title="Nouvelle Automatisation"
+        >
+            <AutomationForm 
+                onSuccess={() => { setIsModalOpen(false); fetchAutomationsAndStats(); }}
+                onCancel={() => setIsModalOpen(false)}
+            />
+        </Modal>
     </>
   );
 };

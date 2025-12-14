@@ -1,32 +1,46 @@
 
 import React, { useEffect, useState } from 'react';
 import { Expense } from '../types';
-import { CreditCard, Calendar, Server, Cpu, Globe, Zap, Box, Database, Activity } from 'lucide-react';
+import { Search, Filter, Layers, RefreshCw, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
+import ExpenseSlideOver from './ExpenseSlideOver';
+import ExpenseLogo from './ExpenseLogo';
+import { useAdmin } from './AdminContext';
+import Modal from './ui/Modal';
+import ExpenseForm from './forms/ExpenseForm';
 
 interface ExpensesPageProps {
   userId?: string;
 }
 
 const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
+  const { isAdminMode } = useAdmin();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // UX State
+  const [viewMode, setViewMode] = useState<'monthly' | 'yearly'>('monthly');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  
+  // SlideOver State
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
+
+  // Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (userId) {
         fetchExpenses();
-
         const channel = supabase
             .channel('realtime:expenses')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
                 fetchExpenses();
             })
             .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        return () => { supabase.removeChannel(channel); };
     }
   }, [userId]);
 
@@ -44,138 +58,225 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
             clientId: item.user_id,
             serviceName: item.service_name,
             provider: item.provider || 'Autre',
+            category: item.category || 'Software',
             amount: item.amount,
             billingCycle: item.billing_cycle,
-            nextBillingDate: item.next_billing_date ? new Date(item.next_billing_date).toLocaleDateString('fr-FR') : '-',
-            status: item.status
+            nextBillingDate: item.next_billing_date ? new Date(item.next_billing_date).toLocaleDateString('fr-FR') : 'Non renseignée',
+            status: item.status,
+            description: item.description,
+            websiteUrl: item.website_url,
+            logoUrl: item.logo_url
         }));
         setExpenses(mapped);
     }
     setIsLoading(false);
   };
 
-  const totalMonthly = expenses
-    .filter(e => e.status === 'active')
-    .reduce((sum, e) => {
-        if (e.billingCycle === 'yearly') return sum + (e.amount / 12);
-        return sum + e.amount;
-    }, 0);
+  const filteredExpenses = expenses.filter(exp => {
+      const matchesSearch = exp.serviceName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            exp.provider.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || exp.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+  });
 
-  const getIcon = (provider: string) => {
-    const p = provider.toLowerCase();
-    if (p.includes('openai') || p.includes('gpt')) return <Cpu />;
-    if (p.includes('make') || p.includes('zapier')) return <Zap />;
-    if (p.includes('airtable') || p.includes('database')) return <Database />;
-    if (p.includes('hosting') || p.includes('digitalocean') || p.includes('aws')) return <Server />;
-    return <Box />;
+  const calculateCost = (exp: Expense) => {
+      if (viewMode === 'monthly') {
+          return exp.billingCycle === 'yearly' ? exp.amount / 12 : exp.amount;
+      } else {
+          return exp.billingCycle === 'monthly' ? exp.amount * 12 : exp.amount;
+      }
+  };
+
+  const totalCost = filteredExpenses
+    .filter(e => e.status === 'active')
+    .reduce((sum, e) => sum + calculateCost(e), 0);
+
+  const categories = ['all', ...Array.from(new Set(expenses.map(e => e.category)))];
+
+  const handleCardClick = (expense: Expense) => {
+      setSelectedExpense(expense);
+      setIsSlideOverOpen(true);
   };
 
   if (isLoading) {
       return (
           <div className="space-y-8 animate-fade-in-up">
-              <Skeleton className="h-24 w-full rounded-2xl" />
+              <Skeleton className="h-32 w-full rounded-2xl" />
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[1, 2, 3].map(i => (
-                      <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm h-56 flex flex-col justify-between">
-                          <div className="flex justify-between">
-                              <Skeleton className="w-12 h-12 rounded-xl" />
-                              <Skeleton className="w-12 h-6 rounded-md" />
-                          </div>
-                          <div className="space-y-2">
-                              <Skeleton className="h-5 w-3/4" />
-                              <Skeleton className="h-3 w-1/2" />
-                          </div>
-                          <div className="pt-4 border-t border-gray-50 flex justify-between items-end">
-                              <div className="space-y-1">
-                                  <Skeleton className="h-3 w-20" />
-                                  <Skeleton className="h-4 w-24" />
-                              </div>
-                              <Skeleton className="h-8 w-16" />
-                          </div>
-                      </div>
+                  {[1, 2, 3, 4].map(i => (
+                      <Skeleton key={i} className="h-60 w-full rounded-2xl" />
                   ))}
               </div>
           </div>
       );
   }
 
-  if (expenses.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[50vh] bg-white/50 rounded-3xl border border-dashed border-slate-300 animate-fade-in-up">
-        <div className="p-6 bg-indigo-50 rounded-full mb-6">
-          <CreditCard className="text-indigo-400 w-10 h-10" />
-        </div>
-        <h3 className="text-lg font-semibold text-slate-800">Aucune dépense</h3>
-        <p className="text-slate-500 mt-2">Aucun abonnement actif enregistré.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <>
+    <div className="space-y-8 animate-fade-in-up pb-10">
         
-      {/* Summary Banner */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
-        <div>
-            <h2 className="text-xl font-bold mb-1">Coût des outils tiers</h2>
-            <p className="text-slate-400 text-sm">Total estimé de vos abonnements (API, Serveurs, SaaS)</p>
+      {/* HEADER: Total & Toggle */}
+      <div className="relative overflow-hidden bg-slate-900 rounded-3xl p-8 text-white shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8 border border-slate-700">
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-600/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-purple-600/20 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2"></div>
+        
+        <div className="relative z-10">
+            <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                <Layers className="text-indigo-400" />
+                Infrastructure & Outils
+            </h2>
+            <p className="text-slate-400 text-sm max-w-md leading-relaxed">
+                Vue consolidée de l'ensemble de vos abonnements SaaS et coûts d'infrastructure gérés par Skalia.
+            </p>
         </div>
-        <div className="flex items-center gap-4 bg-white/10 px-6 py-3 rounded-xl border border-white/10 backdrop-blur-sm">
+
+        <div className="relative z-10 flex flex-col items-end gap-4">
+            <div className="bg-slate-800/80 p-1 rounded-xl border border-slate-700 flex items-center">
+                <button 
+                    onClick={() => setViewMode('monthly')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 ${viewMode === 'monthly' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                >
+                    Mensuel
+                </button>
+                <button 
+                    onClick={() => setViewMode('yearly')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 ${viewMode === 'yearly' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                >
+                    Annuel
+                </button>
+            </div>
+
             <div className="text-right">
-                <p className="text-xs text-slate-300 uppercase font-bold tracking-wider">Mensuel</p>
-                <p className="text-2xl font-bold">{totalMonthly.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</p>
-            </div>
-            <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                <Activity size={20} />
+                <p className="text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-300">
+                    {totalCost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-xs text-slate-500 font-medium uppercase tracking-widest mt-1">
+                    Estimation {viewMode === 'monthly' ? 'Mensuelle' : 'Annuelle'}
+                </p>
             </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {expenses.map((expense, index) => (
-            <div 
-                key={expense.id}
-                className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 group"
-            >
-                <div className="flex items-start justify-between mb-6">
-                    <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
-                        {getIcon(expense.provider)}
-                    </div>
-                    <span className={`px-2 py-1 rounded-md text-[10px] uppercase font-bold tracking-wide border ${
-                        expense.status === 'active' 
-                        ? 'bg-green-50 text-green-700 border-green-100' 
-                        : 'bg-gray-50 text-gray-500 border-gray-100'
-                    }`}>
-                        {expense.status === 'active' ? 'Actif' : 'Inactif'}
-                    </span>
-                </div>
+      {/* FILTERS & SEARCH */}
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between sticky top-0 z-20 py-2 bg-slate-50/80 backdrop-blur-sm rounded-xl md:pr-6">
+          <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-2 md:pb-0 scrollbar-hide px-6">
+              {categories.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide border transition-all whitespace-nowrap ${
+                        selectedCategory === cat 
+                        ? 'bg-slate-800 text-white border-slate-800 shadow-md' 
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                    }`}
+                  >
+                      {cat === 'all' ? 'Tout' : cat}
+                  </button>
+              ))}
+          </div>
 
-                <h3 className="font-bold text-gray-900 text-lg mb-1">{expense.serviceName}</h3>
-                <p className="text-sm text-gray-500 mb-6 flex items-center gap-1">
-                    Fournisseur : {expense.provider}
-                </p>
-
-                <div className="pt-6 border-t border-gray-50 flex items-end justify-between">
-                    <div>
-                        <p className="text-xs text-gray-400 mb-1 flex items-center gap-1">
-                            <Calendar size={12} />
-                            Prochain paiement
-                        </p>
-                        <p className="text-sm font-medium text-gray-700">{expense.nextBillingDate}</p>
+          <div className="flex gap-4 w-full md:w-auto px-6 md:px-0">
+                <div className="relative w-full md:w-64">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <Search size={16} />
                     </div>
-                    <div className="text-right">
-                        <p className="text-2xl font-bold text-gray-900">
-                            {expense.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                        </p>
-                        <p className="text-[10px] text-gray-400 font-medium uppercase">
-                            /{expense.billingCycle === 'monthly' ? 'mois' : 'an'}
-                        </p>
-                    </div>
+                    <input 
+                        type="text" 
+                        placeholder="Rechercher un outil..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                    />
                 </div>
-            </div>
-        ))}
+                {isAdminMode && (
+                  <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 flex items-center gap-2 text-sm font-bold whitespace-nowrap"
+                  >
+                      <Plus size={16} /> Ajouter
+                  </button>
+                )}
+          </div>
       </div>
+
+      {/* GRID */}
+      {filteredExpenses.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+             <Filter className="text-slate-300 w-12 h-12 mb-4" />
+             <p className="text-slate-500">Aucun outil trouvé pour cette recherche.</p>
+          </div>
+      ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredExpenses.map((expense) => {
+                const cost = calculateCost(expense);
+                
+                return (
+                    <div 
+                        key={expense.id}
+                        onClick={() => handleCardClick(expense)}
+                        className={`
+                            relative bg-white rounded-2xl p-6 border transition-all duration-300 cursor-pointer group overflow-hidden
+                            ${expense.status === 'active' 
+                                ? 'border-slate-200 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-100/50 hover:-translate-y-1' 
+                                : 'border-slate-100 opacity-75 grayscale hover:grayscale-0'
+                            }
+                        `}
+                    >
+                        <div className={`absolute top-6 right-6 w-2.5 h-2.5 rounded-full ${expense.status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`}></div>
+
+                        <div className="flex items-start gap-4 mb-6">
+                            <ExpenseLogo 
+                                provider={expense.provider} 
+                                logoUrl={expense.logoUrl} 
+                                websiteUrl={expense.websiteUrl} 
+                                className="w-14 h-14" 
+                            />
+                            
+                            <div className="flex-1 min-w-0 pt-1">
+                                <h3 className="font-bold text-slate-900 truncate pr-4">{expense.serviceName}</h3>
+                                <p className="text-xs text-slate-500 font-medium">{expense.provider}</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-6">
+                             <p className="text-3xl font-extrabold text-slate-900 tracking-tight">
+                                {cost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                             </p>
+                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                Coût estimé {viewMode === 'monthly' ? 'par mois' : 'par an'}
+                             </p>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-50 flex items-center justify-between text-xs font-medium text-slate-500">
+                            <div className="flex items-center gap-1.5 text-slate-500">
+                                <RefreshCw size={12} className="text-slate-400" />
+                                <span>
+                                    {expense.billingCycle === 'monthly' ? 'Renouvellement Mensuel' : 'Renouvellement Annuel'}
+                                </span>
+                            </div>
+                            
+                            <div className="px-2 py-1 rounded-md bg-slate-50 border border-slate-100 text-slate-600 font-semibold truncate max-w-[100px]">
+                                {expense.category}
+                            </div>
+                        </div>
+                        <div className="absolute inset-0 bg-indigo-600/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                    </div>
+                );
+            })}
+          </div>
+      )}
     </div>
+
+    <ExpenseSlideOver 
+        isOpen={isSlideOverOpen}
+        onClose={() => setIsSlideOverOpen(false)}
+        expense={selectedExpense}
+    />
+
+    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouvelle Dépense">
+        <ExpenseForm onSuccess={() => { setIsModalOpen(false); fetchExpenses(); }} onCancel={() => setIsModalOpen(false)} />
+    </Modal>
+    </>
   );
 };
 
