@@ -86,6 +86,7 @@ export interface Project {
   tasksCount?: number;
   tasksCompleted?: number;
   ownerName?: string; 
+  ownerAvatar?: string; // URL de la photo du responsable
 }
 
 export interface Ticket {
@@ -99,17 +100,26 @@ export interface Ticket {
   lastUpdate: string;
 }
 
+export interface InvoiceItem {
+  description: string;
+  quantity: number;
+  unit_price: number;
+}
+
 export interface Invoice {
   id: string;
   clientId: string;
   number: string;
   projectName: string;
   amount: number;
-  status: 'paid' | 'pending' | 'overdue';
+  status: 'paid' | 'pending' | 'overdue' | 'open' | 'void'; // Ajout des statuts Stripe
   issueDate: string;
   dueDate: string;
   pdfUrl: string;
   paymentLink: string;
+  stripeInvoiceId?: string; // ID technique Stripe
+  items?: InvoiceItem[]; // Liste des prestations
+  taxRate?: number; // Taux TVA (ex: 20)
 }
 
 export interface Expense {

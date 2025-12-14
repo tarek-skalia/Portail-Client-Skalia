@@ -24,6 +24,12 @@ export const MENU_ITEMS: MenuItem[] = [
   { id: 'history', label: 'Historique des Tickets', icon: <History size={20} /> },
 ];
 
+// --- CONFIGURATION DES RESPONSABLES ---
+export const PROJECT_OWNERS: Record<string, string> = {
+  'Tarek Zreik': 'https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e208badeaae7b477b5ee4_Design%20sans%20titre%20(17).png',
+  'Zakaria Jellouli': 'https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e20a344d8467df0c49ca8_1742836594868.jpeg'
+};
+
 export const MOCK_CHART_DATA_TIME: ChartDataPoint[] = [
   { name: 'Lun', value: 4 },
   { name: 'Mar', value: 7 },

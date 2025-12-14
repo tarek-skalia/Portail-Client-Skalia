@@ -4,12 +4,37 @@ import { Project, ProjectResource, ProjectTask } from '../types';
 import { X, CheckSquare, Paperclip, Copy, Tag, Plus, Link as LinkIcon, FileText, UploadCloud, Trash2, ExternalLink, CheckCircle2, Briefcase } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { supabase } from '../lib/supabase';
+import { PROJECT_OWNERS } from '../constants';
 
 interface ProjectSlideOverProps {
   isOpen: boolean;
   onClose: () => void;
   project: Project | null;
 }
+
+// Sous-composant Avatar local pour le SlideOver
+const SlideOverAvatar = ({ src, name }: { src?: string | null, name?: string }) => {
+    const [imgError, setImgError] = useState(false);
+    const initials = name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'SK';
+
+    if (src && !imgError) {
+        return (
+            <img 
+                src={src} 
+                alt={name} 
+                onError={() => setImgError(true)}
+                className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md" 
+                title={`Responsable: ${name}`}
+            />
+        );
+    }
+
+    return (
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs text-white font-bold border-2 border-white shadow-md" title={`Responsable: ${name}`}>
+            {initials}
+        </div>
+    );
+};
 
 const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, project }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -287,8 +312,10 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
         {/* HEADER */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 bg-white shrink-0">
             <div className="flex items-start justify-between mb-4">
-                <div>
-                     <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 mr-4">
+                     
+                     {/* Ligne Status + ID */}
+                     <div className="flex items-center gap-2 mb-3 flex-wrap">
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider border ${
                             project.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                             project.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border-blue-100' :
@@ -301,9 +328,27 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
                              #{project.id.slice(0,6)} <Copy size={10} />
                         </span>
                      </div>
-                     <h2 className="text-xl font-bold text-slate-900 leading-tight">
-                        {project.title}
-                     </h2>
+
+                     {/* Titre + Responsable */}
+                     <div className="flex items-center gap-4">
+                        {/* Avatar du Responsable */}
+                        <div className="shrink-0">
+                            <SlideOverAvatar 
+                                src={project.ownerAvatar} 
+                                name={project.ownerName} 
+                            />
+                        </div>
+                        
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900 leading-tight mb-0.5">
+                                {project.title}
+                            </h2>
+                            <p className="text-xs text-slate-500 font-medium">
+                                Responsable : <span className="text-slate-700">{project.ownerName}</span>
+                            </p>
+                        </div>
+                     </div>
+
                 </div>
                 <button 
                     onClick={onClose}

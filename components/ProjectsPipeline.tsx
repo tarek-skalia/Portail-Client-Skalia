@@ -6,6 +6,32 @@ import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import ProjectSlideOver from './ProjectSlideOver';
 import { useToast } from './ToastProvider';
+import { PROJECT_OWNERS } from '../constants';
+
+// Sous-composant pour gérer l'avatar avec Fallback
+const ProjectAvatar = ({ src, name }: { src?: string | null, name?: string }) => {
+    const [imgError, setImgError] = useState(false);
+    const initials = name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'SK';
+
+    // On priorise la source (qui vient potentiellement de la config constante)
+    if (src && !imgError) {
+        return (
+            <img 
+                src={src} 
+                alt={name} 
+                onError={() => setImgError(true)}
+                className="w-6 h-6 rounded-full object-cover border border-white shadow-sm" 
+                title={`Responsable: ${name}`}
+            />
+        );
+    }
+
+    return (
+        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[8px] text-white font-bold border border-white shadow-sm" title={`Responsable: ${name}`}>
+            {initials}
+        </div>
+    );
+};
 
 interface ProjectsPipelineProps {
   projects: Project[];
@@ -31,13 +57,15 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
 
   useEffect(() => {
     if (userId) {
-        fetchProjectsAndTasks();
+        // Chargement initial (avec indicateur de chargement visible)
+        fetchProjectsAndTasks(true);
 
         // Écoute les changements sur la table projects (pour infos générales)
+        // Note: On passe false pour faire une mise à jour silencieuse sans clignotement
         const projectChannel = supabase
             .channel('realtime:projects_pipeline')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
-                fetchProjectsAndTasks();
+                fetchProjectsAndTasks(false);
             })
             .subscribe();
 
@@ -45,7 +73,7 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
         const tasksChannel = supabase
             .channel('realtime:project_tasks_update')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'project_tasks' }, () => {
-                fetchProjectsAndTasks();
+                fetchProjectsAndTasks(false);
             })
             .subscribe();
 
@@ -88,8 +116,11 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
     }
   }, [highlightedProjectId, projects]);
 
-  const fetchProjectsAndTasks = async () => {
-    setIsLoading(true);
+  // AJOUT du paramètre showLoading (par défaut true pour la première fois)
+  const fetchProjectsAndTasks = async (showLoading = true) => {
+    if (showLoading) {
+        setIsLoading(true);
+    }
 
     // Construction de la requête de base
     let query = supabase
@@ -175,6 +206,14 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
         let resources = [];
         if (p.resources && Array.isArray(p.resources)) resources = p.resources;
 
+        // --- GESTION INTELLIGENTE DE L'AVATAR ---
+        // Modification : Fallback sur Skalia Team
+        const ownerName = p.owner_name || 'Skalia Team';
+        
+        // Si le nom correspond à un propriétaire connu, on force l'avatar configuré
+        // Sinon on prend ce qu'il y a en DB
+        const ownerAvatar = PROJECT_OWNERS[ownerName] || p.owner_avatar;
+
         return {
             id: p.id,
             clientId: p.user_id,
@@ -192,12 +231,17 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
             tasksCount: tasksCount,
             tasksCompleted: tasksCompleted,
             
-            ownerName: p.owner_name || 'Skalia Team'
+            ownerName: ownerName,
+            ownerAvatar: ownerAvatar
         };
     });
 
     setProjects(mappedProjects);
-    setIsLoading(false);
+    
+    // On enlève le loading seulement si on l'avait mis (pour éviter des états incohérents)
+    if (showLoading) {
+        setIsLoading(false);
+    }
   };
 
   const handleCardClick = (project: Project) => {
@@ -392,9 +436,11 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
                                                                 <span>{project.tasksCompleted}/{project.tasksCount}</span>
                                                             </div>
                                                         )}
-                                                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[8px] text-white font-bold border border-white shadow-sm" title={`Responsable: ${project.ownerName}`}>
-                                                            {project.ownerName ? project.ownerName.substring(0,2).toUpperCase() : 'SK'}
-                                                        </div>
+                                                        {/* Avatar intelligent (Utilise PROJECT_OWNERS) */}
+                                                        <ProjectAvatar 
+                                                            src={project.ownerAvatar} 
+                                                            name={project.ownerName} 
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>

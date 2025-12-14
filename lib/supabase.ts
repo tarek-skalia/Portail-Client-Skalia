@@ -59,6 +59,7 @@ export interface Database {
           start_date: string | null
           end_date: string | null
           owner_name: string | null
+          owner_avatar: string | null
           resources: Json | null
           messages: Json | null
           tags: string[] | null
@@ -73,6 +74,7 @@ export interface Database {
           start_date?: string | null
           end_date?: string | null
           owner_name?: string | null
+          owner_avatar?: string | null
           resources?: Json | null
           messages?: Json | null
           tags?: string[] | null
@@ -87,6 +89,7 @@ export interface Database {
           start_date?: string | null
           end_date?: string | null
           owner_name?: string | null
+          owner_avatar?: string | null
           resources?: Json | null
           messages?: Json | null
           tags?: string[] | null
@@ -166,6 +169,8 @@ export interface Database {
             due_date: string | null
             pdf_url: string | null
             payment_link: string | null
+            items: Json | null
+            tax_rate: number | null
             created_at: string
         }
       }
