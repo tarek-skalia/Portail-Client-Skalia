@@ -10,6 +10,8 @@ import InvoicesPage from './components/InvoicesPage';
 import ExpensesPage from './components/ExpensesPage';
 import ProjectsPipeline from './components/ProjectsPipeline';
 import ProjectRoadmap from './components/ProjectRoadmap';
+import GlobalDashboard from './components/GlobalDashboard';
+import UserManagement from './components/UserManagement';
 import LoginPage from './components/LoginPage';
 import UpdatePasswordPage from './components/UpdatePasswordPage';
 import BackgroundBlobs from './components/BackgroundBlobs'; 
@@ -17,7 +19,7 @@ import NotificationsPanel from './components/NotificationsPanel';
 import GlobalListeners from './components/GlobalListeners';
 import AdminToolbar from './components/AdminToolbar';
 import { AdminProvider, useAdmin } from './components/AdminContext';
-import { MENU_ITEMS } from './constants';
+import { MENU_ITEMS, ADMIN_MENU_ITEMS } from './constants';
 import { ChevronRight, Bell } from 'lucide-react';
 import { Client } from './types';
 import { supabase } from './lib/supabase';
@@ -28,7 +30,7 @@ const AppContent: React.FC<{
     handleLogout: () => void;
 }> = ({ currentUser, handleLogout }) => {
     
-    const { targetUserId, clients } = useAdmin();
+    const { targetUserId, clients, isAdmin } = useAdmin();
     
     // Fallback de sécurité : Si targetUserId est vide (non initialisé), on utilise l'ID courant
     const effectiveUserId = targetUserId || currentUser.id;
@@ -111,10 +113,19 @@ const AppContent: React.FC<{
         setTimeout(() => setAutoOpenTicketId(null), 2000);
     };
 
-    const getPageTitle = (id: string) => MENU_ITEMS.find(item => item.id === id)?.label || 'Skalia';
+    const getPageTitle = (id: string) => {
+        const item = [...MENU_ITEMS, ...ADMIN_MENU_ITEMS].find(i => i.id === id);
+        return item?.label || 'Skalia';
+    };
 
     const renderContent = () => {
         const userIdToUse = effectiveUserId;
+
+        // Protection des routes Admin
+        if (isAdmin) {
+            if (activePage === 'global_view') return <GlobalDashboard />;
+            if (activePage === 'users') return <UserManagement />;
+        }
 
         switch (activePage) {
           case 'dashboard': return <Dashboard userId={userIdToUse} onNavigate={setActivePage} onNavigateToSupport={handleNavigateToSupport} />;

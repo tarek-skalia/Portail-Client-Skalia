@@ -1,9 +1,10 @@
 
 import React from 'react';
-import { MENU_ITEMS } from '../constants';
+import { MENU_ITEMS, ADMIN_MENU_ITEMS } from '../constants';
 import { LogOut, Phone } from 'lucide-react';
 import { Client } from '../types';
 import Logo from './Logo';
+import { useAdmin } from './AdminContext';
 
 interface SidebarProps {
   activePage: string;
@@ -13,6 +14,8 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentClient, onLogout }) => {
+  const { isAdmin } = useAdmin();
+
   return (
     <div className="w-72 h-screen bg-[#4338ca] text-white flex flex-col shadow-2xl flex-shrink-0 sticky top-0 z-50 overflow-hidden font-sans transition-all duration-300">
       {/* Decorative animated gradients */}
@@ -37,6 +40,38 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
 
       {/* Navigation - Added top margin for optical balance */}
       <nav className="flex-1 px-4 overflow-y-auto space-y-2 relative z-10 py-4 custom-scrollbar flex flex-col">
+        
+        {/* SECTION ADMIN (si admin) */}
+        {isAdmin && (
+            <div className="mb-4 space-y-2">
+                <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-indigo-300 opacity-80 mb-2">Administration</p>
+                {ADMIN_MENU_ITEMS.map((item) => {
+                    const isActive = activePage === item.id;
+                    return (
+                        <button
+                        key={item.id}
+                        onClick={() => setActivePage(item.id)}
+                        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 group relative overflow-hidden border
+                            ${
+                            isActive
+                                ? 'bg-indigo-950 text-white border-indigo-500 shadow-md translate-x-1'
+                                : 'bg-indigo-900/40 text-indigo-200 border-indigo-500/20 hover:bg-indigo-800 hover:text-white hover:border-indigo-400'
+                            }
+                        `}
+                        >
+                        <span className={`relative z-10 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+                            {item.icon}
+                        </span>
+                        <span className="relative z-10">{item.label}</span>
+                        </button>
+                    );
+                })}
+                <div className="h-px w-full bg-indigo-500/30 my-4"></div>
+            </div>
+        )}
+
+        {/* SECTION CLIENT */}
+        {isAdmin && <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-indigo-300 opacity-80 mb-2">Vue Client</p>}
         {MENU_ITEMS.map((item) => {
           const isActive = activePage === item.id;
           return (

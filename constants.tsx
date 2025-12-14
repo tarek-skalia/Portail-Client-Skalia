@@ -8,11 +8,13 @@ import {
   Map, 
   Zap, 
   LifeBuoy,
-  History
+  History,
+  Globe,
+  Users
 } from 'lucide-react';
 import { MenuItem, ChartDataPoint, Client, Automation, Ticket, Invoice, Expense, Project } from './types';
 
-// Mise à jour du menu selon la demande : Nouvel ordre et renommage
+// Menu standard (Clients)
 export const MENU_ITEMS: MenuItem[] = [
   { id: 'dashboard', label: 'Tableau de Bord', icon: <LayoutDashboard size={20} /> },
   { id: 'automations', label: 'Automatisations', icon: <Zap size={20} /> },
@@ -22,6 +24,12 @@ export const MENU_ITEMS: MenuItem[] = [
   { id: 'expenses', label: 'Dépenses', icon: <CreditCard size={20} /> },
   { id: 'support', label: 'Demandes de Support', icon: <LifeBuoy size={20} /> },
   { id: 'history', label: 'Historique des Tickets', icon: <History size={20} /> },
+];
+
+// Menu Admin (Visible uniquement par l'admin)
+export const ADMIN_MENU_ITEMS: MenuItem[] = [
+  { id: 'global_view', label: 'Vue Globale Agence', icon: <Globe size={20} /> },
+  { id: 'users', label: 'Gestion Clients', icon: <Users size={20} /> },
 ];
 
 // --- CONFIGURATION DES RESPONSABLES ---
