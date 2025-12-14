@@ -16,25 +16,25 @@ import BackgroundBlobs from './components/BackgroundBlobs';
 import NotificationsPanel from './components/NotificationsPanel';
 import GlobalListeners from './components/GlobalListeners';
 import AdminToolbar from './components/AdminToolbar';
-import { AdminProvider, useAdmin } from './components/AdminContext'; // Import
+import { AdminProvider, useAdmin } from './components/AdminContext';
 import { MENU_ITEMS } from './constants';
 import { ChevronRight, Bell } from 'lucide-react';
 import { Client } from './types';
 import { supabase } from './lib/supabase';
 
-// Composant Wrapper pour utiliser le hook useAdmin à l'intérieur
+// Composant Interne: Contenu principal après Auth
 const AppContent: React.FC<{ 
-    currentUser: Client, 
-    handleLogout: () => void,
-    isLoadingAuth: boolean 
+    currentUser: Client;
+    handleLogout: () => void;
 }> = ({ currentUser, handleLogout }) => {
     
     const { targetUserId, clients } = useAdmin();
     
-    // CORRECTION : Fallback de sécurité. Si targetUserId est vide, on utilise currentUser.id
+    // Fallback de sécurité : Si targetUserId est vide (non initialisé), on utilise l'ID courant
     const effectiveUserId = targetUserId || currentUser.id;
     
     // Trouver le client cible pour l'affichage (Sidebar, Header)
+    // Si la liste clients n'est pas encore chargée, on fallback sur currentUser
     const targetClient = clients.find(c => c.id === effectiveUserId) || currentUser;
 
     const [activePage, setActivePage] = useState<string>(() => {
@@ -45,6 +45,8 @@ const AppContent: React.FC<{
     const [unreadNotifications, setUnreadNotifications] = useState(0);
     const [notificationListTrigger, setNotificationListTrigger] = useState(0);
     const notificationRef = useRef<HTMLDivElement>(null);
+    
+    // Navigation inter-pages
     const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
     const [supportPreFill, setSupportPreFill] = useState<{subject: string, description: string} | null>(null);
     const [autoOpenTicketId, setAutoOpenTicketId] = useState<string | null>(null);
@@ -53,7 +55,7 @@ const AppContent: React.FC<{
         localStorage.setItem('skalia_last_page', activePage);
     }, [activePage]);
 
-    // Fermer les notifications si on clique ailleurs
+    // Click Outside Notification Panel
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
           if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
@@ -77,7 +79,7 @@ const AppContent: React.FC<{
                 .eq('user_id', effectiveUserId)
                 .eq('is_read', false);
              if (!error) setUnreadNotifications(count || 0);
-         } catch (e) { console.warn("Erreur fetch notifications count", e); }
+         } catch (e) { console.warn("Erreur fetch notif count", e); }
     };
 
     const handleNewNotificationEvent = useCallback(() => {
@@ -112,7 +114,6 @@ const AppContent: React.FC<{
     const getPageTitle = (id: string) => MENU_ITEMS.find(item => item.id === id)?.label || 'Skalia';
 
     const renderContent = () => {
-        // On passe effectiveUserId qui est garanti d'avoir une valeur
         const userIdToUse = effectiveUserId;
 
         switch (activePage) {
@@ -133,12 +134,9 @@ const AppContent: React.FC<{
             <BackgroundBlobs />
             <GlobalListeners userId={effectiveUserId} onNewNotification={handleNewNotificationEvent} />
             
-            {/* Sidebar utilise targetClient pour afficher le bon avatar/nom */}
             <Sidebar activePage={activePage} setActivePage={setActivePage} currentClient={targetClient} onLogout={handleLogout} />
             
             <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
-                
-                {/* ADMIN TOOLBAR INJECTED HERE */}
                 <AdminToolbar />
 
                 <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm">
@@ -199,8 +197,6 @@ const App: React.FC = () => {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
       if (error) {
-          // Si erreur (ex: RLS bloquant), on crée un profil temporaire minimal
-          // pour permettre à l'interface de charger au moins en mode client de base
           console.error("Erreur fetch profil (RLS possible) :", error);
           throw error;
       }
@@ -218,14 +214,14 @@ const App: React.FC = () => {
       }
       setIsAuthenticated(true);
     } catch (error: any) {
-        // Fallback profile si l'API bloque
+        // Fallback profile safe
         setCurrentUser({ 
             id: userId, 
             name: 'Utilisateur', 
             company: 'Ma Société', 
             avatarInitials: 'U', 
             email: email, 
-            role: 'client' // Fallback safe
+            role: 'client' 
         });
         setIsAuthenticated(true);
     } finally {
@@ -238,6 +234,8 @@ const App: React.FC = () => {
 
   if (isLoadingAuth) return <div className="h-screen w-full flex items-center justify-center bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>;
   if (isPasswordRecoveryMode) return <UpdatePasswordPage onSuccess={handlePasswordUpdated} />;
+  
+  // Protection: Si pas authentifié ou pas de user, login
   if (!isAuthenticated || !currentUser) return <LoginPage />;
 
   return (
@@ -245,7 +243,6 @@ const App: React.FC = () => {
           <AppContent 
               currentUser={currentUser} 
               handleLogout={handleLogout} 
-              isLoadingAuth={isLoadingAuth} 
           />
       </AdminProvider>
   );

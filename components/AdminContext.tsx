@@ -29,7 +29,7 @@ interface AdminProviderProps {
 }
 
 export const AdminProvider: React.FC<AdminProviderProps> = ({ children, currentUser }) => {
-  // CORRECTION : On initialise directement avec l'ID du user, on n'attend pas le useEffect
+  // Par sécurité, on s'assure que currentUser est présent avant d'accéder aux propriétés, même si le parent le gère.
   const [isAdmin, setIsAdmin] = useState(currentUser?.role === 'admin');
   const [isAdminMode, setIsAdminMode] = useState(currentUser?.role === 'admin');
   const [targetUserId, setTargetUserId] = useState<string>(currentUser?.id || '');
@@ -37,13 +37,12 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children, currentU
   const [clients, setClients] = useState<Client[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
 
-  // Synchronisation si currentUser change (ex: rechargement de session)
   useEffect(() => {
     if (currentUser) {
         const isUserAdmin = currentUser.role === 'admin';
         setIsAdmin(isUserAdmin);
         
-        // Si on n'a pas encore de cible définie, on met l'utilisateur courant
+        // Initialisation de la cible
         setTargetUserId(prev => prev || currentUser.id);
 
         if (isUserAdmin) {
@@ -74,7 +73,7 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children, currentU
       setLoadingClients(false);
   };
 
-  const toggleAdminMode = () => setIsAdminMode(!isAdminMode);
+  const toggleAdminMode = () => setIsAdminMode(prev => !prev);
 
   return (
     <AdminContext.Provider value={{
