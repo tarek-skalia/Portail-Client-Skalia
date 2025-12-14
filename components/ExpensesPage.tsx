@@ -1,12 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { Expense } from '../types';
-import { Search, Filter, Layers, RefreshCw, Plus } from 'lucide-react';
+import { Search, Filter, Layers, RefreshCw, Plus, Edit3, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import ExpenseSlideOver from './ExpenseSlideOver';
 import ExpenseLogo from './ExpenseLogo';
 import { useAdmin } from './AdminContext';
+import { useToast } from './ToastProvider';
 import Modal from './ui/Modal';
 import ExpenseForm from './forms/ExpenseForm';
 
@@ -16,6 +17,7 @@ interface ExpensesPageProps {
 
 const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
   const { isAdminMode } = useAdmin();
+  const toast = useToast();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -30,6 +32,7 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
 
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -96,6 +99,30 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
   const handleCardClick = (expense: Expense) => {
       setSelectedExpense(expense);
       setIsSlideOverOpen(true);
+  };
+
+  const handleCreate = () => {
+      setEditingExpense(null);
+      setIsModalOpen(true);
+  };
+
+  const handleEdit = (e: React.MouseEvent, expense: Expense) => {
+      e.stopPropagation();
+      setEditingExpense(expense);
+      setIsModalOpen(true);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      if (window.confirm("Supprimer cette dépense ?")) {
+          const { error } = await supabase.from('expenses').delete().eq('id', id);
+          if (error) {
+              toast.error("Erreur", "Impossible de supprimer.");
+          } else {
+              toast.success("Supprimé", "Dépense retirée.");
+              fetchExpenses();
+          }
+      }
   };
 
   if (isLoading) {
@@ -190,7 +217,7 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
                 </div>
                 {isAdminMode && (
                   <button 
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={handleCreate}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 flex items-center gap-2 text-sm font-bold whitespace-nowrap"
                   >
                       <Plus size={16} /> Ajouter
@@ -222,6 +249,24 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
                             }
                         `}
                     >
+                        {/* ACTIONS ADMIN */}
+                        {isAdminMode && (
+                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                <button 
+                                    onClick={(e) => handleEdit(e, expense)}
+                                    className="p-1.5 bg-white text-indigo-600 rounded shadow-sm border hover:bg-indigo-50"
+                                >
+                                    <Edit3 size={12} />
+                                </button>
+                                <button 
+                                    onClick={(e) => handleDelete(e, expense.id)}
+                                    className="p-1.5 bg-white text-red-600 rounded shadow-sm border hover:bg-red-50"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+                            </div>
+                        )}
+
                         <div className={`absolute top-6 right-6 w-2.5 h-2.5 rounded-full ${expense.status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`}></div>
 
                         <div className="flex items-start gap-4 mb-6">
@@ -273,8 +318,12 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
         expense={selectedExpense}
     />
 
-    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouvelle Dépense">
-        <ExpenseForm onSuccess={() => { setIsModalOpen(false); fetchExpenses(); }} onCancel={() => setIsModalOpen(false)} />
+    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingExpense ? "Modifier Dépense" : "Nouvelle Dépense"}>
+        <ExpenseForm 
+            initialData={editingExpense}
+            onSuccess={() => { setIsModalOpen(false); fetchExpenses(); }} 
+            onCancel={() => setIsModalOpen(false)} 
+        />
     </Modal>
     </>
   );

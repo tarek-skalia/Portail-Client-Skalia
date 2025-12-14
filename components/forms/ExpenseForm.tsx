@@ -1,15 +1,17 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
+import { Expense } from '../../types';
 
 interface ExpenseFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  initialData?: Expense | null;
 }
 
-const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel }) => {
+const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel, initialData }) => {
   const { targetUserId } = useAdmin();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -18,31 +20,58 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel }) => {
   const [serviceName, setServiceName] = useState('');
   const [provider, setProvider] = useState('');
   const [amount, setAmount] = useState(0);
-  const [billingCycle, setBillingCycle] = useState('monthly');
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [category, setCategory] = useState('Software');
-  const [status, setStatus] = useState('active');
+  const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [websiteUrl, setWebsiteUrl] = useState('');
+
+  // Initialisation
+  useEffect(() => {
+      if (initialData) {
+          setServiceName(initialData.serviceName);
+          setProvider(initialData.provider);
+          setAmount(initialData.amount);
+          setBillingCycle(initialData.billingCycle);
+          setCategory(initialData.category);
+          setStatus(initialData.status);
+          setWebsiteUrl(initialData.websiteUrl || '');
+      }
+  }, [initialData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
 
-      try {
-          const { error } = await supabase.from('expenses').insert({
-              user_id: targetUserId,
-              service_name: serviceName,
-              provider,
-              amount,
-              billing_cycle: billingCycle,
-              category,
-              status,
-              website_url: websiteUrl,
-              created_at: new Date().toISOString()
-          });
+      const payload = {
+          user_id: targetUserId,
+          service_name: serviceName,
+          provider,
+          amount,
+          billing_cycle: billingCycle,
+          category,
+          status,
+          website_url: websiteUrl
+      };
 
-          if (error) throw error;
+      try {
+          if (initialData) {
+              // UPDATE
+              const { error } = await supabase
+                .from('expenses')
+                .update(payload)
+                .eq('id', initialData.id);
+              if (error) throw error;
+              toast.success("Mis à jour", "Dépense modifiée.");
+          } else {
+              // INSERT
+              const { error } = await supabase.from('expenses').insert({
+                  ...payload,
+                  created_at: new Date().toISOString()
+              });
+              if (error) throw error;
+              toast.success("Ajouté", "L'abonnement a été ajouté.");
+          }
           
-          toast.success("Ajouté", "L'abonnement a été ajouté au client.");
           onSuccess();
 
       } catch (err: any) {
@@ -85,7 +114,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel }) => {
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cycle</label>
                 <select 
-                    value={billingCycle} onChange={e => setBillingCycle(e.target.value)}
+                    value={billingCycle} onChange={e => setBillingCycle(e.target.value as any)}
                     className="w-full px-3 py-2 border rounded-lg outline-none bg-white"
                 >
                     <option value="monthly">Mensuel</option>
@@ -106,7 +135,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel }) => {
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Statut</label>
                 <select 
-                    value={status} onChange={e => setStatus(e.target.value)}
+                    value={status} onChange={e => setStatus(e.target.value as any)}
                     className="w-full px-3 py-2 border rounded-lg outline-none bg-white"
                 >
                     <option value="active">Actif</option>
@@ -127,7 +156,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel }) => {
         <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
             <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>
             <button type="submit" disabled={loading} className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md disabled:opacity-50">
-                {loading ? 'Ajout...' : 'Ajouter Dépense'}
+                {loading ? 'Enregistrement...' : (initialData ? 'Mettre à jour' : 'Ajouter Dépense')}
             </button>
         </div>
     </form>

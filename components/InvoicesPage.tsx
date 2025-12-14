@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Invoice } from '../types';
-import { FileText, Download, AlertCircle, CheckCircle2, Clock, Euro, Search, Filter, Wallet, CreditCard, ChevronRight, Plus } from 'lucide-react';
+import { FileText, Download, AlertCircle, CheckCircle2, Clock, Euro, Search, Filter, Wallet, CreditCard, ChevronRight, Plus, Edit3, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import InvoiceSlideOver from './InvoiceSlideOver';
@@ -29,6 +29,7 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
 
   // Etat Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
   const toast = useToast();
 
@@ -102,6 +103,30 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
   const handleOpenInvoice = (inv: Invoice) => {
       setSelectedInvoice(inv);
       setIsSlideOverOpen(true);
+  };
+
+  const handleCreate = () => {
+      setEditingInvoice(null);
+      setIsModalOpen(true);
+  };
+
+  const handleEdit = (e: React.MouseEvent, inv: Invoice) => {
+      e.stopPropagation();
+      setEditingInvoice(inv);
+      setIsModalOpen(true);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, invId: string) => {
+      e.stopPropagation();
+      if (window.confirm("Supprimer cette facture ?")) {
+          const { error } = await supabase.from('invoices').delete().eq('id', invId);
+          if (error) {
+              toast.error("Erreur", "Impossible de supprimer.");
+          } else {
+              toast.success("Supprimé", "Facture retirée.");
+              fetchInvoices();
+          }
+      }
   };
 
   const getStatusStyle = (status: Invoice['status']) => {
@@ -238,7 +263,7 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
               </div>
               {isAdminMode && (
                   <button 
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={handleCreate}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 flex items-center gap-2 text-sm font-bold whitespace-nowrap"
                   >
                       <Plus size={16} /> Créer
@@ -266,6 +291,24 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
                         onClick={() => handleOpenInvoice(inv)}
                         className="group bg-white rounded-xl border border-slate-200 p-4 hover:border-indigo-300 hover:shadow-md transition-all duration-300 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden"
                       >
+                          {/* ACTIONS ADMIN */}
+                          {isAdminMode && (
+                              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                  <button 
+                                      onClick={(e) => handleEdit(e, inv)}
+                                      className="p-1.5 bg-white text-indigo-600 rounded shadow-sm border hover:bg-indigo-50"
+                                  >
+                                      <Edit3 size={12} />
+                                  </button>
+                                  <button 
+                                      onClick={(e) => handleDelete(e, inv.id)}
+                                      className="p-1.5 bg-white text-red-600 rounded shadow-sm border hover:bg-red-50"
+                                  >
+                                      <Trash2 size={12} />
+                                  </button>
+                              </div>
+                          )}
+
                           <div className="flex items-start gap-4 z-10">
                               <div className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${style.bg} ${style.text}`}>
                                   <FileText size={20} />
@@ -336,8 +379,12 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
         invoice={selectedInvoice}
     />
 
-    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouvelle Facture">
-        <InvoiceForm onSuccess={() => { setIsModalOpen(false); fetchInvoices(); }} onCancel={() => setIsModalOpen(false)} />
+    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingInvoice ? "Modifier Facture" : "Nouvelle Facture"}>
+        <InvoiceForm 
+            initialData={editingInvoice}
+            onSuccess={() => { setIsModalOpen(false); fetchInvoices(); }} 
+            onCancel={() => setIsModalOpen(false)} 
+        />
     </Modal>
     </>
   );

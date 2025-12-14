@@ -1,16 +1,18 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
 import { PROJECT_OWNERS } from '../../constants';
+import { Project } from '../../types';
 
 interface ProjectFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  initialData?: Project | null;
 }
 
-const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel }) => {
+const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialData }) => {
   const { targetUserId } = useAdmin();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -26,40 +28,83 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel }) => {
 
   const owners = Object.keys(PROJECT_OWNERS);
 
+  // Initialisation
+  useEffect(() => {
+      if (initialData) {
+          setTitle(initialData.title);
+          setDescription(initialData.description);
+          setStatus(initialData.status);
+          // Conversion format Date pour input type="date" (YYYY-MM-DD)
+          // Attention, le format reçu de la BDD peut varier, on parse simplement
+          if (initialData.startDate && initialData.startDate.includes('/')) {
+              // Si format FR dd/mm/yyyy
+              const [d, m, y] = initialData.startDate.split('/');
+              setStartDate(`${y}-${m}-${d}`);
+          } else {
+              setStartDate(initialData.startDate || '');
+          }
+
+          if (initialData.endDate && initialData.endDate.includes('/')) {
+              const [d, m, y] = initialData.endDate.split('/');
+              setEndDate(`${y}-${m}-${d}`);
+          } else {
+              setEndDate(initialData.endDate || '');
+          }
+
+          setOwnerName(initialData.ownerName || 'Skalia Team');
+          setTagsStr(initialData.tags ? initialData.tags.join(', ') : '');
+      }
+  }, [initialData]);
+
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
 
       const tagsArray = tagsStr.split(',').map(t => t.trim()).filter(t => t !== '');
-      const ownerAvatar = PROJECT_OWNERS[ownerName]; // Auto-fill avatar
+      const ownerAvatar = PROJECT_OWNERS[ownerName]; 
+
+      const payload = {
+          user_id: targetUserId,
+          title,
+          description,
+          status,
+          start_date: startDate,
+          end_date: endDate || null,
+          owner_name: ownerName,
+          owner_avatar: ownerAvatar,
+          tags: tagsArray
+      };
 
       try {
-          // 1. Create Project
-          const { data: projectData, error } = await supabase.from('projects').insert({
-              user_id: targetUserId,
-              title,
-              description,
-              status,
-              start_date: startDate,
-              end_date: endDate || null,
-              owner_name: ownerName,
-              owner_avatar: ownerAvatar,
-              tags: tagsArray,
-              resources: [], // Init empty
-              created_at: new Date().toISOString()
-          }).select().single();
+          if (initialData) {
+              // UPDATE
+              const { error } = await supabase
+                .from('projects')
+                .update(payload)
+                .eq('id', initialData.id);
+              
+              if (error) throw error;
+              toast.success("Mis à jour", "Le projet a été modifié.");
+          } else {
+              // INSERT
+              const { data: projectData, error } = await supabase.from('projects').insert({
+                  ...payload,
+                  resources: [],
+                  created_at: new Date().toISOString()
+              }).select().single();
 
-          if (error) throw error;
-          
-          // 2. Create Default Tasks (Optional but nice)
-          if (projectData) {
-              await supabase.from('project_tasks').insert([
-                  { project_id: projectData.id, name: 'Kick-off meeting', type: 'agency' },
-                  { project_id: projectData.id, name: 'Validation des accès', type: 'client' }
-              ]);
+              if (error) throw error;
+              
+              // Create Default Tasks if new
+              if (projectData) {
+                  await supabase.from('project_tasks').insert([
+                      { project_id: projectData.id, name: 'Kick-off meeting', type: 'agency' },
+                      { project_id: projectData.id, name: 'Validation des accès', type: 'client' }
+                  ]);
+              }
+              toast.success("Créé", "Projet initialisé avec succès.");
           }
 
-          toast.success("Créé", "Projet initialisé avec succès.");
           onSuccess();
 
       } catch (err: any) {
@@ -159,7 +204,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel }) => {
         <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
             <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>
             <button type="submit" disabled={loading} className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md disabled:opacity-50">
-                {loading ? 'Création...' : 'Lancer le projet'}
+                {loading ? 'Enregistrement...' : (initialData ? 'Mettre à jour' : 'Lancer le projet')}
             </button>
         </div>
     </form>

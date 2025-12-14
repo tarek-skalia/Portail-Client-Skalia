@@ -1,11 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { Automation } from '../types';
-import { Activity, CheckCircle2, XCircle, AlertCircle, Clock, PauseCircle, Play, ArrowRight, Zap, Search, Plus } from 'lucide-react';
+import { Activity, CheckCircle2, XCircle, AlertCircle, Clock, PauseCircle, Play, ArrowRight, Zap, Search, Plus, Trash2, Edit3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import AutomationSlideOver from './AutomationSlideOver';
 import { useAdmin } from './AdminContext';
+import { useToast } from './ToastProvider';
 import Modal from './ui/Modal';
 import AutomationForm from './forms/AutomationForm';
 
@@ -15,17 +16,19 @@ interface AutomationsListProps {
 }
 
 const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToSupport }) => {
-  const { isAdminMode } = useAdmin(); // Context Admin
+  const { isAdminMode } = useAdmin();
+  const toast = useToast();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // États pour le SlideOver
+  // États SlideOver
   const [selectedAutomation, setSelectedAutomation] = useState<Automation | null>(null);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
 
-  // État Modal Création
+  // États Modal CRUD
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAutomation, setEditingAutomation] = useState<Automation | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -130,6 +133,31 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
       setTimeout(() => setSelectedAutomation(null), 300);
   };
 
+  // --- CRUD ACTIONS ---
+  const handleEdit = (e: React.MouseEvent, auto: Automation) => {
+      e.stopPropagation();
+      setEditingAutomation(auto);
+      setIsModalOpen(true);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, autoId: string) => {
+      e.stopPropagation();
+      if (window.confirm("Êtes-vous sûr de vouloir supprimer cette automatisation ? Cette action est irréversible et supprimera l'historique associé.")) {
+          const { error } = await supabase.from('automations').delete().eq('id', autoId);
+          if (error) {
+              toast.error("Erreur", "Impossible de supprimer.");
+          } else {
+              toast.success("Supprimé", "L'automatisation a été retirée.");
+              fetchAutomationsAndStats();
+          }
+      }
+  };
+
+  const handleCreate = () => {
+      setEditingAutomation(null);
+      setIsModalOpen(true);
+  };
+
   const getStatusStyle = (status: Automation['status']) => {
     switch (status) {
       case 'active':
@@ -210,7 +238,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
                 {/* BOUTON ADMIN */}
                 {isAdminMode && (
                     <button 
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={handleCreate}
                         className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-indigo-700 flex items-center gap-2"
                     >
                         <Plus size={16} /> Ajouter
@@ -254,9 +282,30 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
                 return (
                     <div 
                         key={auto.id} 
-                        className={`bg-white rounded-2xl p-6 border border-slate-100 transition-all duration-300 ease-out group animate-fade-in-up ${delayClass} hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-100/50 cursor-pointer`}
+                        className={`bg-white rounded-2xl p-6 border border-slate-100 transition-all duration-300 ease-out group animate-fade-in-up ${delayClass} hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-100/50 cursor-pointer relative overflow-hidden`}
                         onClick={() => handleOpenDetails(auto)}
                     >
+                    
+                    {/* ADMIN ACTIONS OVERLAY */}
+                    {isAdminMode && (
+                        <div className="absolute top-4 right-4 flex gap-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                                onClick={(e) => handleEdit(e, auto)}
+                                className="p-2 bg-white text-indigo-600 rounded-lg shadow-sm border border-slate-200 hover:bg-indigo-50"
+                                title="Modifier"
+                            >
+                                <Edit3 size={16} />
+                            </button>
+                            <button 
+                                onClick={(e) => handleDelete(e, auto.id)}
+                                className="p-2 bg-white text-red-600 rounded-lg shadow-sm border border-slate-200 hover:bg-red-50"
+                                title="Supprimer"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    )}
+
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         
                         {/* Left: Icon & Info */}
@@ -335,13 +384,14 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
             onNavigateToSupport={onNavigateToSupport}
         />
 
-        {/* MODAL CREATION */}
+        {/* MODAL CREATION / EDITION */}
         <Modal 
             isOpen={isModalOpen} 
             onClose={() => setIsModalOpen(false)} 
-            title="Nouvelle Automatisation"
+            title={editingAutomation ? "Modifier l'automatisation" : "Nouvelle Automatisation"}
         >
             <AutomationForm 
+                initialData={editingAutomation}
                 onSuccess={() => { setIsModalOpen(false); fetchAutomationsAndStats(); }}
                 onCancel={() => setIsModalOpen(false)}
             />

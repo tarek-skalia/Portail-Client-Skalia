@@ -1,13 +1,15 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
 import { Plus, Trash2, GripVertical, Info } from 'lucide-react';
+import { Automation } from '../../types';
 
 interface AutomationFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  initialData?: Automation | null; // Support édition
 }
 
 interface Step {
@@ -15,7 +17,7 @@ interface Step {
     action: string;
 }
 
-const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel }) => {
+const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, initialData }) => {
   const { targetUserId } = useAdmin();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -24,9 +26,24 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel }) 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive' | 'maintenance' | 'error'>('active');
-  const [toolIconsStr, setToolIconsStr] = useState(''); // Comma separated
+  const [toolIconsStr, setToolIconsStr] = useState(''); 
   const [pipelineSteps, setPipelineSteps] = useState<Step[]>([{ tool: '', action: '' }]);
   const [userGuide, setUserGuide] = useState('');
+
+  // Initialisation pour l'édition
+  useEffect(() => {
+      if (initialData) {
+          setName(initialData.name);
+          setDescription(initialData.description);
+          setStatus(initialData.status as any);
+          setToolIconsStr(initialData.toolIcons.join(', '));
+          setPipelineSteps(initialData.pipelineSteps && initialData.pipelineSteps.length > 0 
+            ? initialData.pipelineSteps 
+            : [{ tool: '', action: '' }]
+          );
+          setUserGuide(initialData.userGuide || '');
+      }
+  }, [initialData]);
 
   const handleAddStep = () => {
       setPipelineSteps([...pipelineSteps, { tool: '', action: '' }]);
@@ -48,24 +65,37 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel }) 
       e.preventDefault();
       setLoading(true);
 
-      // Clean Data
       const toolsArray = toolIconsStr.split(',').map(t => t.trim()).filter(t => t !== '');
       const validSteps = pipelineSteps.filter(s => s.tool.trim() !== '' || s.action.trim() !== '');
 
-      try {
-          const { error } = await supabase.from('automations').insert({
-              user_id: targetUserId,
-              name,
-              description,
-              status,
-              tool_icons: toolsArray,
-              pipeline_steps: validSteps, // JSONB auto-conversion
-              user_guide: userGuide
-          });
+      const payload = {
+          user_id: targetUserId,
+          name,
+          description,
+          status,
+          tool_icons: toolsArray,
+          pipeline_steps: validSteps,
+          user_guide: userGuide
+      };
 
-          if (error) throw error;
+      try {
+          if (initialData) {
+              // UPDATE
+              const { error } = await supabase
+                .from('automations')
+                .update(payload)
+                .eq('id', initialData.id);
+              if (error) throw error;
+              toast.success("Mis à jour", "L'automatisation a été modifiée.");
+          } else {
+              // INSERT
+              const { error } = await supabase
+                .from('automations')
+                .insert(payload);
+              if (error) throw error;
+              toast.success("Créé", "L'automatisation a été ajoutée.");
+          }
           
-          toast.success("Créé", "L'automatisation a été ajoutée.");
           onSuccess();
 
       } catch (err: any) {
@@ -92,7 +122,7 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel }) 
                 />
             </div>
             <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Statut Initial</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Statut</label>
                 <select 
                     value={status} 
                     onChange={e => setStatus(e.target.value as any)}
@@ -101,6 +131,7 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel }) 
                     <option value="active">Actif</option>
                     <option value="inactive">Inactif</option>
                     <option value="maintenance">Maintenance</option>
+                    <option value="error">Erreur</option>
                 </select>
             </div>
         </div>
@@ -198,7 +229,7 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel }) 
                 disabled={loading}
                 className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md disabled:opacity-50"
             >
-                {loading ? 'Création...' : 'Créer l\'automatisation'}
+                {loading ? 'Enregistrement...' : (initialData ? 'Mettre à jour' : 'Créer l\'automatisation')}
             </button>
         </div>
     </form>

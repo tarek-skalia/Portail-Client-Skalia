@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Project, ProjectTask } from '../types';
-import { Search, Calendar, CheckSquare, AlertTriangle, Layers, Plus, Filter, History } from 'lucide-react';
+import { Search, Calendar, CheckSquare, AlertTriangle, Layers, Plus, Filter, History, Edit3, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import ProjectSlideOver from './ProjectSlideOver';
@@ -47,6 +47,7 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const toast = useToast();
   
   // État pour le filtre historique
   const [showAllHistory, setShowAllHistory] = useState(false);
@@ -55,11 +56,11 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
   
-  // Modal Creation
+  // Modal Creation / Edition
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   const hasScrolledRef = useRef<string | null>(null);
-  const toast = useToast();
 
   useEffect(() => {
     if (userId) {
@@ -243,10 +244,30 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
   };
 
   const handleRequestProject = () => {
+      setEditingProject(null);
       if (isAdminMode) {
           setIsModalOpen(true);
       } else if (onNavigateToSupport) {
           onNavigateToSupport('new', "Bonjour, je souhaite démarrer un nouveau projet concernant :\n\n- Objectif :\n- Délai souhaité :\n");
+      }
+  };
+
+  const handleEdit = (e: React.MouseEvent, project: Project) => {
+      e.stopPropagation();
+      setEditingProject(project);
+      setIsModalOpen(true);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, projectId: string) => {
+      e.stopPropagation();
+      if (window.confirm("Supprimer ce projet ? Toutes les tâches et fichiers associés seront perdus.")) {
+          const { error } = await supabase.from('projects').delete().eq('id', projectId);
+          if (error) {
+              toast.error("Erreur", "Impossible de supprimer le projet.");
+          } else {
+              toast.success("Supprimé", "Projet retiré.");
+              fetchProjectsAndTasks();
+          }
       }
   };
 
@@ -355,6 +376,25 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
                                                 }
                                             `}
                                         >
+                                            
+                                            {/* ACTIONS ADMIN */}
+                                            {isAdminMode && (
+                                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                                    <button 
+                                                        onClick={(e) => handleEdit(e, project)}
+                                                        className="p-1.5 bg-white text-indigo-600 rounded shadow-sm border hover:bg-indigo-50"
+                                                    >
+                                                        <Edit3 size={12} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={(e) => handleDelete(e, project.id)}
+                                                        className="p-1.5 bg-white text-red-600 rounded shadow-sm border hover:bg-red-50"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            )}
+
                                             <div className="flex justify-between items-start mb-3">
                                                 <div className="flex flex-wrap gap-1.5">
                                                     {project.tags?.map((tag, i) => (
@@ -420,8 +460,16 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
             project={selectedProject}
         />
 
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouveau Projet">
-            <ProjectForm onSuccess={() => { setIsModalOpen(false); fetchProjectsAndTasks(); }} onCancel={() => setIsModalOpen(false)} />
+        <Modal 
+            isOpen={isModalOpen} 
+            onClose={() => setIsModalOpen(false)} 
+            title={editingProject ? "Modifier le projet" : "Nouveau Projet"}
+        >
+            <ProjectForm 
+                initialData={editingProject}
+                onSuccess={() => { setIsModalOpen(false); fetchProjectsAndTasks(); }} 
+                onCancel={() => setIsModalOpen(false)} 
+            />
         </Modal>
     </>
   );

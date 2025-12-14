@@ -1,17 +1,18 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
 import { Plus, Trash2, Calculator } from 'lucide-react';
-import { InvoiceItem } from '../../types';
+import { InvoiceItem, Invoice } from '../../types';
 
 interface InvoiceFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  initialData?: Invoice | null;
 }
 
-const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel }) => {
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialData }) => {
   const { targetUserId } = useAdmin();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -19,7 +20,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel }) => {
   // Fields
   const [number, setNumber] = useState(`INV-${new Date().getFullYear()}-`);
   const [projectName, setProjectName] = useState('');
-  const [status, setStatus] = useState('pending');
+  const [status, setStatus] = useState<'pending' | 'paid' | 'overdue'>('pending');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState('');
   const [paymentLink, setPaymentLink] = useState('');
@@ -27,7 +28,35 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel }) => {
   
   // Items Repeater
   const [items, setItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0 }]);
-  const [taxRate, setTaxRate] = useState(20); // 20% TVA default
+  const [taxRate, setTaxRate] = useState(20);
+
+  // Initialisation
+  useEffect(() => {
+      if (initialData) {
+          setNumber(initialData.number);
+          setProjectName(initialData.projectName);
+          setStatus(initialData.status === 'open' ? 'pending' : initialData.status as any);
+          
+          if (initialData.issueDate && initialData.issueDate.includes('/')) {
+              const [d, m, y] = initialData.issueDate.split('/');
+              setIssueDate(`${y}-${m}-${d}`);
+          } else {
+              setIssueDate(initialData.issueDate || '');
+          }
+
+          if (initialData.dueDate && initialData.dueDate.includes('/')) {
+              const [d, m, y] = initialData.dueDate.split('/');
+              setDueDate(`${y}-${m}-${d}`);
+          } else {
+              setDueDate(initialData.dueDate || '');
+          }
+
+          setPaymentLink(initialData.paymentLink || '');
+          setPdfUrl(initialData.pdfUrl || '');
+          setItems(initialData.items || [{ description: '', quantity: 1, unit_price: 0 }]);
+          setTaxRate(initialData.taxRate || 20);
+      }
+  }, [initialData]);
 
   // Computed
   const subTotal = items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
@@ -53,24 +82,38 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel }) => {
       e.preventDefault();
       setLoading(true);
 
-      try {
-          const { error } = await supabase.from('invoices').insert({
-              user_id: targetUserId,
-              number,
-              project_name: projectName,
-              amount: totalAmount, // Total calculé stocké
-              status,
-              issue_date: issueDate,
-              due_date: dueDate,
-              pdf_url: pdfUrl,
-              payment_link: paymentLink,
-              items: items, // JSONB
-              tax_rate: taxRate
-          });
+      const payload = {
+          user_id: targetUserId,
+          number,
+          project_name: projectName,
+          amount: totalAmount,
+          status,
+          issue_date: issueDate,
+          due_date: dueDate,
+          pdf_url: pdfUrl,
+          payment_link: paymentLink,
+          items: items,
+          tax_rate: taxRate
+      };
 
-          if (error) throw error;
+      try {
+          if (initialData) {
+              // UPDATE
+              const { error } = await supabase
+                .from('invoices')
+                .update(payload)
+                .eq('id', initialData.id);
+              if (error) throw error;
+              toast.success("Mise à jour", "Facture modifiée.");
+          } else {
+              // INSERT
+              const { error } = await supabase
+                .from('invoices')
+                .insert(payload);
+              if (error) throw error;
+              toast.success("Créée", "Facture ajoutée.");
+          }
           
-          toast.success("Facture créée", "Le client peut désormais la voir.");
           onSuccess();
 
       } catch (err: any) {
@@ -94,7 +137,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel }) => {
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Statut</label>
                 <select 
-                    value={status} onChange={e => setStatus(e.target.value)}
+                    value={status} onChange={e => setStatus(e.target.value as any)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                 >
                     <option value="pending">En attente</option>
@@ -187,7 +230,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel }) => {
         <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
             <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>
             <button type="submit" disabled={loading} className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md disabled:opacity-50">
-                {loading ? 'Enregistrement...' : 'Générer Facture'}
+                {loading ? 'Enregistrement...' : (initialData ? 'Mettre à jour' : 'Générer Facture')}
             </button>
         </div>
     </form>

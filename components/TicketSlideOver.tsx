@@ -1,19 +1,21 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Ticket, TicketMessage } from '../types';
-import { X, Send, Paperclip, CheckCircle2, Circle, Clock, User, ShieldAlert, FileText, Download } from 'lucide-react';
+import { X, Send, Paperclip, CheckCircle2, Circle, Clock, User, ShieldAlert, FileText, Download, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useToast } from './ToastProvider';
 import Skeleton from './Skeleton';
+import { useAdmin } from './AdminContext';
 
 interface TicketSlideOverProps {
   isOpen: boolean;
   onClose: () => void;
   ticket: Ticket | null;
-  userId?: string;
+  userId?: string; // Id du client cible (pour l'historique)
 }
 
 const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, ticket, userId }) => {
+  const { isAdmin } = useAdmin(); // Récupérer le statut réel de l'admin
   const [isVisible, setIsVisible] = useState(false);
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -119,36 +121,45 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
   const handleSendMessage = async (e: React.FormEvent) => {
       e.preventDefault();
       // On autorise l'envoi si texte OU fichier est présent
-      if ((!newMessage.trim() && !selectedFile) || !ticket || !userId) return;
+      if ((!newMessage.trim() && !selectedFile) || !ticket) return;
 
       setIsSending(true);
       
       try {
+          // --- LOGIQUE ADMIN ---
+          // Si isAdmin est vrai, on envoie en tant qu'admin
+          // Le sender_id sera l'ID de l'admin (auth.uid()), mais on peut le récupérer proprement
+          const { data: { user } } = await supabase.auth.getUser();
+          const currentSenderId = user?.id;
+
+          const senderType = isAdmin ? 'admin' : 'client';
+
           let uploadedFileUrl: string | null = null;
 
-          // 1. Upload du fichier (similaire à SupportPage)
+          // 1. Upload du fichier (dans le dossier du ticket)
           if (selectedFile) {
                const cleanName = selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-               const fileName = `tickets/${userId}/${Date.now()}_${cleanName}`;
+               // On stocke dans tickets/{clientId}/... pour que le client puisse lire ses propres fichiers
+               const storagePath = `tickets/${userId || ticket.clientId}/${Date.now()}_${cleanName}`;
                
                const { error: uploadError } = await supabase.storage
                   .from('project_files')
-                  .upload(fileName, selectedFile);
+                  .upload(storagePath, selectedFile);
                
                if (uploadError) throw uploadError;
 
                const { data: { publicUrl } } = supabase.storage
                   .from('project_files')
-                  .getPublicUrl(fileName);
+                  .getPublicUrl(storagePath);
                
                uploadedFileUrl = publicUrl;
           }
 
           const { error } = await supabase.from('ticket_messages').insert({
               ticket_id: ticket.id,
-              sender_id: userId,
-              sender_type: 'client',
-              message: newMessage, // Peut être vide si seulement un fichier
+              sender_id: currentSenderId,
+              sender_type: senderType,
+              message: newMessage, 
               attachments: uploadedFileUrl ? [uploadedFileUrl] : [],
               created_at: new Date().toISOString()
           });
@@ -245,35 +256,56 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
             ) : (
                 messages.map((msg, idx) => {
                     const isClient = msg.senderType === 'client';
+                    const isAdminMsg = msg.senderType === 'admin';
+                    
+                    // Si je suis Admin : Mes messages (Admin) sont à Droite. Le Client est à Gauche.
+                    // Si je suis Client : Mes messages (Client) sont à Droite. L'Admin est à Gauche.
+                    
+                    // Logique d'affichage : 
+                    // - Si isAdmin (Viewer) est true : 'admin' à droite, 'client' à gauche.
+                    // - Si isAdmin (Viewer) est false : 'client' à droite, 'admin' à gauche.
+                    
+                    const isMe = isAdmin ? isAdminMsg : isClient;
+                    
                     const isSequence = idx > 0 && messages[idx - 1].senderType === msg.senderType;
 
                     return (
-                        <div key={msg.id} className={`flex w-full ${isClient ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`flex max-w-[85%] md:max-w-[75%] gap-2 ${isClient ? 'flex-row-reverse' : 'flex-row'}`}>
+                        <div key={msg.id} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`flex max-w-[85%] md:max-w-[75%] gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                 
                                 {/* Avatar */}
                                 {!isSequence ? (
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border shadow-sm ${
-                                        isClient ? 'bg-indigo-100 border-indigo-200 text-indigo-600' : 'bg-white border-slate-200 text-slate-600'
+                                        isAdminMsg 
+                                        ? 'bg-slate-900 border-slate-700 text-white' // Admin Avatar Dark
+                                        : 'bg-white border-slate-200 text-indigo-600' // Client Avatar Light
                                     }`}>
-                                        {isClient ? <User size={14} /> : <div className="font-bold text-[10px]">S</div>}
+                                        {isAdminMsg ? <ShieldCheck size={14} /> : <User size={14} />}
                                     </div>
                                 ) : (
                                     <div className="w-8 shrink-0" />
                                 )}
 
                                 {/* Bulle Message */}
-                                <div className={`flex flex-col ${isClient ? 'items-end' : 'items-start'}`}>
+                                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                    
+                                    {/* Nom au dessus (Optionnel, utile si admin parle au client) */}
+                                    {!isMe && !isSequence && (
+                                        <span className="text-[10px] text-slate-400 mb-1 ml-1">
+                                            {isAdminMsg ? 'Support Skalia' : 'Client'}
+                                        </span>
+                                    )}
+
                                     <div className={`px-4 py-3 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap ${
-                                        isClient 
+                                        isMe 
                                         ? 'bg-indigo-600 text-white rounded-tr-sm' 
-                                        : 'bg-white text-slate-700 border border-slate-200 rounded-tl-sm'
+                                        : isAdminMsg ? 'bg-slate-800 text-slate-100 rounded-tl-sm' : 'bg-white text-slate-700 border border-slate-200 rounded-tl-sm'
                                     }`}>
                                         {msg.message}
                                         
                                         {/* AFFICHAGE PIÈCES JOINTES */}
                                         {msg.attachments && msg.attachments.length > 0 && (
-                                            <div className={`mt-3 pt-3 border-t ${isClient ? 'border-white/20' : 'border-slate-100'} space-y-2`}>
+                                            <div className={`mt-3 pt-3 border-t ${isMe || isAdminMsg ? 'border-white/20' : 'border-slate-100'} space-y-2`}>
                                                 {msg.attachments.map((url, i) => (
                                                     <a 
                                                         key={i} 
@@ -281,7 +313,7 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
                                                         target="_blank" 
                                                         rel="noopener noreferrer" 
                                                         className={`flex items-center gap-2 p-2 rounded-lg text-xs font-medium transition-colors ${
-                                                            isClient 
+                                                            isMe || isAdminMsg
                                                             ? 'bg-white/10 hover:bg-white/20 text-white' 
                                                             : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                                                         }`}
@@ -332,8 +364,12 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
                     <textarea
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Rédigez votre message..."
-                        className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none min-h-[50px] max-h-[150px]"
+                        placeholder={isAdmin ? "Répondre en tant que Support..." : "Rédigez votre message..."}
+                        className={`w-full pl-4 pr-12 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all resize-none min-h-[50px] max-h-[150px] ${
+                            isAdmin 
+                            ? 'bg-slate-50 border-slate-300 focus:ring-slate-500/20 focus:border-slate-500' 
+                            : 'bg-slate-50 border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+                        }`}
                         rows={2}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
@@ -367,7 +403,7 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
                             disabled={(!newMessage.trim() && !selectedFile) || isSending}
                             className={`p-2 rounded-lg transition-all ${
                                 (newMessage.trim() || selectedFile) && !isSending
-                                ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md' 
+                                ? (isAdmin ? 'bg-slate-800 text-white hover:bg-slate-900 shadow-md' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md')
                                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                             }`}
                         >
