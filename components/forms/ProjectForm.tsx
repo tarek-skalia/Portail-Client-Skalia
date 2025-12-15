@@ -4,7 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
 import { PROJECT_OWNERS } from '../../constants';
-import { Project } from '../../types';
+import { Project, ProjectTask } from '../../types';
+import { Plus, Trash2, Briefcase, User, CheckSquare, GripVertical } from 'lucide-react';
 
 interface ProjectFormProps {
   onSuccess: () => void;
@@ -26,6 +27,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
   const [ownerName, setOwnerName] = useState('Tarek Zreik');
   const [tagsStr, setTagsStr] = useState('');
 
+  // Tasks Management
+  const [tasks, setTasks] = useState<Partial<ProjectTask>[]>([]);
+  const [tasksToDelete, setTasksToDelete] = useState<string[]>([]);
+
   const owners = Object.keys(PROJECT_OWNERS);
 
   // Initialisation
@@ -34,10 +39,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
           setTitle(initialData.title);
           setDescription(initialData.description);
           setStatus(initialData.status);
-          // Conversion format Date pour input type="date" (YYYY-MM-DD)
-          // Attention, le format reçu de la BDD peut varier, on parse simplement
+          
           if (initialData.startDate && initialData.startDate.includes('/')) {
-              // Si format FR dd/mm/yyyy
               const [d, m, y] = initialData.startDate.split('/');
               setStartDate(`${y}-${m}-${d}`);
           } else {
@@ -53,8 +56,43 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
 
           setOwnerName(initialData.ownerName || 'Skalia Team');
           setTagsStr(initialData.tags ? initialData.tags.join(', ') : '');
+
+          // Load Tasks
+          if (initialData.tasks) {
+              // On clone pour éviter de muter la prop directement
+              setTasks(initialData.tasks.map(t => ({ ...t })));
+          } else {
+              setTasks([]);
+          }
+      } else {
+          // Default Tasks for new project
+          setTasks([
+              { name: 'Kick-off meeting', type: 'agency', completed: false },
+              { name: 'Validation des accès', type: 'client', completed: false }
+          ]);
       }
   }, [initialData]);
+
+  const handleAddTask = () => {
+      setTasks([...tasks, { name: '', type: 'agency', completed: false }]);
+  };
+
+  const handleRemoveTask = (index: number) => {
+      const taskToRemove = tasks[index];
+      // Si la tâche a un ID (existe en base), on la marque pour suppression
+      if (taskToRemove.id) {
+          setTasksToDelete([...tasksToDelete, taskToRemove.id]);
+      }
+      const newTasks = [...tasks];
+      newTasks.splice(index, 1);
+      setTasks(newTasks);
+  };
+
+  const updateTask = (index: number, field: keyof ProjectTask, value: any) => {
+      const newTasks = [...tasks];
+      newTasks[index] = { ...newTasks[index], [field]: value };
+      setTasks(newTasks);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -76,8 +114,10 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
       };
 
       try {
+          let currentProjectId = initialData?.id;
+
           if (initialData) {
-              // UPDATE
+              // --- UPDATE PROJECT ---
               const { error } = await supabase
                 .from('projects')
                 .update(payload)
@@ -86,7 +126,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
               if (error) throw error;
               toast.success("Mis à jour", "Le projet a été modifié.");
           } else {
-              // INSERT
+              // --- INSERT PROJECT ---
               const { data: projectData, error } = await supabase.from('projects').insert({
                   ...payload,
                   resources: [],
@@ -94,20 +134,48 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
               }).select().single();
 
               if (error) throw error;
+              if (projectData) currentProjectId = projectData.id;
               
-              // Create Default Tasks if new
-              if (projectData) {
-                  await supabase.from('project_tasks').insert([
-                      { project_id: projectData.id, name: 'Kick-off meeting', type: 'agency' },
-                      { project_id: projectData.id, name: 'Validation des accès', type: 'client' }
-                  ]);
-              }
               toast.success("Créé", "Projet initialisé avec succès.");
+          }
+
+          // --- MANAGE TASKS ---
+          if (currentProjectId) {
+              // 1. Delete removed tasks
+              if (tasksToDelete.length > 0) {
+                  await supabase.from('project_tasks').delete().in('id', tasksToDelete);
+              }
+
+              // 2. Process Add/Update
+              const newTasks = tasks.filter(t => !t.id && t.name?.trim());
+              const existingTasks = tasks.filter(t => t.id && t.name?.trim());
+
+              // Bulk Insert New
+              if (newTasks.length > 0) {
+                  await supabase.from('project_tasks').insert(newTasks.map(t => ({
+                      project_id: currentProjectId,
+                      name: t.name,
+                      type: t.type || 'agency',
+                      completed: t.completed || false
+                  })));
+              }
+
+              // Update Existing (Parallel)
+              if (existingTasks.length > 0) {
+                  await Promise.all(existingTasks.map(t => 
+                      supabase.from('project_tasks').update({
+                          name: t.name,
+                          type: t.type,
+                          completed: t.completed
+                      }).eq('id', t.id!)
+                  ));
+              }
           }
 
           onSuccess();
 
       } catch (err: any) {
+          console.error(err);
           toast.error("Erreur", err.message);
       } finally {
           setLoading(false);
@@ -117,6 +185,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
         
+        {/* TITRE */}
         <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Titre du projet</label>
             <input 
@@ -129,6 +198,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
             />
         </div>
 
+        {/* DATES */}
         <div className="grid grid-cols-2 gap-4">
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Date de début</label>
@@ -151,6 +221,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
             </div>
         </div>
 
+        {/* STATUS & OWNER */}
         <div className="grid grid-cols-2 gap-4">
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Statut</label>
@@ -179,6 +250,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
             </div>
         </div>
 
+        {/* DESCRIPTION */}
         <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label>
             <textarea 
@@ -190,6 +262,81 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
             />
         </div>
 
+        {/* --- GESTION DES TACHES --- */}
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <label className="block text-xs font-bold text-indigo-600 uppercase mb-3 flex items-center gap-2">
+                <CheckSquare size={14} /> Tâches & Jalons
+            </label>
+            
+            <div className="space-y-3">
+                {tasks.map((task, idx) => (
+                    <div key={idx} className="flex gap-2 items-start">
+                        {/* Type Selector */}
+                        <div className="relative">
+                            <select
+                                value={task.type || 'agency'}
+                                onChange={e => updateTask(idx, 'type', e.target.value)}
+                                className={`appearance-none w-28 pl-8 pr-2 py-2 text-xs font-bold border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer ${
+                                    task.type === 'client' 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                    : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                }`}
+                            >
+                                <option value="agency">Agence</option>
+                                <option value="client">Client</option>
+                            </select>
+                            <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                                {task.type === 'client' ? <User size={14} className="text-emerald-600" /> : <Briefcase size={14} className="text-indigo-600" />}
+                            </div>
+                        </div>
+
+                        {/* Status Toggle Button (CHECKBOX) */}
+                        <button
+                            type="button"
+                            onClick={() => updateTask(idx, 'completed', !task.completed)}
+                            className={`p-2 rounded-lg border transition-all ${
+                                task.completed 
+                                ? 'bg-emerald-100 border-emerald-200 text-emerald-700 shadow-sm' 
+                                : 'bg-white border-slate-200 text-slate-300 hover:border-indigo-300 hover:text-indigo-400'
+                            }`}
+                            title={task.completed ? "Marquer comme non fait" : "Marquer comme fait"}
+                        >
+                            <CheckSquare size={18} />
+                        </button>
+
+                        {/* Name Input */}
+                        <input 
+                            type="text" 
+                            placeholder="Nom de la tâche..." 
+                            value={task.name}
+                            onChange={e => updateTask(idx, 'name', e.target.value)}
+                            className={`flex-1 px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${
+                                task.completed ? 'bg-slate-50 text-slate-500 line-through decoration-slate-400' : 'bg-white'
+                            }`}
+                        />
+
+                        {/* Delete Button */}
+                        <button 
+                            type="button" 
+                            onClick={() => handleRemoveTask(idx)}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
+                ))}
+            </div>
+            
+            <button 
+                type="button" 
+                onClick={handleAddTask}
+                className="mt-3 text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+            >
+                <Plus size={14} /> Ajouter une tâche
+            </button>
+        </div>
+
+        {/* TAGS */}
         <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tags (séparés par virgule)</label>
             <input 
@@ -201,6 +348,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
             />
         </div>
 
+        {/* ACTIONS */}
         <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
             <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>
             <button type="submit" disabled={loading} className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md disabled:opacity-50">
