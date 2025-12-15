@@ -23,7 +23,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
 
   // Client Data
   const [clientName, setClientName] = useState('');
-  const [clientCompany, setClientCompany] = useState('');
+  const [clientCompany, setClientCompany] = useState(''); // Gardé pour info n8n si besoin, mais on édite surtout le nom affiché
   const [billingEmail, setBillingEmail] = useState(''); // Email spécifique pour la facture
   const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null); // ID Stripe existant
 
@@ -54,8 +54,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                 .single();
                 
               if (data) {
-                  setClientName(data.full_name || '');
+                  // On pré-remplit avec la Société si dispo, sinon le Nom complet
+                  const displayName = data.company_name || data.full_name || '';
+                  setClientName(displayName);
                   setClientCompany(data.company_name || '');
+                  
                   // En création, on pré-remplit l'email. En édition, on garde l'email existant s'il était stocké (ici simplifié)
                   if (!initialData) {
                       if (data.email) setBillingEmail(data.email);
@@ -156,8 +159,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
               const n8nPayload = {
                   client: {
                       email: billingEmail, // C'est l'email saisi dans le formulaire
-                      name: clientName,
-                      company: clientCompany,
+                      name: clientName,    // C'est le nom modifié dans le formulaire
+                      company: clientCompany, // Info de fond, moins prioritaire si name est rempli
                       supabase_user_id: targetUserId,
                       stripe_customer_id: stripeCustomerId // On envoie l'ID s'il existe déjà !
                   },
@@ -217,9 +220,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nom Client / Société</label>
-                        <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-medium cursor-not-allowed opacity-80">
-                            <Building size={14} className="text-slate-400" />
-                            <span className="truncate">{clientCompany || clientName || 'Chargement...'}</span>
+                        {/* CHAMP ÉDITABLE */}
+                        <div className="relative">
+                            <Building className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <input 
+                                type="text"
+                                value={clientName}
+                                onChange={(e) => setClientName(e.target.value)}
+                                className="w-full pl-9 pr-3 py-2 border border-slate-300 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800 font-medium text-sm"
+                                placeholder="Nom du client"
+                            />
                         </div>
                     </div>
                     <div>
