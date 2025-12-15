@@ -8,7 +8,7 @@ import { InvoiceItem, Invoice } from '../../types';
 
 // --- CONFIGURATION N8N ---
 // Remplace ceci par l'URL de ton Webhook n8n (Production)
-const N8N_CREATE_INVOICE_WEBHOOK = "https://ton-n8n.com/webhook/creer-facture-stripe"; 
+const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook/de8b8392-51b4-4a45-875e-f11c9b6a0f6e"; 
 
 interface InvoiceFormProps {
   onSuccess: () => void;
