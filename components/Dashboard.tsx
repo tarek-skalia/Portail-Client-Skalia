@@ -19,7 +19,6 @@ const CountUp = ({ end, duration = 1500, suffix = '', prefix = '' }: { end: numb
 
   useEffect(() => {
     let start = 0;
-    // Si la valeur finale est 0, on met à jour immédiatement pour éviter de rester bloqué sur l'ancienne valeur
     if (end === 0) {
         setCount(0);
         return;
@@ -116,11 +115,23 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
 
   useEffect(() => {
     if (userId) {
+      // RESET COMPLET DES ÉTATS AU CHANGEMENT D'UTILISATEUR
+      setUserName(''); 
+      setStats({
+        totalExecutions: 0,
+        totalExecutionsPrev: 0,
+        activeAutomations: 0,
+        successRate: 0,
+        minutesSaved: 0,
+        topAutomationName: ''
+      });
+      setDailyActivityData([]);
+      setDistributionData([]);
+      setIsLoading(true); // Affiche le skeleton immédiatement
+
       fetchDashboardData();
 
       const channel = supabase.channel('dashboard_main_updates')
-        // Logs: Pas de filtre user_id facile (jointure nécessaire), on garde global mais le fetch filtre
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'automation_logs' }, () => fetchDashboardData())
         // Automations: On peut filtrer par user_id
         .on('postgres_changes', { 
             event: '*', 
@@ -128,25 +139,33 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
             table: 'automations',
             filter: `user_id=eq.${userId}`
         }, () => fetchDashboardData())
+        // Logs: On écoute tout insert public pour l'instant, fetchDashboardData filtrera
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'automation_logs' }, () => fetchDashboardData())
         .subscribe();
 
       return () => { supabase.removeChannel(channel); };
     }
-  }, [userId, timeRange]); // Re-fetch on filter change
+  }, [userId, timeRange]); // Déclenche au changement de User OU de filtre date
 
   const fetchDashboardData = async () => {
-    // Note: On NE met PAS isLoading(true) ici pour éviter le clignotement lors du changement de filtre.
-    
     try {
-      // 0. Profil Utilisateur (Uniquement si pas encore chargé)
-      if (!userName) {
-          const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', userId).single();
-          if (profile?.full_name) {
-              setUserName(profile.full_name.split(' ')[0]);
-          }
+      // 1. Profil Utilisateur (Toujours recharger pour être sûr)
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', userId).single();
+      if (profile?.full_name) {
+          setUserName(profile.full_name.split(' ')[0]);
+      } else {
+          setUserName('Client');
       }
 
-      // 1. CALCUL DES DATES (Current & Previous Period)
+      // 2. AUTOMATIONS ACTIVES & IDs
+      // On récupère d'abord les automations de l'utilisateur pour pouvoir filtrer les logs ensuite
+      const { data: automations } = await supabase.from('automations').select('id, name, status').eq('user_id', userId);
+      
+      const activeAutosCount = automations?.filter(a => a.status === 'active').length || 0;
+      const automationNames = new Map<string, string>(automations?.map(a => [a.id, a.name] as [string, string]) || []);
+      const userAutomationIds = automations?.map(a => a.id) || [];
+
+      // 3. CALCUL DES DATES
       const now = new Date();
       let startDate = new Date();
       let prevStartDate = new Date();
@@ -166,34 +185,35 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
           prevStartDate = new Date(now.getFullYear() - 1, 0, 1);
           prevEndDate = new Date(now.getFullYear() - 1, 11, 31);
       } else { // 'all'
-          startDate = new Date(0); // Epoch
+          startDate = new Date(0); 
           prevStartDate = new Date(0); 
           prevEndDate = new Date(0);
       }
 
-      // 2. AUTOMATIONS ACTIVES
-      const { data: automations } = await supabase.from('automations').select('id, name, status').eq('user_id', userId);
-      const activeAutosCount = automations?.filter(a => a.status === 'active').length || 0;
-      const automationNames = new Map<string, string>(automations?.map(a => [a.id, a.name] as [string, string]) || []);
+      // 4. LOGS (Filtrés par les automations de l'utilisateur)
+      let currentLogs: any[] = [];
+      let prevLogs: any[] = [];
 
-      // 3. LOGS (Récupération large pour couvrir la période actuelle + précédente pour le trend)
-      // Optimisation: Si 'all', on ne récupère pas de période précédente
-      const fetchStart = timeRange === 'all' ? startDate : prevStartDate;
-      
-      const { data: logs } = await supabase
-        .from('automation_logs')
-        .select('created_at, status, minutes_saved, automation_id')
-        .gte('created_at', fetchStart.toISOString())
-        .order('created_at', { ascending: true });
+      if (userAutomationIds.length > 0) {
+          const fetchStart = timeRange === 'all' ? startDate : prevStartDate;
+          
+          const { data: logs } = await supabase
+            .from('automation_logs')
+            .select('created_at, status, minutes_saved, automation_id')
+            .in('automation_id', userAutomationIds) // FILTRE CRITIQUE
+            .gte('created_at', fetchStart.toISOString())
+            .order('created_at', { ascending: true });
 
-      // --- FILTRAGE MÉMOIRE ---
-      const currentLogs = logs?.filter(l => new Date(l.created_at) >= startDate) || [];
-      const prevLogs = timeRange !== 'all' 
-        ? logs?.filter(l => {
-            const d = new Date(l.created_at);
-            return d >= prevStartDate && d <= prevEndDate;
-          }) || []
-        : [];
+          if (logs) {
+              currentLogs = logs.filter(l => new Date(l.created_at) >= startDate);
+              if (timeRange !== 'all') {
+                  prevLogs = logs.filter(l => {
+                      const d = new Date(l.created_at);
+                      return d >= prevStartDate && d <= prevEndDate;
+                  });
+              }
+          }
+      }
 
       // --- CALCULS KPI ---
       const totalExecs = currentLogs.length;
@@ -204,7 +224,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       const minutesSaved = currentLogs.reduce((acc, l) => acc + (l.minutes_saved || 0), 0);
 
       // --- BAR CHART (Toujours les 14 derniers jours pour la granularité) ---
-      // On garde une vue "récente" fixe pour le bar chart car afficher 365 barres est illisible
       const last14DaysMap = new Map<string, { success: number, error: number, date: string, shortDate: string }>();
       for (let i = 13; i >= 0; i--) {
          const d = new Date();
@@ -214,8 +233,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
          last14DaysMap.set(key, { success: 0, error: 0, date: key, shortDate });
       }
 
-      // On utilise tous les logs disponibles (récents) pour le chart
-      logs?.forEach(l => {
+      // On remplit le graphe avec les logs récupérés (récents)
+      currentLogs.forEach(l => {
           const d = new Date(l.created_at);
           const key = d.toISOString().split('T')[0];
           if (last14DaysMap.has(key)) {
@@ -322,7 +341,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
           <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
               <div>
                   <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-baseline gap-2">
-                      {getGreeting()}, <span className="text-indigo-600">{userName || 'Client'}</span>
+                      {getGreeting()}, <span className="text-indigo-600">{userName || (isLoading ? '...' : 'Client')}</span>
                   </h1>
                   
                   {/* SYSTEM STATUS INDICATOR */}

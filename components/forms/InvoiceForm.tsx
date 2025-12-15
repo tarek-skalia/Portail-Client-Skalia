@@ -40,7 +40,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
   
   // Items Repeater
   const [items, setItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0 }]);
-  const [taxRate, setTaxRate] = useState(20);
+  
+  // CORRECTION: Valeur par défaut à 0.
+  const [taxRate, setTaxRate] = useState(0);
 
   // Initialisation : Récupérer les infos du client (Nom, Société, Email, ID Stripe)
   useEffect(() => {
@@ -92,8 +94,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
           setPdfUrl(initialData.pdfUrl || '');
           setItems(initialData.items || [{ description: '', quantity: 1, unit_price: 0 }]);
           
-          // CORRECTION: Utiliser ?? pour accepter 0 comme valeur valide
-          setTaxRate(initialData.taxRate ?? 20);
+          setTaxRate(initialData.taxRate ?? 0);
       }
   }, [initialData]);
 
@@ -166,7 +167,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                       projectName,
                       issueDate,
                       dueDate,
-                      taxRate, // Ce taux est envoyé à N8N
+                      taxRate, // Format CamelCase
+                      tax_rate: taxRate, // Format SnakeCase (Force la DB à utiliser cette valeur)
+                      amount: totalAmount,
                       currency: 'eur'
                   },
                   items: items 
@@ -175,13 +178,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
               // Debug Log
               console.log("Envoi à n8n (Test):", n8nPayload);
 
+              // IMPORTANT: 'keepalive: true' garantit que la requête survit à la fermeture du composant
               await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
                   method: 'POST',
                   mode: 'no-cors', 
                   headers: { 
                       'Content-Type': 'text/plain' 
                   },
-                  body: JSON.stringify(n8nPayload)
+                  body: JSON.stringify(n8nPayload),
+                  keepalive: true
               });
               
               toast.success("Traitement lancé", `La demande a été envoyée à Stripe.`);
