@@ -7,7 +7,7 @@ import { Plus, Trash2, Calculator, Zap, Mail, Link as LinkIcon } from 'lucide-re
 import { InvoiceItem, Invoice } from '../../types';
 
 // --- CONFIGURATION N8N ---
-// Remplace ceci par l'URL de ton Webhook n8n (Production)
+// URL de Production pour la création de facture Stripe
 const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook/de8b8392-51b4-4a45-875e-f11c9b6a0f6e"; 
 
 interface InvoiceFormProps {
@@ -172,11 +172,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                   items: items // Tableau des prestations
               };
 
-              // 3. Envoi au Webhook n8n
-              if (N8N_CREATE_INVOICE_WEBHOOK.includes("ton-n8n.com")) {
-                  throw new Error("L'URL du Webhook n8n n'est pas configurée dans le code (InvoiceForm.tsx).");
-              }
+              // Debug Log
+              console.log("Envoi à n8n:", n8nPayload);
 
+              // 3. Envoi au Webhook n8n
               const response = await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -187,7 +186,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                   throw new Error("Erreur lors de l'appel à n8n. Code: " + response.status);
               }
               
-              toast.success("Traitement lancé", `La facture sera envoyée à ${billingEmail}.`);
+              toast.success("Traitement lancé", `La demande a été envoyée à Stripe.`);
               onSuccess();
           }
 
@@ -207,7 +206,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
             <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 flex items-start gap-3 text-xs text-indigo-700">
                 <Zap size={16} className="shrink-0 mt-0.5" />
                 <div>
-                    <strong>Mode Automatique :</strong> En validant, les données seront envoyées à <strong>Stripe</strong> via n8n. La facture sera générée et envoyée par email.
+                    <strong>Mode Automatique :</strong> En validant, les données seront envoyées à <strong>Stripe</strong> via n8n. La facture sera générée et envoyée par email au client.
                 </div>
             </div>
         )}
