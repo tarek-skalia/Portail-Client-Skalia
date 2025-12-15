@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Client } from '../types';
-import { Search, Plus, Trash2, Edit3, Shield, Mail, Building, User, Lock, Key, RefreshCw } from 'lucide-react';
+import { Search, Plus, Trash2, Edit3, Shield, Mail, Building, User, Lock, Key, RefreshCw, CreditCard } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { useToast } from './ToastProvider';
 import Modal from './ui/Modal';
@@ -15,12 +15,15 @@ const UserManagement: React.FC = () => {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<Client | null>(null); // Pour le mode édition
+  
   const [formData, setFormData] = useState({
       email: '',
       password: '',
       fullName: '',
       companyName: '',
-      role: 'client'
+      role: 'client',
+      stripeCustomerId: '' // Nouveau champ
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -28,10 +31,31 @@ const UserManagement: React.FC = () => {
       fetchUsers();
   }, []);
 
+  // Reset form quand on ferme ou change de mode
+  useEffect(() => {
+      if (editingUser) {
+          setFormData({
+              email: editingUser.email,
+              password: '', // On ne remplit pas le mot de passe en édition par sécurité
+              fullName: editingUser.name,
+              companyName: editingUser.company,
+              role: editingUser.role || 'client',
+              stripeCustomerId: editingUser.stripeCustomerId || ''
+          });
+      } else {
+          setFormData({ 
+              email: '', 
+              password: '', 
+              fullName: '', 
+              companyName: '', 
+              role: 'client',
+              stripeCustomerId: ''
+          });
+      }
+  }, [editingUser, isModalOpen]);
+
   const fetchUsers = async () => {
       setIsLoading(true);
-      // On trie par updated_at décroissant pour avoir les modifications récentes en premier
-      // et éviter les erreurs si created_at est manquant
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -47,50 +71,85 @@ const UserManagement: React.FC = () => {
               company: p.company_name || 'Sans société',
               avatarInitials: p.avatar_initials || '?',
               email: p.email || '',
-              role: p.role
+              role: p.role,
+              stripeCustomerId: p.stripe_customer_id // Récupération ID Stripe
           }));
           setUsers(mapped);
       }
       setIsLoading(false);
   };
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const handleSubmitUser = async (e: React.FormEvent) => {
       e.preventDefault();
       setIsSubmitting(true);
 
       try {
-          // Génération d'un UUID valide pour Postgres
-          const newUserId = crypto.randomUUID();
-          
-          // 1. Insertion dans la table Profiles
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-                id: newUserId,
-                email: formData.email,
-                full_name: formData.fullName,
-                company_name: formData.companyName,
-                avatar_initials: formData.fullName.substring(0, 2).toUpperCase(),
-                role: formData.role
-            });
+          if (editingUser) {
+              // --- MODE MODIFICATION ---
+              const updates: any = {
+                  full_name: formData.fullName,
+                  company_name: formData.companyName,
+                  role: formData.role,
+                  stripe_customer_id: formData.stripeCustomerId || null,
+                  updated_at: new Date().toISOString()
+              };
+              
+              // On met à jour l'email seulement s'il a changé (attention aux contraintes Auth)
+              if (formData.email !== editingUser.email) {
+                  updates.email = formData.email;
+              }
 
-          if (profileError) throw profileError;
+              const { error } = await supabase
+                  .from('profiles')
+                  .update(updates)
+                  .eq('id', editingUser.id);
 
-          toast.success("Utilisateur créé", "Le profil client a été ajouté avec succès.");
+              if (error) throw error;
+              toast.success("Mis à jour", "Le profil a été modifié.");
+
+          } else {
+              // --- MODE CRÉATION ---
+              const newUserId = crypto.randomUUID();
+              
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                    id: newUserId,
+                    email: formData.email,
+                    full_name: formData.fullName,
+                    company_name: formData.companyName,
+                    avatar_initials: formData.fullName.substring(0, 2).toUpperCase(),
+                    role: formData.role,
+                    stripe_customer_id: formData.stripeCustomerId || null
+                });
+
+              if (profileError) throw profileError;
+              toast.success("Utilisateur créé", "Le profil client a été ajouté.");
+              
+              // Note pour l'admin
+              setTimeout(() => {
+                  toast.info("Action requise", "Pensez à créer l'accès Auth correspondant dans Supabase ou invitez l'utilisateur.");
+              }, 1500);
+          }
+
           setIsModalOpen(false);
-          setFormData({ email: '', password: '', fullName: '', companyName: '', role: 'client' });
           fetchUsers();
 
-          // Note pour l'admin
-          setTimeout(() => {
-              toast.info("Action requise", "Pensez à créer l'accès Auth correspondant dans Supabase ou invitez l'utilisateur par email.");
-          }, 1500);
-
       } catch (err: any) {
-          toast.error("Erreur", err.message || "Echec création utilisateur.");
+          toast.error("Erreur", err.message || "Echec de l'opération.");
       } finally {
           setIsSubmitting(false);
       }
+  };
+
+  const handleEdit = (user: Client) => {
+      setEditingUser(user);
+      setIsModalOpen(true);
+  };
+
+  const handleCreate = () => {
+      setEditingUser(null);
+      setIsModalOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -139,7 +198,7 @@ const UserManagement: React.FC = () => {
                     />
                 </div>
                 <button 
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={handleCreate}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-95"
                 >
                     <Plus size={18} /> Nouveau Client
@@ -162,6 +221,7 @@ const UserManagement: React.FC = () => {
                         <tr>
                             <th className="px-6 py-4">Utilisateur</th>
                             <th className="px-6 py-4">Entreprise</th>
+                            <th className="px-6 py-4">Stripe ID</th>
                             <th className="px-6 py-4">Rôle</th>
                             <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
@@ -188,6 +248,15 @@ const UserManagement: React.FC = () => {
                                     <div className="text-xs text-slate-400 pl-6">{user.email}</div>
                                 </td>
                                 <td className="px-6 py-4">
+                                    {user.stripeCustomerId ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 text-slate-600 font-mono text-[10px] border border-slate-200">
+                                            <CreditCard size={10} /> {user.stripeCustomerId}
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs text-slate-300 italic">-</span>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4">
                                     {user.role === 'admin' ? (
                                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100 text-xs font-bold uppercase tracking-wide">
                                             <Shield size={12} /> Admin
@@ -200,12 +269,17 @@ const UserManagement: React.FC = () => {
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button className="p-2 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors">
+                                        <button 
+                                            onClick={() => handleEdit(user)}
+                                            className="p-2 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                            title="Modifier"
+                                        >
                                             <Edit3 size={16} />
                                         </button>
                                         <button 
                                             onClick={() => handleDelete(user.id)}
                                             className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition-colors"
+                                            title="Supprimer"
                                         >
                                             <Trash2 size={16} />
                                         </button>
@@ -218,9 +292,13 @@ const UserManagement: React.FC = () => {
             )}
         </div>
 
-        {/* MODAL CREATION */}
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Ajouter un nouveau client">
-            <form onSubmit={handleCreateUser} className="space-y-5">
+        {/* MODAL CREATION / EDITION */}
+        <Modal 
+            isOpen={isModalOpen} 
+            onClose={() => setIsModalOpen(false)} 
+            title={editingUser ? "Modifier le client" : "Ajouter un nouveau client"}
+        >
+            <form onSubmit={handleSubmitUser} className="space-y-5">
                 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -265,24 +343,43 @@ const UserManagement: React.FC = () => {
                     </div>
                 </div>
 
+                {/* Champ ID Stripe (Optionnel) */}
                 <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-2">
-                        Mot de passe Initial <Lock size={12} />
+                        Stripe Customer ID <span className="text-[10px] font-normal text-slate-400">(Optionnel - Auto-généré sinon)</span>
                     </label>
                     <div className="relative">
-                        <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input 
-                            type="text" required 
-                            value={formData.password}
-                            onChange={e => setFormData({...formData, password: e.target.value})}
-                            className="w-full pl-9 pr-4 py-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono"
-                            placeholder="Saisir mot de passe..."
+                            type="text"
+                            value={formData.stripeCustomerId}
+                            onChange={e => setFormData({...formData, stripeCustomerId: e.target.value})}
+                            className="w-full pl-9 pr-4 py-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono text-slate-600"
+                            placeholder="cus_..."
                         />
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                        Utilisez ce mot de passe pour créer l'utilisateur dans Supabase Auth si besoin.
-                    </p>
                 </div>
+
+                {!editingUser && (
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-2">
+                            Mot de passe Initial <Lock size={12} />
+                        </label>
+                        <div className="relative">
+                            <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input 
+                                type="text" required 
+                                value={formData.password}
+                                onChange={e => setFormData({...formData, password: e.target.value})}
+                                className="w-full pl-9 pr-4 py-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono"
+                                placeholder="Saisir mot de passe..."
+                            />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                            Utilisez ce mot de passe pour créer l'utilisateur dans Supabase Auth si besoin.
+                        </p>
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Rôle</label>
@@ -309,7 +406,7 @@ const UserManagement: React.FC = () => {
                         disabled={isSubmitting}
                         className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md disabled:opacity-50"
                     >
-                        {isSubmitting ? 'Création...' : 'Créer le compte'}
+                        {isSubmitting ? 'Enregistrement...' : (editingUser ? 'Sauvegarder' : 'Créer le compte')}
                     </button>
                 </div>
 

@@ -30,7 +30,8 @@ export interface Client {
   email: string;
   password?: string;
   logoUrl?: string;
-  role?: 'admin' | 'client'; // Ajout du rôle
+  role?: 'admin' | 'client';
+  stripeCustomerId?: string; // Ajout ID Stripe
 }
 
 export interface Automation {

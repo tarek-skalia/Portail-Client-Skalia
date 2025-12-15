@@ -28,6 +28,7 @@ export interface Database {
           company_name: string | null
           avatar_initials: string | null
           logo_url: string | null
+          stripe_customer_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -37,6 +38,7 @@ export interface Database {
           company_name?: string | null
           avatar_initials?: string | null
           logo_url?: string | null
+          stripe_customer_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -46,6 +48,7 @@ export interface Database {
           company_name?: string | null
           avatar_initials?: string | null
           logo_url?: string | null
+          stripe_customer_id?: string | null
           updated_at?: string | null
         }
       }
