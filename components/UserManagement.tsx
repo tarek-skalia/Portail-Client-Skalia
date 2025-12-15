@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Client } from '../types';
-import { Search, Plus, Trash2, Edit3, Shield, Mail, Building, User, Lock, Key } from 'lucide-react';
+import { Search, Plus, Trash2, Edit3, Shield, Mail, Building, User, Lock, Key, RefreshCw } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { useToast } from './ToastProvider';
 import Modal from './ui/Modal';
@@ -29,12 +29,16 @@ const UserManagement: React.FC = () => {
   }, []);
 
   const fetchUsers = async () => {
+      setIsLoading(true);
+      // On trie par updated_at décroissant pour avoir les modifications récentes en premier
+      // et éviter les erreurs si created_at est manquant
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
       if (error) {
+          console.error("Erreur fetch profiles:", error);
           toast.error("Erreur", "Impossible de charger les utilisateurs.");
       } else if (data) {
           const mapped: Client[] = data.map((p: any) => ({
@@ -55,22 +59,14 @@ const UserManagement: React.FC = () => {
       setIsSubmitting(true);
 
       try {
-          // NOTE IMPORTANTE :
-          // Dans une vraie application Supabase, la création d'utilisateur (Auth) doit se faire via :
-          // 1. Côté serveur (Edge Function) avec la clé service_role pour admin.createUser()
-          // 2. Ou côté client via supabase.auth.signUp() (mais cela connecte l'utilisateur immédiatement)
-          //
-          // ICI, pour la démo frontend, on va simuler la création Auth en créant directement le PROFIL.
-          // L'utilisateur pourra apparaître dans le dashboard. 
-          // En prod, il faudrait décommenter la logique Auth backend.
-
-          const fakeUserId = Math.random().toString(36).substr(2, 9); // ID temporaire pour la démo
+          // Génération d'un UUID valide pour Postgres
+          const newUserId = crypto.randomUUID();
           
-          // 1. Insertion dans la table Profiles (C'est ce qui compte pour l'affichage app)
+          // 1. Insertion dans la table Profiles
           const { error: profileError } = await supabase
             .from('profiles')
             .insert({
-                id: fakeUserId, // En prod, ce serait l'ID retourné par auth.signUp
+                id: newUserId,
                 email: formData.email,
                 full_name: formData.fullName,
                 company_name: formData.companyName,
@@ -85,9 +81,9 @@ const UserManagement: React.FC = () => {
           setFormData({ email: '', password: '', fullName: '', companyName: '', role: 'client' });
           fetchUsers();
 
-          // Petit message pour l'admin (contexte démo)
+          // Note pour l'admin
           setTimeout(() => {
-              toast.info("Info Technique", "En production, l'email d'invitation Auth serait envoyé ici.");
+              toast.info("Action requise", "Pensez à créer l'accès Auth correspondant dans Supabase ou invitez l'utilisateur par email.");
           }, 1500);
 
       } catch (err: any) {
@@ -125,6 +121,13 @@ const UserManagement: React.FC = () => {
             </div>
             
             <div className="flex gap-3 w-full md:w-auto">
+                <button 
+                    onClick={fetchUsers}
+                    className="p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-white bg-slate-100 rounded-xl transition-colors"
+                    title="Actualiser"
+                >
+                    <RefreshCw size={20} className={isLoading ? "animate-spin" : ""} />
+                </button>
                 <div className="relative flex-1 md:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input 
@@ -173,7 +176,7 @@ const UserManagement: React.FC = () => {
                                         </div>
                                         <div>
                                             <div className="font-bold text-slate-900">{user.name}</div>
-                                            <div className="text-xs text-slate-400">{user.email}</div>
+                                            <div className="text-xs text-slate-400 font-mono">{user.id.slice(0,8)}...</div>
                                         </div>
                                     </div>
                                 </td>
@@ -182,6 +185,7 @@ const UserManagement: React.FC = () => {
                                         <Building size={14} className="text-slate-400" />
                                         {user.company}
                                     </div>
+                                    <div className="text-xs text-slate-400 pl-6">{user.email}</div>
                                 </td>
                                 <td className="px-6 py-4">
                                     {user.role === 'admin' ? (
@@ -272,11 +276,11 @@ const UserManagement: React.FC = () => {
                             value={formData.password}
                             onChange={e => setFormData({...formData, password: e.target.value})}
                             className="w-full pl-9 pr-4 py-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono"
-                            placeholder="Générer ou saisir..."
+                            placeholder="Saisir mot de passe..."
                         />
                     </div>
                     <p className="text-[10px] text-slate-400 mt-1">
-                        Le client pourra changer ce mot de passe à sa première connexion.
+                        Utilisez ce mot de passe pour créer l'utilisateur dans Supabase Auth si besoin.
                     </p>
                 </div>
 

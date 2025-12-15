@@ -36,11 +36,18 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
 
         const automationsChannel = supabase
             .channel('realtime:automations_list')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'automations' }, () => {
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'automations',
+                filter: `user_id=eq.${userId}` // OPTIMISATION
+            }, () => {
                 fetchAutomationsAndStats();
             })
             .subscribe();
 
+        // On écoute l'insertion de logs globalement, mais on re-fetch qui va filtrer
+        // Note: Idéalement il faudrait user_id dans automation_logs pour filtrer aussi
         const logsChannel = supabase
             .channel('realtime:automation_logs_stats')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'automation_logs' }, () => {

@@ -45,12 +45,20 @@ const TicketsHistory: React.FC<TicketsHistoryProps> = ({ userId, initialTicketId
 
         const channel = supabase
             .channel('realtime:tickets_history')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'tickets',
+                filter: `user_id=eq.${userId}` // OPTIMISATION
+            }, () => {
                 fetchTickets();
             })
             .subscribe();
 
         // On écoute aussi les messages pour mettre à jour la pastille rouge en temps réel
+        // Pour les messages, on ne peut pas filtrer par user_id facilement car il n'est pas dans ticket_messages
+        // On garde le listener global OU on ajoute user_id dans ticket_messages (optimisation future)
+        // Ici, on actualise si N'IMPORTE quel message est posté, mais fetchTickets filtrera ensuite.
         const msgChannel = supabase
             .channel('realtime:tickets_history_messages')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ticket_messages' }, () => {

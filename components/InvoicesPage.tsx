@@ -38,7 +38,12 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
         fetchInvoices();
         const channel = supabase
             .channel('realtime:invoices')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => {
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'invoices',
+                filter: `user_id=eq.${userId}` // OPTIMISATION: Écoute ciblée
+            }, () => {
                 fetchInvoices();
             })
             .subscribe();
