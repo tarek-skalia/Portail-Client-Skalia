@@ -29,6 +29,15 @@ const AIInsightsWidget: React.FC<AIInsightsWidgetProps> = ({ stats, isLoading })
     return () => clearInterval(interval);
   }, []);
 
+  // Reset automatique du statut quand les stats changent significativement
+  // Cela permet de redemander une analyse si l'utilisateur change de filtre temporel
+  useEffect(() => {
+      if (status === 'completed') {
+          setStatus('idle');
+          setInsight('');
+      }
+  }, [stats.totalExecutions, stats.minutesSaved]);
+
   const startAnalysis = () => {
     setStatus('analyzing');
     setIsTyping(true);
@@ -50,7 +59,6 @@ const AIInsightsWidget: React.FC<AIInsightsWidgetProps> = ({ stats, isLoading })
     } else if (stats.trendPercentage > 0) {
         text += `Excellente dynamique ! Votre activité est en croissance de **+${stats.trendPercentage}%** ce mois-ci. L'infrastructure Skalia absorbe parfaitement cette montée en charge sans ralentissement. `;
     } else {
-        // Même si la tendance est négative, on la présente comme une stabilisation ou une optimisation
         text += `Votre flux de données est stabilisé. L'infrastructure maintient une haute disponibilité pour traiter vos demandes instantanément. `;
     }
 
@@ -59,18 +67,17 @@ const AIInsightsWidget: React.FC<AIInsightsWidgetProps> = ({ stats, isLoading })
         text += `Le processus clé **"${stats.topAutomationName}"** fonctionne à plein régime pour soutenir votre activité. `;
     }
 
-    // 3. FIABILITÉ & SÉCURITÉ (Jamais d'erreur mentionnée négativement)
-    // Même si le taux de succès est bas, on dit que le système de filtrage fonctionne.
+    // 3. FIABILITÉ & SÉCURITÉ
     if (stats.successRate < 95) {
         text += `Nos protocoles de sécurité ont filtré les données invalides (Taux de traitement : ${stats.successRate}%). Votre base de données reste ainsi propre et exploitable. `;
     } else {
         text += `La fiabilité système est optimale avec un taux de succès de **${stats.successRate}%**. Vos données sont traitées en toute sécurité. `;
     }
 
-    // 4. ROI (La cerise sur le gâteau)
+    // 4. ROI
     const hours = Math.floor(stats.minutesSaved / 60);
     if (hours > 0) {
-        text += `Au total, Skalia a automatisé l'équivalent de **${hours} heures** de travail manuel ce mois-ci, vous permettant de vous concentrer sur votre cœur de métier.`;
+        text += `Au total, Skalia a automatisé l'équivalent de **${hours} heures** de travail manuel sur cette période, vous permettant de vous concentrer sur votre cœur de métier.`;
     } else {
         text += `Skalia est prêt à accélérer votre productivité dès les prochaines exécutions.`;
     }
@@ -84,10 +91,8 @@ const AIInsightsWidget: React.FC<AIInsightsWidgetProps> = ({ stats, isLoading })
             clearInterval(typingInterval);
             setIsTyping(false);
         }
-    }, 20); // Vitesse de frappe
+    }, 20);
   };
-
-  if (isLoading) return null;
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 p-[1px] shadow-xl mb-8 animate-fade-in-up group">
@@ -96,7 +101,7 @@ const AIInsightsWidget: React.FC<AIInsightsWidgetProps> = ({ stats, isLoading })
           {/* Icone IA animée */}
           <div className="relative shrink-0">
              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center shadow-inner border border-indigo-100 group-hover:scale-105 transition-transform duration-500">
-                {status === 'analyzing' ? (
+                {status === 'analyzing' || isLoading ? (
                     <Loader2 className="text-indigo-600 animate-spin" size={32} />
                 ) : (
                     <BrainCircuit className="text-purple-600" size={32} />
@@ -122,15 +127,16 @@ const AIInsightsWidget: React.FC<AIInsightsWidgetProps> = ({ stats, isLoading })
                     </p>
                     <button 
                         onClick={startAnalysis}
-                        className="px-5 py-2 bg-slate-900 hover:bg-indigo-600 text-white text-xs font-bold uppercase tracking-wide rounded-lg shadow-lg shadow-indigo-200/50 hover:shadow-indigo-500/30 transition-all duration-300 flex items-center gap-2 whitespace-nowrap"
+                        disabled={isLoading}
+                        className={`px-5 py-2 bg-slate-900 text-white text-xs font-bold uppercase tracking-wide rounded-lg shadow-lg shadow-indigo-200/50 transition-all duration-300 flex items-center gap-2 whitespace-nowrap ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-600 hover:shadow-indigo-500/30'}`}
                     >
-                        Lancer l'analyse
-                        <ArrowRight size={14} />
+                        {isLoading ? 'Chargement des données...' : "Lancer l'analyse"}
+                        {!isLoading && <ArrowRight size={14} />}
                     </button>
                 </div>
              )}
 
-             {status === 'analyzing' && (
+             {(status === 'analyzing') && (
                  <div className="flex items-center gap-3 text-slate-500 text-sm font-medium">
                      <span className="relative flex h-3 w-3">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>

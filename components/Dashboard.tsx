@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import AIInsightsWidget from './AIInsightsWidget';
 import RecentActivityFeed from './RecentActivityFeed';
 import Skeleton from './Skeleton';
@@ -86,6 +86,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   const toast = useToast();
+  const prevUserIdRef = useRef<string | undefined>(undefined);
 
   // DATA STATES
   const [stats, setStats] = useState({
@@ -115,37 +116,43 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
 
   useEffect(() => {
     if (userId) {
-      // RESET COMPLET DES ÉTATS AU CHANGEMENT D'UTILISATEUR
-      setUserName(''); 
-      setStats({
-        totalExecutions: 0,
-        totalExecutionsPrev: 0,
-        activeAutomations: 0,
-        successRate: 0,
-        minutesSaved: 0,
-        topAutomationName: ''
-      });
-      setDailyActivityData([]);
-      setDistributionData([]);
-      setIsLoading(true); // Affiche le skeleton immédiatement
+      // Détection changement d'utilisateur (vs changement de filtre)
+      const isUserChange = prevUserIdRef.current !== userId;
+      prevUserIdRef.current = userId;
 
+      if (isUserChange) {
+          // Reset complet seulement si on change d'utilisateur
+          setUserName(''); 
+          setStats({
+            totalExecutions: 0,
+            totalExecutionsPrev: 0,
+            activeAutomations: 0,
+            successRate: 0,
+            minutesSaved: 0,
+            topAutomationName: ''
+          });
+          setDailyActivityData([]);
+          setDistributionData([]);
+      }
+      
+      setIsLoading(true);
       fetchDashboardData();
 
-      const channel = supabase.channel('dashboard_main_updates')
-        // Automations: On peut filtrer par user_id
+      // Utilisation d'un nom de channel unique par utilisateur pour éviter les conflits Admin/Client
+      const channelName = `dashboard_main_${userId}`;
+      const channel = supabase.channel(channelName)
         .on('postgres_changes', { 
             event: '*', 
             schema: 'public', 
             table: 'automations',
             filter: `user_id=eq.${userId}`
         }, () => fetchDashboardData())
-        // Logs: On écoute tout insert public pour l'instant, fetchDashboardData filtrera
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'automation_logs' }, () => fetchDashboardData())
         .subscribe();
 
       return () => { supabase.removeChannel(channel); };
     }
-  }, [userId, timeRange]); // Déclenche au changement de User OU de filtre date
+  }, [userId, timeRange]);
 
   const fetchDashboardData = async () => {
     try {
@@ -158,7 +165,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       }
 
       // 2. AUTOMATIONS ACTIVES & IDs
-      // On récupère d'abord les automations de l'utilisateur pour pouvoir filtrer les logs ensuite
       const { data: automations } = await supabase.from('automations').select('id, name, status').eq('user_id', userId);
       
       const activeAutosCount = automations?.filter(a => a.status === 'active').length || 0;
@@ -200,7 +206,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
           const { data: logs } = await supabase
             .from('automation_logs')
             .select('created_at, status, minutes_saved, automation_id')
-            .in('automation_id', userAutomationIds) // FILTRE CRITIQUE
+            .in('automation_id', userAutomationIds)
             .gte('created_at', fetchStart.toISOString())
             .order('created_at', { ascending: true });
 
@@ -223,7 +229,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       const successRate = totalExecs > 0 ? Math.round((successCount / totalExecs) * 100) : 100;
       const minutesSaved = currentLogs.reduce((acc, l) => acc + (l.minutes_saved || 0), 0);
 
-      // --- BAR CHART (Toujours les 14 derniers jours pour la granularité) ---
+      // --- BAR CHART ---
       const last14DaysMap = new Map<string, { success: number, error: number, date: string, shortDate: string }>();
       for (let i = 13; i >= 0; i--) {
          const d = new Date();
@@ -233,7 +239,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
          last14DaysMap.set(key, { success: 0, error: 0, date: key, shortDate });
       }
 
-      // On remplit le graphe avec les logs récupérés (récents)
       currentLogs.forEach(l => {
           const d = new Date(l.created_at);
           const key = d.toISOString().split('T')[0];
@@ -245,7 +250,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       });
       const formattedBarData = Array.from(last14DaysMap.values());
 
-      // --- DONUT CHART (Basé sur la période sélectionnée) ---
+      // --- DONUT CHART ---
       const distributionMap = new Map<string, number>();
       currentLogs.forEach(l => {
           const name = automationNames.get(l.automation_id as string) || 'Inconnu';
@@ -304,7 +309,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
   if (stats.totalExecutionsPrev > 0) {
       trend = Math.round(((stats.totalExecutions - stats.totalExecutionsPrev) / stats.totalExecutionsPrev) * 100);
   } else if (stats.totalExecutions > 0 && timeRange !== 'all') {
-      trend = 100; // Croissance infinie (de 0 à N)
+      trend = 100; // Croissance infinie
   }
 
   const getTrendLabel = () => {
@@ -314,10 +319,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       return '';
   };
 
-  // Palette Distincte pour le Donut (Indigo, Emerald, Amber, Pink, Cyan)
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
 
-  // Handlers pour Quick Actions
   const handleNewTicket = () => {
       if (onNavigateToSupport) onNavigateToSupport('bug', "Bonjour, je rencontre un problème sur...");
   };
@@ -343,8 +346,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
                   <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-baseline gap-2">
                       {getGreeting()}, <span className="text-indigo-600">{userName || (isLoading ? '...' : 'Client')}</span>
                   </h1>
-                  
-                  {/* SYSTEM STATUS INDICATOR */}
                   <div className="flex items-center gap-2 mt-2">
                       <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 shadow-sm">
                            <span className="relative flex h-2 w-2">
@@ -356,7 +357,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
                   </div>
               </div>
 
-              {/* FILTRE DE DATE STYLISÉ */}
+              {/* FILTRE DE DATE */}
               <div className="relative group z-20">
                   <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all">
                       <Calendar size={18} className="text-indigo-500" />
@@ -392,9 +393,8 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       {/* 2. KPI HERO & GRID COMPACTE */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           
-          {/* CARTE 1: HERO - ROI CALCULATOR (Time / Money Switch) */}
+          {/* CARTE 1: HERO - ROI */}
           <div className="md:col-span-2 relative overflow-hidden rounded-2xl p-6 shadow-2xl bg-slate-900 text-white border border-slate-800 group transition-all duration-300">
-              {/* Abstract Background Gradients */}
               <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-indigo-600/30 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 group-hover:bg-indigo-500/40 transition-colors duration-700"></div>
               <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-purple-600/20 rounded-full blur-[60px] translate-y-1/3 -translate-x-1/3"></div>
               
@@ -405,7 +405,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
                       </div>
                       
                       <div className="flex items-center gap-3">
-                          {/* TOGGLE SWITCH */}
                           <div className="bg-white/10 p-1 rounded-lg border border-white/10 flex items-center backdrop-blur-sm">
                               <button 
                                 onClick={() => setViewMode('time')}
@@ -421,7 +420,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
                               </button>
                           </div>
                           
-                          {/* SETTINGS BUTTON */}
                           <div className="relative">
                             <button 
                                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
@@ -485,7 +483,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
               </div>
           </div>
 
-          {/* CARTE 2: VOLUME (Dégradé Violet) */}
+          {/* CARTE 2: VOLUME */}
           <div className="bg-gradient-to-br from-white to-violet-50/50 p-6 rounded-2xl border border-violet-100 shadow-sm flex flex-col justify-between group hover:border-violet-200 hover:shadow-lg transition-all relative overflow-hidden">
               <div className="flex justify-between items-start mb-2 relative z-10">
                   <div className="p-2.5 bg-white text-violet-600 rounded-xl border border-violet-100 shadow-sm group-hover:scale-105 transition-transform duration-300">
@@ -510,10 +508,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
               </div>
           </div>
 
-          {/* COLONNE: 2 CARTES VERTICALES (Plus denses) */}
+          {/* COLONNE: 2 CARTES */}
           <div className="flex flex-col gap-4">
               
-              {/* Carte 3: Succès (Dégradé Emerald) */}
+              {/* Carte 3: Succès */}
               <div className="flex-1 bg-gradient-to-br from-white to-emerald-50/60 p-4 rounded-2xl border border-emerald-100 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-all relative overflow-hidden">
                   <div className="relative z-10">
                       <p className="text-[10px] font-bold text-emerald-600/80 uppercase tracking-wide mb-0.5">Taux de succès</p>
@@ -527,7 +525,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
                   </div>
               </div>
 
-              {/* Carte 4: Systèmes (Dégradé Indigo/Blue) */}
+              {/* Carte 4: Systèmes */}
               <div className="flex-1 bg-gradient-to-br from-white to-indigo-50/60 p-4 rounded-2xl border border-indigo-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all relative overflow-hidden">
                   <div className="relative z-10">
                       <p className="text-[10px] font-bold text-indigo-600/80 uppercase tracking-wide mb-0.5">Automatisations</p>
@@ -544,7 +542,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
           </div>
       </section>
 
-      {/* 3. WIDGET ACTIONS RAPIDES */}
+      {/* 3. WIDGET ACTIONS */}
       <section className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex flex-wrap gap-2 animate-fade-in-up delay-100">
             <button 
                 onClick={handleNewTicket}
@@ -569,10 +567,10 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
             </button>
       </section>
 
-      {/* 4. GRAPHIQUES (Style Glass) */}
+      {/* 4. GRAPHIQUES */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-5 h-[320px]">
           
-          {/* GRAPHIQUE 1 : Bar Chart Activité */}
+          {/* GRAPHIQUE 1 : Bar Chart */}
           <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-100/50 p-6 flex flex-col relative overflow-hidden">
               <div className="flex justify-between items-center mb-6 relative z-10">
                   <div>
@@ -625,7 +623,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
               </div>
           </div>
 
-          {/* GRAPHIQUE 2 : Donut Distribution */}
+          {/* GRAPHIQUE 2 : Donut */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-100/50 p-6 flex flex-col relative">
               <h3 className="text-base font-bold text-slate-900 mb-1">Répartition de la charge</h3>
               <p className="text-xs text-slate-500 font-medium mb-4">Utilisation par processus ({getTimeRangeLabel().toLowerCase()})</p>
@@ -666,7 +664,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
                           </div>
                       )
                   )}
-                  {/* Total Centré */}
                   {!isLoading && distributionData.length > 0 && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-6">
                           <span className="text-2xl font-extrabold text-slate-800">{stats.totalExecutions}</span>
@@ -678,7 +675,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
 
       </section>
 
-      {/* 5. FLUX D'ACTIVITÉ STYLE "LIVE TERMINAL" */}
+      {/* 5. FLUX D'ACTIVITÉ */}
       <RecentActivityFeed userId={userId} />
 
     </div>

@@ -22,10 +22,17 @@ const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({ userId }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Reset immédiat au changement d'utilisateur pour éviter l'affichage persistant
+    setActivities([]); 
+    setIsLoading(true);
+
     if (userId) {
       fetchActivity();
       
-      const channel = supabase.channel('dashboard_feed')
+      // Utilisation d'un nom de channel unique par utilisateur pour éviter le mélange de données
+      // lors du switch rapide Admin -> Client -> Admin
+      const channelName = `dashboard_feed_${userId}`;
+      const channel = supabase.channel(channelName)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'automation_logs' }, () => fetchActivity())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ticket_messages' }, () => fetchActivity())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'invoices' }, () => fetchActivity())
@@ -37,10 +44,30 @@ const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({ userId }) => {
 
   const fetchActivity = async () => {
     try {
-      // Fetch data
-      const { data: logs } = await supabase.from('automation_logs').select(`id, status, created_at, automations (name)`).order('created_at', { ascending: false }).limit(5);
-      const { data: messages } = await supabase.from('ticket_messages').select(`id, message, created_at, tickets (subject)`).eq('sender_type', 'admin').order('created_at', { ascending: false }).limit(3);
-      const { data: invoices } = await supabase.from('invoices').select('id, number, amount, status, created_at').order('created_at', { ascending: false }).limit(2);
+      // 1. LOGS: Filtre via la table jointe automations!inner(user_id)
+      const { data: logs } = await supabase
+        .from('automation_logs')
+        .select(`id, status, created_at, automations!inner(name, user_id)`)
+        .eq('automations.user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      // 2. MESSAGES: Filtre via la table jointe tickets!inner(user_id)
+      const { data: messages } = await supabase
+        .from('ticket_messages')
+        .select(`id, message, created_at, sender_type, tickets!inner(subject, user_id)`)
+        .eq('tickets.user_id', userId)
+        .eq('sender_type', 'admin') // On garde seulement les réponses admin
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      // 3. INVOICES: Filtre direct sur user_id
+      const { data: invoices } = await supabase
+        .from('invoices')
+        .select('id, number, amount, status, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(2);
 
       const combined: ActivityItem[] = [];
 
@@ -115,7 +142,7 @@ const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({ userId }) => {
        {/* Content Log Style */}
        <div className="font-mono text-xs space-y-3 relative z-10">
            {activities.length === 0 ? (
-               <p className="text-slate-600 italic">&gt;&gt; Waiting for system events...</p>
+               <p className="text-slate-600 italic">&gt;&gt; No recent activity for this user...</p>
            ) : (
                activities.map((item, index) => (
                    <div key={item.id} className="flex items-start gap-3 opacity-90 hover:opacity-100 transition-opacity">
