@@ -3,12 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
-import { Plus, Trash2, Calculator, Zap, Mail, Link as LinkIcon } from 'lucide-react';
+import { Plus, Trash2, Calculator, Zap, Mail, Link as LinkIcon, User, Building } from 'lucide-react';
 import { InvoiceItem, Invoice } from '../../types';
 
 // --- CONFIGURATION N8N ---
-// URL de Production pour la création de facture Stripe
-const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook/de8b8392-51b4-4a45-875e-f11c9b6a0f6e"; 
+// URL de TEST (webhook-test) pour que ton bouton "Listen for test event" fonctionne
+const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook-test/de8b8392-51b4-4a45-875e-f11c9b6a0f6e"; 
 
 interface InvoiceFormProps {
   onSuccess: () => void;
@@ -21,15 +21,20 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
   const toast = useToast();
   const [loading, setLoading] = useState(false);
 
-  // Fields
+  // Client Data
+  const [clientName, setClientName] = useState('');
+  const [clientCompany, setClientCompany] = useState('');
   const [billingEmail, setBillingEmail] = useState(''); // Email spécifique pour la facture
   const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null); // ID Stripe existant
 
+  // Invoice Data
   const [number, setNumber] = useState(`INV-${new Date().getFullYear()}-`);
   const [projectName, setProjectName] = useState('');
   const [status, setStatus] = useState<'pending' | 'paid' | 'overdue'>('pending');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState('');
+  
+  // Edit Mode Only Fields
   const [paymentLink, setPaymentLink] = useState('');
   const [pdfUrl, setPdfUrl] = useState('');
   
@@ -37,20 +42,25 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
   const [items, setItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0 }]);
   const [taxRate, setTaxRate] = useState(20);
 
-  // Initialisation : Récupérer les infos du client (Email + ID Stripe)
+  // Initialisation : Récupérer les infos du client (Nom, Société, Email, ID Stripe)
   useEffect(() => {
       const fetchClientInfo = async () => {
-          // On ne charge ces infos que si on crée une nouvelle facture
-          if (targetUserId && !initialData) {
+          // On charge ces infos si on est en création OU pour afficher le nom en édition
+          if (targetUserId) {
               const { data } = await supabase
                 .from('profiles')
-                .select('email, stripe_customer_id')
+                .select('full_name, company_name, email, stripe_customer_id')
                 .eq('id', targetUserId)
                 .single();
                 
               if (data) {
-                  if (data.email) setBillingEmail(data.email); // Pré-remplissage
-                  if (data.stripe_customer_id) setStripeCustomerId(data.stripe_customer_id);
+                  setClientName(data.full_name || '');
+                  setClientCompany(data.company_name || '');
+                  // En création, on pré-remplit l'email. En édition, on garde l'email existant s'il était stocké (ici simplifié)
+                  if (!initialData) {
+                      if (data.email) setBillingEmail(data.email);
+                      if (data.stripe_customer_id) setStripeCustomerId(data.stripe_customer_id);
+                  }
               }
           }
       };
@@ -142,23 +152,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                   throw new Error("L'email de facturation est obligatoire.");
               }
 
-              // 1. Récupérer les infos complémentaires du profil (Nom, Société) pour n8n
-              const { data: clientProfile, error: profileError } = await supabase
-                  .from('profiles')
-                  .select('full_name, company_name')
-                  .eq('id', targetUserId)
-                  .single();
-
-              if (profileError) {
-                  throw new Error("Impossible de récupérer les infos du client.");
-              }
-
-              // 2. Préparer le Payload pour n8n
+              // 1. Préparer le Payload pour n8n
               const n8nPayload = {
                   client: {
                       email: billingEmail, // C'est l'email saisi dans le formulaire
-                      name: clientProfile.full_name,
-                      company: clientProfile.company_name,
+                      name: clientName,
+                      company: clientCompany,
                       supabase_user_id: targetUserId,
                       stripe_customer_id: stripeCustomerId // On envoie l'ID s'il existe déjà !
                   },
@@ -173,9 +172,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
               };
 
               // Debug Log
-              console.log("Envoi à n8n:", n8nPayload);
+              console.log("Envoi à n8n (Test):", n8nPayload);
 
-              // 3. Envoi au Webhook n8n
+              // 2. Envoi au Webhook n8n
               const response = await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -199,68 +198,73 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-5 pt-2">
         
-        {/* BANNER INFO AUTOMATISATION */}
+        {/* SECTION INFOS CLIENT */}
         {!initialData && (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 flex items-start gap-3 text-xs text-indigo-700">
-                <Zap size={16} className="shrink-0 mt-0.5" />
-                <div>
-                    <strong>Mode Automatique :</strong> En validant, les données seront envoyées à <strong>Stripe</strong> via n8n. La facture sera générée et envoyée par email au client.
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                        <User size={14} /> Informations Client
+                    </h3>
+                    {stripeCustomerId && (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold">
+                            <LinkIcon size={10} /> Lié Stripe
+                        </span>
+                    )}
                 </div>
-            </div>
-        )}
 
-        {/* CHAMP EMAIL FACTURATION (Visible seulement en création) */}
-        {!initialData && (
-            <div className="flex gap-4 items-start">
-                <div className="flex-1">
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-2">
-                        <Mail size={12} /> Email Facturation (Stripe Customer)
-                    </label>
-                    <input 
-                        type="email" 
-                        required
-                        value={billingEmail} 
-                        onChange={e => setBillingEmail(e.target.value)}
-                        className="w-full px-3 py-2 border border-indigo-200 bg-indigo-50/30 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-indigo-900 font-medium placeholder-indigo-300"
-                        placeholder="comptabilite@client.com"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1">
-                        L'email qui recevra la facture. Si différent du compte, un nouveau contact Stripe sera créé ou mis à jour.
-                    </p>
-                </div>
-                
-                {/* Badge ID Stripe existant */}
-                {stripeCustomerId && (
-                    <div className="mt-6">
-                        <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-xs font-bold" title={`ID Stripe : ${stripeCustomerId}`}>
-                            <LinkIcon size={12} />
-                            Client Lié
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nom Client / Société</label>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-medium cursor-not-allowed opacity-80">
+                            <Building size={14} className="text-slate-400" />
+                            <span className="truncate">{clientCompany || clientName || 'Chargement...'}</span>
                         </div>
                     </div>
-                )}
+                    <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Email Facturation (Stripe)</label>
+                        <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" size={14} />
+                            <input 
+                                type="email" 
+                                required
+                                value={billingEmail} 
+                                onChange={e => setBillingEmail(e.target.value)}
+                                className="w-full pl-9 pr-3 py-2 border border-indigo-200 bg-indigo-50/20 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-indigo-900 font-medium placeholder-indigo-300 text-sm"
+                                placeholder="compta@client.com"
+                            />
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-2.5 flex items-start gap-2.5 text-xs text-indigo-800">
+                    <Zap size={14} className="shrink-0 mt-0.5" />
+                    <div>
+                        <strong>Mode Automatique :</strong> La validation créera la facture Stripe, enverra le PDF par email et mettra à jour ce portail automatiquement.
+                    </div>
+                </div>
             </div>
         )}
 
+        {/* SECTION FACTURE */}
         <div className="grid grid-cols-2 gap-4">
             <div>
-                {/* En mode création, le numéro est géré par Stripe, on le grise ou on le cache */}
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Numéro Facture {initialData ? '' : '(Auto)'}</label>
                 <input 
                     type="text" 
                     value={initialData ? number : 'Généré par Stripe'} 
                     onChange={e => setNumber(e.target.value)}
                     disabled={!initialData}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-500" 
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-500 text-sm" 
                 />
             </div>
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Statut</label>
                 <select 
                     value={status} onChange={e => setStatus(e.target.value as any)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                    disabled={!initialData} // En création, c'est Stripe qui décide (Draft ou Open)
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
+                    disabled={!initialData} 
                 >
                     <option value="pending">En attente (Open)</option>
                     <option value="paid">Payée</option>
@@ -273,7 +277,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Titre / Projet (Description Stripe)</label>
             <input 
                 type="text" required value={projectName} onChange={e => setProjectName(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" 
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" 
                 placeholder="Ex: Setup Automatisation CRM"
             />
         </div>
@@ -281,72 +285,74 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
         <div className="grid grid-cols-2 gap-4">
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Date émission</label>
-                <input type="date" required value={issueDate} onChange={e => setIssueDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                <input type="date" required value={issueDate} onChange={e => setIssueDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" />
             </div>
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Date échéance</label>
-                <input type="date" required value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                <input type="date" required value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" />
             </div>
         </div>
 
         {/* ITEMS REPEATER */}
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <label className="block text-xs font-bold text-indigo-600 uppercase mb-3">Lignes de prestation</label>
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                <label className="text-xs font-bold text-slate-600 uppercase">Prestations</label>
+                <button type="button" onClick={handleAddItem} className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                    <Plus size={14} /> Ajouter
+                </button>
+            </div>
             
-            <div className="space-y-3">
+            <div className="p-3 space-y-2">
                 {items.map((item, idx) => (
                     <div key={idx} className="flex gap-2 items-start">
                         <input 
                             type="text" placeholder="Description" value={item.description}
                             onChange={e => updateItem(idx, 'description', e.target.value)}
-                            className="flex-[3] px-3 py-2 text-sm border rounded-lg outline-none"
+                            className="flex-[3] px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500"
                         />
                         <input 
                             type="number" placeholder="Qté" value={item.quantity} min="1"
                             onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value))}
-                            className="flex-[1] px-3 py-2 text-sm border rounded-lg outline-none"
+                            className="flex-[1] px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500"
                         />
                         <input 
-                            type="number" placeholder="Prix Unitaire" value={item.unit_price}
+                            type="number" placeholder="Prix" value={item.unit_price}
                             onChange={e => updateItem(idx, 'unit_price', parseFloat(e.target.value))}
-                            className="flex-[1] px-3 py-2 text-sm border rounded-lg outline-none"
+                            className="flex-[1] px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500"
                         />
                         <button type="button" onClick={() => handleRemoveItem(idx)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
                     </div>
                 ))}
             </div>
-            <button type="button" onClick={handleAddItem} className="mt-3 text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
-                <Plus size={14} /> Ajouter une ligne
-            </button>
         </div>
 
-        {/* TOTALS & TAX */}
-        <div className="flex justify-end gap-6 items-center border-t border-slate-100 pt-4">
+        {/* TOTALS */}
+        <div className="flex justify-end gap-6 items-center pt-2">
             <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-slate-500">TVA %</label>
+                <label className="text-xs font-bold text-slate-500">TVA %</label>
                 <input 
                     type="number" value={taxRate} onChange={e => setTaxRate(parseFloat(e.target.value))}
-                    className="w-16 px-2 py-1 border rounded text-right"
+                    className="w-14 px-2 py-1 border rounded text-right text-sm"
                 />
             </div>
             <div className="text-right">
-                <p className="text-xs text-slate-400 uppercase font-bold">Total TTC Estimé</p>
-                <p className="text-xl font-bold text-indigo-600 flex items-center gap-2">
-                    <Calculator size={18} /> {totalAmount.toFixed(2)} €
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Total TTC Estimé</p>
+                <p className="text-lg font-bold text-indigo-600 flex items-center gap-2">
+                    <Calculator size={16} /> {totalAmount.toFixed(2)} €
                 </p>
             </div>
         </div>
 
-        {/* LINKS (Seulement en édition, car générés par Stripe) */}
+        {/* LINKS (UNIQUEMENT EN ÉDITION) */}
         {initialData && (
-            <div className="grid grid-cols-2 gap-4 opacity-75">
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                 <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Lien PDF (Stripe)</label>
-                    <input type="text" value={pdfUrl} onChange={e => setPdfUrl(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="https://..." />
+                    <input type="text" value={pdfUrl} onChange={e => setPdfUrl(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="https://..." />
                 </div>
                 <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Lien de paiement</label>
-                    <input type="text" value={paymentLink} onChange={e => setPaymentLink(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="https://buy.stripe.com/..." />
+                    <input type="text" value={paymentLink} onChange={e => setPaymentLink(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="https://buy.stripe.com/..." />
                 </div>
             </div>
         )}
