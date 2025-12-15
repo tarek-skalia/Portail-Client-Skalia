@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Automation } from '../types';
-import { Activity, CheckCircle2, XCircle, AlertCircle, Clock, PauseCircle, Play, ArrowRight, Zap, Search, Plus, Trash2, Edit3 } from 'lucide-react';
+import { Activity, CheckCircle2, XCircle, AlertCircle, Clock, PauseCircle, Play, ArrowRight, Zap, Search, Plus, Trash2, Edit3, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import AutomationSlideOver from './AutomationSlideOver';
@@ -30,6 +30,10 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(null);
 
+  // État Suppression
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     if (userId) {
         fetchAutomationsAndStats();
@@ -40,14 +44,12 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
                 event: '*', 
                 schema: 'public', 
                 table: 'automations',
-                filter: `user_id=eq.${userId}` // OPTIMISATION
+                filter: `user_id=eq.${userId}` 
             }, () => {
                 fetchAutomationsAndStats();
             })
             .subscribe();
 
-        // On écoute l'insertion de logs globalement, mais on re-fetch qui va filtrer
-        // Note: Idéalement il faudrait user_id dans automation_logs pour filtrer aussi
         const logsChannel = supabase
             .channel('realtime:automation_logs_stats')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'automation_logs' }, () => {
@@ -147,16 +149,41 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
       setIsModalOpen(true);
   };
 
-  const handleDelete = async (e: React.MouseEvent, autoId: string) => {
+  const confirmDelete = (e: React.MouseEvent, autoId: string) => {
       e.stopPropagation();
-      if (window.confirm("Êtes-vous sûr de vouloir supprimer cette automatisation ? Cette action est irréversible et supprimera l'historique associé.")) {
-          const { error } = await supabase.from('automations').delete().eq('id', autoId);
+      setDeleteId(autoId); // Ouvre la modale de confirmation
+  };
+
+  const executeDelete = async () => {
+      if (!deleteId) return;
+      setIsDeleting(true);
+
+      try {
+          // 1. Suppression Cascade Manuelle (Logs)
+          await supabase.from('automation_logs').delete().eq('automation_id', deleteId);
+
+          // 2. Suppression de l'automatisation
+          const { error, count } = await supabase
+            .from('automations')
+            .delete({ count: 'exact' })
+            .eq('id', deleteId);
+          
           if (error) {
-              toast.error("Erreur", "Impossible de supprimer.");
+              console.error("Erreur SQL:", error);
+              toast.error("Erreur", error.message);
+          } else if (count === 0) {
+              console.warn("Aucune ligne supprimée. Vérifiez les Policies RLS.");
+              toast.error("Impossible", "Vous n'avez pas les droits de suppression sur cet élément.");
           } else {
               toast.success("Supprimé", "L'automatisation a été retirée.");
               fetchAutomationsAndStats();
           }
+      } catch (err: any) {
+          console.error("Erreur inattendue:", err);
+          toast.error("Erreur", "Une erreur inattendue est survenue.");
+      } finally {
+          setIsDeleting(false);
+          setDeleteId(null);
       }
   };
 
@@ -298,14 +325,14 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
                         <div className="absolute top-4 right-4 flex gap-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button 
                                 onClick={(e) => handleEdit(e, auto)}
-                                className="p-2 bg-white text-indigo-600 rounded-lg shadow-sm border border-slate-200 hover:bg-indigo-50"
+                                className="p-2 bg-white text-indigo-600 rounded-lg shadow-sm border border-slate-200 hover:bg-indigo-50 hover:border-indigo-200"
                                 title="Modifier"
                             >
                                 <Edit3 size={16} />
                             </button>
                             <button 
-                                onClick={(e) => handleDelete(e, auto.id)}
-                                className="p-2 bg-white text-red-600 rounded-lg shadow-sm border border-slate-200 hover:bg-red-50"
+                                onClick={(e) => confirmDelete(e, auto.id)}
+                                className="p-2 bg-white text-red-600 rounded-lg shadow-sm border border-slate-200 hover:bg-red-50 hover:border-red-200"
                                 title="Supprimer"
                             >
                                 <Trash2 size={16} />
@@ -402,6 +429,39 @@ const AutomationsList: React.FC<AutomationsListProps> = ({ userId, onNavigateToS
                 onSuccess={() => { setIsModalOpen(false); fetchAutomationsAndStats(); }}
                 onCancel={() => setIsModalOpen(false)}
             />
+        </Modal>
+
+        {/* MODAL SUPPRESSION */}
+        <Modal
+            isOpen={!!deleteId}
+            onClose={() => setDeleteId(null)}
+            title="Suppression"
+            maxWidth="max-w-md"
+        >
+            <div className="text-center p-4">
+                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertTriangle size={32} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Êtes-vous sûr ?</h3>
+                <p className="text-slate-500 text-sm mb-6">
+                    Cette action est irréversible. L'historique d'exécution sera également supprimé.
+                </p>
+                <div className="flex gap-3 justify-center">
+                    <button 
+                        onClick={() => setDeleteId(null)}
+                        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                        Annuler
+                    </button>
+                    <button 
+                        onClick={executeDelete}
+                        disabled={isDeleting}
+                        className="px-4 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-md shadow-red-200 flex items-center gap-2"
+                    >
+                        {isDeleting ? 'Suppression...' : 'Confirmer la suppression'}
+                    </button>
+                </div>
+            </div>
         </Modal>
     </>
   );

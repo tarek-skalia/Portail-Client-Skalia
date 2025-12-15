@@ -60,6 +60,10 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
 
+  // Modal Delete
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const hasScrolledRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -266,16 +270,41 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
       setIsModalOpen(true);
   };
 
-  const handleDelete = async (e: React.MouseEvent, projectId: string) => {
+  const confirmDelete = (e: React.MouseEvent, projectId: string) => {
       e.stopPropagation();
-      if (window.confirm("Supprimer ce projet ? Toutes les tâches et fichiers associés seront perdus.")) {
-          const { error } = await supabase.from('projects').delete().eq('id', projectId);
+      setDeleteId(projectId);
+  };
+
+  const executeDelete = async () => {
+      if (!deleteId) return;
+      setIsDeleting(true);
+
+      try {
+          // 1. Suppression Cascade Manuelle (Tâches d'abord)
+          await supabase.from('project_tasks').delete().eq('project_id', deleteId);
+
+          // 2. Suppression Projet avec vérification count
+          const { error, count } = await supabase
+            .from('projects')
+            .delete({ count: 'exact' })
+            .eq('id', deleteId);
+          
           if (error) {
-              toast.error("Erreur", "Impossible de supprimer le projet.");
+              console.error("Erreur suppression projet:", error);
+              toast.error("Erreur", `Impossible de supprimer le projet : ${error.message}`);
+          } else if (count === 0) {
+              console.warn("Aucune ligne projet supprimée (RLS).");
+              toast.error("Accès refusé", "Impossible de supprimer : droits insuffisants.");
           } else {
               toast.success("Supprimé", "Projet retiré.");
               fetchProjectsAndTasks();
           }
+      } catch (err: any) {
+          console.error(err);
+          toast.error("Erreur", "Erreur inattendue.");
+      } finally {
+          setIsDeleting(false);
+          setDeleteId(null);
       }
   };
 
@@ -395,7 +424,7 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
                                                         <Edit3 size={12} />
                                                     </button>
                                                     <button 
-                                                        onClick={(e) => handleDelete(e, project.id)}
+                                                        onClick={(e) => confirmDelete(e, project.id)}
                                                         className="p-1.5 bg-white text-red-600 rounded shadow-sm border hover:bg-red-50"
                                                     >
                                                         <Trash2 size={12} />
@@ -463,8 +492,8 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
         </div>
 
         <ProjectSlideOver 
-            isOpen={isSlideOverOpen}
-            onClose={() => setIsSlideOverOpen(false)}
+            isOpen={isSlideOverOpen} 
+            onClose={() => setIsSlideOverOpen(false)} 
             project={selectedProject}
         />
 
@@ -478,6 +507,39 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
                 onSuccess={() => { setIsModalOpen(false); fetchProjectsAndTasks(); }} 
                 onCancel={() => setIsModalOpen(false)} 
             />
+        </Modal>
+
+        {/* MODAL SUPPRESSION */}
+        <Modal
+            isOpen={!!deleteId}
+            onClose={() => setDeleteId(null)}
+            title="Suppression Projet"
+            maxWidth="max-w-md"
+        >
+            <div className="text-center p-4">
+                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertTriangle size={32} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Êtes-vous sûr ?</h3>
+                <p className="text-slate-500 text-sm mb-6">
+                    Toutes les tâches, fichiers et commentaires associés seront définitivement perdus.
+                </p>
+                <div className="flex gap-3 justify-center">
+                    <button 
+                        onClick={() => setDeleteId(null)}
+                        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                        Annuler
+                    </button>
+                    <button 
+                        onClick={executeDelete}
+                        disabled={isDeleting}
+                        className="px-4 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-md shadow-red-200 flex items-center gap-2"
+                    >
+                        {isDeleting ? 'Suppression...' : 'Confirmer la suppression'}
+                    </button>
+                </div>
+            </div>
         </Modal>
     </>
   );

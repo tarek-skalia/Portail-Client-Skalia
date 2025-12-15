@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Invoice } from '../types';
-import { FileText, Download, AlertCircle, CheckCircle2, Clock, Euro, Search, Filter, Wallet, CreditCard, ChevronRight, Plus, Edit3, Trash2 } from 'lucide-react';
+import { FileText, Download, AlertCircle, CheckCircle2, Clock, Euro, Search, Filter, Wallet, CreditCard, ChevronRight, Plus, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import InvoiceSlideOver from './InvoiceSlideOver';
@@ -31,6 +31,10 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
+  // Modal Delete
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const toast = useToast();
 
   useEffect(() => {
@@ -42,7 +46,7 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
                 event: '*', 
                 schema: 'public', 
                 table: 'invoices',
-                filter: `user_id=eq.${userId}` // OPTIMISATION: Écoute ciblée
+                filter: `user_id=eq.${userId}`
             }, () => {
                 fetchInvoices();
             })
@@ -121,17 +125,25 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
       setIsModalOpen(true);
   };
 
-  const handleDelete = async (e: React.MouseEvent, invId: string) => {
+  const confirmDelete = (e: React.MouseEvent, invId: string) => {
       e.stopPropagation();
-      if (window.confirm("Supprimer cette facture ?")) {
-          const { error } = await supabase.from('invoices').delete().eq('id', invId);
-          if (error) {
-              toast.error("Erreur", "Impossible de supprimer.");
-          } else {
-              toast.success("Supprimé", "Facture retirée.");
-              fetchInvoices();
-          }
+      setDeleteId(invId);
+  };
+
+  const executeDelete = async () => {
+      if (!deleteId) return;
+      setIsDeleting(true);
+
+      const { error } = await supabase.from('invoices').delete().eq('id', deleteId);
+      if (error) {
+          console.error("Erreur suppression facture:", error);
+          toast.error("Erreur", `Impossible de supprimer : ${error.message}`);
+      } else {
+          toast.success("Supprimé", "Facture retirée.");
+          fetchInvoices();
       }
+      setIsDeleting(false);
+      setDeleteId(null);
   };
 
   const getStatusStyle = (status: Invoice['status']) => {
@@ -306,7 +318,7 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
                                       <Edit3 size={12} />
                                   </button>
                                   <button 
-                                      onClick={(e) => handleDelete(e, inv.id)}
+                                      onClick={(e) => confirmDelete(e, inv.id)}
                                       className="p-1.5 bg-white text-red-600 rounded shadow-sm border hover:bg-red-50"
                                   >
                                       <Trash2 size={12} />
@@ -390,6 +402,39 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({ userId }) => {
             onSuccess={() => { setIsModalOpen(false); fetchInvoices(); }} 
             onCancel={() => setIsModalOpen(false)} 
         />
+    </Modal>
+
+    {/* MODAL SUPPRESSION */}
+    <Modal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        title="Suppression Facture"
+        maxWidth="max-w-md"
+    >
+        <div className="text-center p-4">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Êtes-vous sûr ?</h3>
+            <p className="text-slate-500 text-sm mb-6">
+                Cette facture sera définitivement supprimée de l'historique.
+            </p>
+            <div className="flex gap-3 justify-center">
+                <button 
+                    onClick={() => setDeleteId(null)}
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                    Annuler
+                </button>
+                <button 
+                    onClick={executeDelete}
+                    disabled={isDeleting}
+                    className="px-4 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-md shadow-red-200 flex items-center gap-2"
+                >
+                    {isDeleting ? 'Suppression...' : 'Confirmer'}
+                </button>
+            </div>
+        </div>
     </Modal>
     </>
   );

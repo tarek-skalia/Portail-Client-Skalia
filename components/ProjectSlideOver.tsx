@@ -298,14 +298,14 @@ const ProjectSlideOver: React.FC<ProjectSlideOverProps> = ({ isOpen, onClose, pr
   return (
     <>
       <div 
-        className={`fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-[60] transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-[110] transition-opacity duration-300 ${
           isVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
       />
 
       <div 
-        className={`fixed inset-y-0 right-0 w-full md:w-[600px] bg-white shadow-2xl z-[70] transform transition-transform duration-300 ease-out flex flex-col ${
+        className={`fixed inset-y-0 right-0 w-full md:w-[600px] bg-white shadow-2xl z-[120] transform transition-transform duration-300 ease-out flex flex-col ${
           isVisible ? 'translate-x-0' : 'translate-x-full'
         }`}
       >

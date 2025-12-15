@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Expense } from '../types';
-import { Search, Filter, Layers, RefreshCw, Plus, Edit3, Trash2 } from 'lucide-react';
+import { Search, Filter, Layers, RefreshCw, Plus, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Skeleton from './Skeleton';
 import ExpenseSlideOver from './ExpenseSlideOver';
@@ -33,6 +33,10 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+
+  // Modal Delete
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -117,17 +121,25 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
       setIsModalOpen(true);
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const confirmDelete = (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
-      if (window.confirm("Supprimer cette dépense ?")) {
-          const { error } = await supabase.from('expenses').delete().eq('id', id);
-          if (error) {
-              toast.error("Erreur", "Impossible de supprimer.");
-          } else {
-              toast.success("Supprimé", "Dépense retirée.");
-              fetchExpenses();
-          }
+      setDeleteId(id);
+  };
+
+  const executeDelete = async () => {
+      if (!deleteId) return;
+      setIsDeleting(true);
+
+      const { error } = await supabase.from('expenses').delete().eq('id', deleteId);
+      if (error) {
+          console.error("Erreur suppression dépense:", error);
+          toast.error("Erreur", `Impossible de supprimer : ${error.message}`);
+      } else {
+          toast.success("Supprimé", "Dépense retirée.");
+          fetchExpenses();
       }
+      setIsDeleting(false);
+      setDeleteId(null);
   };
 
   if (isLoading) {
@@ -264,7 +276,7 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
                                     <Edit3 size={12} />
                                 </button>
                                 <button 
-                                    onClick={(e) => handleDelete(e, expense.id)}
+                                    onClick={(e) => confirmDelete(e, expense.id)}
                                     className="p-1.5 bg-white text-red-600 rounded shadow-sm border hover:bg-red-50"
                                 >
                                     <Trash2 size={12} />
@@ -329,6 +341,39 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
             onSuccess={() => { setIsModalOpen(false); fetchExpenses(); }} 
             onCancel={() => setIsModalOpen(false)} 
         />
+    </Modal>
+
+    {/* MODAL SUPPRESSION */}
+    <Modal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        title="Suppression Dépense"
+        maxWidth="max-w-md"
+    >
+        <div className="text-center p-4">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Êtes-vous sûr ?</h3>
+            <p className="text-slate-500 text-sm mb-6">
+                Cette dépense sera retirée du calcul des coûts globaux.
+            </p>
+            <div className="flex gap-3 justify-center">
+                <button 
+                    onClick={() => setDeleteId(null)}
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                    Annuler
+                </button>
+                <button 
+                    onClick={executeDelete}
+                    disabled={isDeleting}
+                    className="px-4 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-md shadow-red-200 flex items-center gap-2"
+                >
+                    {isDeleting ? 'Suppression...' : 'Confirmer'}
+                </button>
+            </div>
+        </div>
     </Modal>
     </>
   );

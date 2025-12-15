@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // IMPORTANT : REMPLACEZ CES VALEURS PAR CELLES DE VOTRE PROJET SUPABASE
 // Allez dans Settings > API sur votre dashboard Supabase
-const SUPABASE_URL = 'https://pryrldpafnlpzcvgpyar.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByeXJsZHBhZm5scHpjdmdweWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNTAzODcsImV4cCI6MjA4MDcyNjM4N30.bUpEZmmvBdJp33FdjfRGftr_GnoZLpcnlS6KDMMTK_I';
+export const SUPABASE_URL = 'https://pryrldpafnlpzcvgpyar.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByeXJsZHBhZm5scHpjdmdweWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNTAzODcsImV4cCI6MjA4MDcyNjM4N30.bUpEZmmvBdJp33FdjfRGftr_GnoZLpcnlS6KDMMTK_I';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

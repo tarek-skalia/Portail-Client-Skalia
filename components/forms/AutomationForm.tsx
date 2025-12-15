@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
-import { Plus, Trash2, GripVertical, Info } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Info, Fingerprint } from 'lucide-react';
 import { Automation } from '../../types';
 
 interface AutomationFormProps {
@@ -23,6 +23,7 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
   const [loading, setLoading] = useState(false);
 
   // Fields
+  const [customId, setCustomId] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive' | 'maintenance' | 'error'>('active');
@@ -33,6 +34,7 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
   // Initialisation pour l'édition
   useEffect(() => {
       if (initialData) {
+          setCustomId(initialData.id);
           setName(initialData.name);
           setDescription(initialData.description);
           setStatus(initialData.status as any);
@@ -68,6 +70,12 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
       const toolsArray = toolIconsStr.split(',').map(t => t.trim()).filter(t => t !== '');
       const validSteps = pipelineSteps.filter(s => s.tool.trim() !== '' || s.action.trim() !== '');
 
+      if (!customId.trim()) {
+          toast.error("Erreur", "L'ID du workflow est obligatoire.");
+          setLoading(false);
+          return;
+      }
+
       const payload = {
           user_id: targetUserId,
           name,
@@ -81,6 +89,7 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
       try {
           if (initialData) {
               // UPDATE
+              // Note: On ne met pas à jour l'ID (clé primaire)
               const { error } = await supabase
                 .from('automations')
                 .update(payload)
@@ -89,9 +98,14 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
               toast.success("Mis à jour", "L'automatisation a été modifiée.");
           } else {
               // INSERT
+              // Utilisation de l'ID manuel fourni par l'utilisateur (ex: ID N8N)
               const { error } = await supabase
                 .from('automations')
-                .insert(payload);
+                .insert({
+                    id: customId.trim(), 
+                    created_at: new Date().toISOString(),
+                    ...payload
+                });
               if (error) throw error;
               toast.success("Créé", "L'automatisation a été ajoutée.");
           }
@@ -108,6 +122,27 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
         
+        {/* ID TECHNIQUE */}
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-2">
+                <Fingerprint size={12} /> ID du Workflow (N8N / Technique)
+            </label>
+            <input 
+                type="text" 
+                required 
+                value={customId} 
+                onChange={e => setCustomId(e.target.value)}
+                disabled={!!initialData} // Désactivé en édition car c'est la clé primaire
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-sm ${initialData ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white'}`}
+                placeholder="Collez l'ID du workflow ici..."
+            />
+            {!initialData && (
+                <p className="text-[10px] text-slate-400 mt-1">
+                    Cet ID servira de clé unique dans la base de données.
+                </p>
+            )}
+        </div>
+
         {/* BASE INFO */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
