@@ -119,8 +119,15 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       fetchDashboardData();
 
       const channel = supabase.channel('dashboard_main_updates')
+        // Logs: Pas de filtre user_id facile (jointure nécessaire), on garde global mais le fetch filtre
         .on('postgres_changes', { event: '*', schema: 'public', table: 'automation_logs' }, () => fetchDashboardData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'automations' }, () => fetchDashboardData())
+        // Automations: On peut filtrer par user_id
+        .on('postgres_changes', { 
+            event: '*', 
+            schema: 'public', 
+            table: 'automations',
+            filter: `user_id=eq.${userId}`
+        }, () => fetchDashboardData())
         .subscribe();
 
       return () => { supabase.removeChannel(channel); };
@@ -129,8 +136,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
 
   const fetchDashboardData = async () => {
     // Note: On NE met PAS isLoading(true) ici pour éviter le clignotement lors du changement de filtre.
-    // L'état isLoading est initialisé à true par défaut, donc le premier chargement aura bien des Skeletons.
-    // Les mises à jour suivantes se feront en "background" et mettront à jour les chiffres de manière fluide.
     
     try {
       // 0. Profil Utilisateur (Uniquement si pas encore chargé)

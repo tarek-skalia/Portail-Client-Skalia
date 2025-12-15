@@ -39,7 +39,12 @@ const ExpensesPage: React.FC<ExpensesPageProps> = ({ userId }) => {
         fetchExpenses();
         const channel = supabase
             .channel('realtime:expenses')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'expenses',
+                filter: `user_id=eq.${userId}` 
+            }, () => {
                 fetchExpenses();
             })
             .subscribe();

@@ -66,13 +66,21 @@ const ProjectsPipeline: React.FC<ProjectsPipelineProps> = ({ projects: initialPr
     if (userId) {
         fetchProjectsAndTasks(true);
 
+        // Optimisation: On écoute uniquement les projets de CET utilisateur
         const projectChannel = supabase
             .channel('realtime:projects_pipeline')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'projects',
+                filter: `user_id=eq.${userId}` 
+            }, () => {
                 fetchProjectsAndTasks(false);
             })
             .subscribe();
 
+        // Pour les tâches, on écoute globalement car pas de user_id direct, 
+        // mais le fetch filtrera correctement.
         const tasksChannel = supabase
             .channel('realtime:project_tasks_update')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'project_tasks' }, () => {

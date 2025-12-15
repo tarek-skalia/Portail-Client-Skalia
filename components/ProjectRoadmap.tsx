@@ -68,15 +68,20 @@ const ProjectRoadmap: React.FC<ProjectRoadmapProps> = ({ userId }) => {
     if (userId) {
         fetchProjects();
 
-        // 1. Écoute projets
+        // 1. Écoute projets (filtrée)
         const projectChannel = supabase
             .channel('realtime:projects_roadmap')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
+            .on('postgres_changes', { 
+                event: '*', 
+                schema: 'public', 
+                table: 'projects',
+                filter: `user_id=eq.${userId}` 
+            }, () => {
                 fetchProjects();
             })
             .subscribe();
 
-        // 2. Écoute tâches (pour que le SlideOver soit à jour même ici)
+        // 2. Écoute tâches (globale)
         const tasksChannel = supabase
             .channel('realtime:tasks_roadmap')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'project_tasks' }, () => {
