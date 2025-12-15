@@ -54,18 +54,23 @@ const InvoiceSlideOver: React.FC<InvoiceSlideOverProps> = ({ isOpen, onClose, in
 
   const statusConfig = getStatusConfig(invoice.status);
 
-  // Calcul des totaux (Si items non présents, on utilise le montant global comme fallback)
+  // Calcul des totaux
+  // Si les items existent, on les utilise. Sinon on fallback sur une ligne générique.
   const items = invoice.items && invoice.items.length > 0 ? invoice.items : [
       { description: `Prestation : ${invoice.projectName}`, quantity: 1, unit_price: invoice.amount }
   ];
 
   const subTotal = items.reduce((acc, item) => acc + (item.unit_price * item.quantity), 0);
-  const taxRate = invoice.taxRate || 0; // 0 si non défini, sinon 20 par ex.
+  
+  // CORRECTION TVA : On utilise le taux défini, sinon 0. On utilise '??' pour ne pas écraser le 0 par défaut.
+  const taxRate = invoice.taxRate ?? 0;
+  
   const taxAmount = (subTotal * taxRate) / 100;
-  // Si le calcul des items diffère du montant total enregistré en base (arrondis, ou saisie manuelle), 
-  // on privilégie l'affichage cohérent, mais ici on recalcule pour l'affichage détail.
-  // Cependant, pour éviter la confusion, on affiche le total calculé.
   const totalCalculated = subTotal + taxAmount;
+
+  // On vérifie si le montant calculé correspond à peu près au montant total stocké (pour gérer les arrondis ou TVA incluse)
+  // Si l'écart est trop grand, on affiche le montant stocké 'amount' comme Total TTC officiel.
+  const displayTotal = Math.abs(totalCalculated - invoice.amount) < 1 ? totalCalculated : invoice.amount;
 
   return (
     <>
@@ -181,7 +186,7 @@ const InvoiceSlideOver: React.FC<InvoiceSlideOverProps> = ({ isOpen, onClose, in
                             <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
                                 <span className="font-bold text-slate-800">Total TTC</span>
                                 <span className="font-bold text-xl text-indigo-600">
-                                    {totalCalculated.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                    {displayTotal.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                                 </span>
                             </div>
                         </div>

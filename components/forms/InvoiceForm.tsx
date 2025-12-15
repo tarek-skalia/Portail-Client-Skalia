@@ -8,7 +8,7 @@ import { InvoiceItem, Invoice } from '../../types';
 
 // --- CONFIGURATION N8N ---
 // URL de TEST (webhook-test)
-const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook-test/de8b8392-51b4-4a45-875e-f11c9b6a0f6e"; 
+const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook/de8b8392-51b4-4a45-875e-f11c9b6a0f6e"; 
 
 interface InvoiceFormProps {
   onSuccess: () => void;
@@ -23,9 +23,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
 
   // Client Data
   const [clientName, setClientName] = useState('');
-  const [clientCompany, setClientCompany] = useState(''); // Gardé pour info n8n si besoin, mais on édite surtout le nom affiché
-  const [billingEmail, setBillingEmail] = useState(''); // Email spécifique pour la facture
-  const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null); // ID Stripe existant
+  const [clientCompany, setClientCompany] = useState(''); 
+  const [billingEmail, setBillingEmail] = useState(''); 
+  const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null); 
 
   // Invoice Data
   const [number, setNumber] = useState(`INV-${new Date().getFullYear()}-`);
@@ -45,7 +45,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
   // Initialisation : Récupérer les infos du client (Nom, Société, Email, ID Stripe)
   useEffect(() => {
       const fetchClientInfo = async () => {
-          // On charge ces infos si on est en création OU pour afficher le nom en édition
           if (targetUserId) {
               const { data } = await supabase
                 .from('profiles')
@@ -54,12 +53,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                 .single();
                 
               if (data) {
-                  // On pré-remplit avec la Société si dispo, sinon le Nom complet
                   const displayName = data.company_name || data.full_name || '';
                   setClientName(displayName);
                   setClientCompany(data.company_name || '');
                   
-                  // En création, on pré-remplit l'email. En édition, on garde l'email existant s'il était stocké (ici simplifié)
                   if (!initialData) {
                       if (data.email) setBillingEmail(data.email);
                       if (data.stripe_customer_id) setStripeCustomerId(data.stripe_customer_id);
@@ -94,7 +91,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
           setPaymentLink(initialData.paymentLink || '');
           setPdfUrl(initialData.pdfUrl || '');
           setItems(initialData.items || [{ description: '', quantity: 1, unit_price: 0 }]);
-          setTaxRate(initialData.taxRate || 20);
+          
+          // CORRECTION: Utiliser ?? pour accepter 0 comme valeur valide
+          setTaxRate(initialData.taxRate ?? 20);
       }
   }, [initialData]);
 
@@ -155,41 +154,35 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                   throw new Error("L'email de facturation est obligatoire.");
               }
 
-              // 1. Préparer le Payload pour n8n
               const n8nPayload = {
                   client: {
-                      email: billingEmail, // C'est l'email saisi dans le formulaire
-                      name: clientName,    // C'est le nom modifié dans le formulaire
-                      company: clientCompany, // Info de fond, moins prioritaire si name est rempli
+                      email: billingEmail, 
+                      name: clientName,    
+                      company: clientCompany, 
                       supabase_user_id: targetUserId,
-                      stripe_customer_id: stripeCustomerId // On envoie l'ID s'il existe déjà !
+                      stripe_customer_id: stripeCustomerId 
                   },
                   invoice: {
                       projectName,
                       issueDate,
                       dueDate,
-                      taxRate,
+                      taxRate, // Ce taux est envoyé à N8N
                       currency: 'eur'
                   },
-                  items: items // Tableau des prestations
+                  items: items 
               };
 
               // Debug Log
               console.log("Envoi à n8n (Test):", n8nPayload);
 
-              // 2. Envoi au Webhook n8n en mode NO-CORS pour éviter l'erreur "Failed to fetch"
-              // ATTENTION : En mode no-cors, on ne peut pas savoir si la requête a réussi (status 0).
-              // On assume que c'est bon si pas d'exception réseau.
               await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
                   method: 'POST',
-                  mode: 'no-cors', // C'est LA clé pour contourner le blocage navigateur
+                  mode: 'no-cors', 
                   headers: { 
-                      'Content-Type': 'text/plain' // On évite application/json qui déclenche une vérification stricte
+                      'Content-Type': 'text/plain' 
                   },
                   body: JSON.stringify(n8nPayload)
               });
-
-              // Note: Comme on est en no-cors, on ne peut pas vérifier response.ok.
               
               toast.success("Traitement lancé", `La demande a été envoyée à Stripe.`);
               onSuccess();
@@ -223,7 +216,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nom Client / Société</label>
-                        {/* CHAMP ÉDITABLE */}
                         <div className="relative">
                             <Building className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                             <input 
