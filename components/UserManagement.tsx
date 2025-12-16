@@ -3,10 +3,54 @@ import React, { useEffect, useState } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { Client } from '../types';
-import { Search, Plus, Trash2, Edit3, Shield, Mail, Building, User, Lock, Key, RefreshCw, CreditCard } from 'lucide-react';
+import { Search, Plus, Trash2, Edit3, Shield, Mail, Building, User, Lock, Key, RefreshCw, CreditCard, Globe } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { useToast } from './ToastProvider';
 import Modal from './ui/Modal';
+
+// --- COMPOSANT AVATAR INTELLIGENT ---
+const ClientAvatar = ({ client }: { client: Client }) => {
+  const [imgError, setImgError] = useState(false);
+  
+  // Clé publique Logo.dev (la même que ExpenseLogo)
+  const LOGO_DEV_PUBLIC_KEY = 'pk_PhkKGyy8QSawDAIdG5tLlg';
+
+  const getLogoUrl = () => {
+      if (!client.logoUrl) return null;
+      try {
+          // On s'assure d'avoir un format URL valide pour extraire le domaine
+          const urlStr = client.logoUrl.startsWith('http') ? client.logoUrl : `https://${client.logoUrl}`;
+          const urlObj = new URL(urlStr);
+          const domain = urlObj.hostname.replace('www.', '');
+          
+          return `https://img.logo.dev/${domain}?token=${LOGO_DEV_PUBLIC_KEY}&retina=true`;
+      } catch (e) {
+          return null;
+      }
+  };
+
+  const logoSrc = getLogoUrl();
+
+  // Si on a une URL valide et pas d'erreur de chargement, on affiche le logo
+  if (logoSrc && !imgError) {
+      return (
+          <img 
+            src={logoSrc} 
+            alt={client.company} 
+            className="w-10 h-10 rounded-full object-contain bg-white border border-slate-200 shadow-sm"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+      );
+  }
+
+  // Sinon, fallback sur les initiales
+  return (
+      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-100 to-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600 text-xs shadow-sm select-none">
+          {client.avatarInitials}
+      </div>
+  );
+};
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<Client[]>([]);
@@ -23,8 +67,9 @@ const UserManagement: React.FC = () => {
       password: '',
       fullName: '',
       companyName: '',
+      website: '', // Nouveau champ pour le logo
       role: 'client',
-      stripeCustomerId: '' // Nouveau champ
+      stripeCustomerId: '' 
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -40,6 +85,7 @@ const UserManagement: React.FC = () => {
               password: '', // On ne remplit pas le mot de passe en édition par sécurité
               fullName: editingUser.name,
               companyName: editingUser.company,
+              website: editingUser.logoUrl || '', // On utilise logoUrl pour stocker le site web
               role: editingUser.role || 'client',
               stripeCustomerId: editingUser.stripeCustomerId || ''
           });
@@ -49,6 +95,7 @@ const UserManagement: React.FC = () => {
               password: '', 
               fullName: '', 
               companyName: '', 
+              website: '',
               role: 'client',
               stripeCustomerId: ''
           });
@@ -73,7 +120,8 @@ const UserManagement: React.FC = () => {
               avatarInitials: p.avatar_initials || '?',
               email: p.email || '',
               role: p.role,
-              stripeCustomerId: p.stripe_customer_id // Récupération ID Stripe
+              stripeCustomerId: p.stripe_customer_id,
+              logoUrl: p.logo_url // Récupération de l'URL
           }));
           setUsers(mapped);
       }
@@ -92,6 +140,7 @@ const UserManagement: React.FC = () => {
                   company_name: formData.companyName,
                   role: formData.role,
                   stripe_customer_id: formData.stripeCustomerId || null,
+                  logo_url: formData.website || null, // Sauvegarde du site web
                   updated_at: new Date().toISOString()
               };
               
@@ -143,7 +192,8 @@ const UserManagement: React.FC = () => {
                     company_name: formData.companyName,
                     avatar_initials: formData.fullName.substring(0, 2).toUpperCase(),
                     role: formData.role,
-                    stripe_customer_id: formData.stripeCustomerId || null
+                    stripe_customer_id: formData.stripeCustomerId || null,
+                    logo_url: formData.website || null
                 });
 
               // Si le profil existe déjà (créé par un trigger), on l'update pour compléter les infos
@@ -154,6 +204,7 @@ const UserManagement: React.FC = () => {
                             company_name: formData.companyName,
                             role: formData.role,
                             stripe_customer_id: formData.stripeCustomerId || null,
+                            logo_url: formData.website || null,
                             avatar_initials: formData.fullName.substring(0, 2).toUpperCase(),
                        }).eq('id', newUserId);
                   } else {
@@ -271,8 +322,9 @@ const UserManagement: React.FC = () => {
                               <tr key={user.id} className="hover:bg-slate-50 transition-colors group">
                                   <td className="px-6 py-4">
                                       <div className="flex items-center gap-3">
-                                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-100 to-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600 text-xs">
-                                              {user.avatarInitials}
+                                          {/* UTILISATION DU COMPOSANT AVATAR INTELLIGENT */}
+                                          <div className="shrink-0">
+                                              <ClientAvatar client={user} />
                                           </div>
                                           <div>
                                               <div className="font-bold text-slate-900">{user.name}</div>
@@ -370,6 +422,27 @@ const UserManagement: React.FC = () => {
                           />
                       </div>
                   </div>
+              </div>
+
+              {/* NOUVEAU CHAMP SITE WEB */}
+              <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 flex items-center gap-2">
+                      Site Web (pour Logo) <Globe size={12} />
+                  </label>
+                  <div className="relative">
+                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input 
+                          type="text"
+                          value={formData.website}
+                          onChange={e => setFormData({...formData, website: e.target.value})}
+                          className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition-all"
+                          placeholder="https://mon-site-client.com"
+                          autoComplete="off"
+                      />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1.5 ml-1">
+                      L'avatar du client sera automatiquement récupéré depuis ce domaine.
+                  </p>
               </div>
 
               <div>
