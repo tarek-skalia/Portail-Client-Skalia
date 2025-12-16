@@ -159,13 +159,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
       <div className="p-4 m-4 mt-0 rounded-2xl bg-indigo-950/30 backdrop-blur-md border border-white/5 relative z-10 shadow-lg group hover:bg-indigo-950/40 transition-colors duration-300 shrink-0">
         <div className="flex items-center gap-3 mb-3">
             
-            {/* AVATAR AVEC LOGO */}
+            {/* AVATAR AVEC LOGO - STYLE CORRIGÉ */}
             <div className="w-10 h-10 rounded-full bg-white shadow-md border border-white/20 shrink-0 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center overflow-hidden">
                 {logoSrc && !imgError ? (
                     <img 
                         src={logoSrc} 
                         alt={currentClient.company} 
-                        className="w-full h-full object-contain p-1.5"
+                        className="w-full h-full object-cover" 
                         onError={() => setImgError(true)}
                         loading="lazy"
                     />

@@ -44,6 +44,10 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
 
   useEffect(() => {
     if (isOpen && ticket) {
+        // --- MARQUER COMME LU (Localement) ---
+        // On sauvegarde le timestamp actuel pour ce ticket
+        localStorage.setItem(`skalia_read_${ticket.id}`, new Date().toISOString());
+
         fetchMessages();
         setCurrentStatus(ticket.status);
         
@@ -65,6 +69,10 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
                     createdAt: newMsg.created_at,
                     attachments: newMsg.attachments
                 }]);
+                
+                // Mettre à jour le statut lu si on reçoit un message pendant que c'est ouvert
+                localStorage.setItem(`skalia_read_${ticket.id}`, new Date().toISOString());
+                
                 scrollToBottom();
             })
             .subscribe();
@@ -184,6 +192,9 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
           });
 
           if (error) throw error;
+
+          // Mettre à jour la date de lecture puisque c'est moi qui envoie
+          localStorage.setItem(`skalia_read_${ticket.id}`, new Date().toISOString());
 
           setNewMessage('');
           setSelectedFile(null);

@@ -106,6 +106,11 @@ const GlobalDashboard: React.FC<GlobalDashboardProps> = ({ initialTicketId }) =>
       };
   }, []);
 
+  // Rafraichir lors de la fermeture du panneau pour mettre à jour le statut lu
+  useEffect(() => {
+      if (!isSlideOverOpen && !isLoading) fetchGlobalStats();
+  }, [isSlideOverOpen]);
+
   const fetchGlobalStats = async () => {
       try {
           const now = new Date();
@@ -181,7 +186,7 @@ const GlobalDashboard: React.FC<GlobalDashboardProps> = ({ initialTicketId }) =>
 
           // 4b. FETCH MESSAGES POUR DETECTER NON-LUS
           // On récupère les messages liés à ces tickets pour savoir qui a parlé en dernier
-          let messagesMap = new Map<string, string>(); // ticket_id -> sender_type du dernier message
+          let messagesMap = new Map<string, {sender: string, date: string}>(); 
           
           if (tickets && tickets.length > 0) {
               const ticketIds = tickets.map(t => t.id);
@@ -193,8 +198,7 @@ const GlobalDashboard: React.FC<GlobalDashboardProps> = ({ initialTicketId }) =>
 
               if (messages) {
                   messages.forEach(msg => {
-                      // On écrase à chaque fois, donc à la fin de la boucle on aura le type du DERNIER message
-                      messagesMap.set(msg.ticket_id, msg.sender_type);
+                      messagesMap.set(msg.ticket_id, { sender: msg.sender_type, date: msg.created_at });
                   });
               }
           }
@@ -292,9 +296,19 @@ const GlobalDashboard: React.FC<GlobalDashboardProps> = ({ initialTicketId }) =>
           
           const mappedTickets = tickets?.map((t: any) => {
               // Détermination du statut "Non lu par l'admin"
-              // Si le dernier message vient du client, c'est que l'admin n'a pas encore répondu -> Non lu
-              const lastSender = messagesMap.get(t.id);
-              const hasUnread = lastSender === 'client';
+              // Côté Admin, c'est non lu si le dernier message est du client ET non lu localement
+              const lastMsgData = messagesMap.get(t.id);
+              let hasUnread = false;
+
+              if (lastMsgData) {
+                  const lastReadStr = localStorage.getItem(`skalia_read_${t.id}`);
+                  const lastReadDate = lastReadStr ? new Date(lastReadStr) : new Date(0);
+                  const lastMsgDate = new Date(lastMsgData.date);
+
+                  if (lastMsgData.sender === 'client' && lastMsgDate > lastReadDate) {
+                      hasUnread = true;
+                  }
+              }
 
               return {
                   id: t.id,
@@ -327,12 +341,12 @@ const GlobalDashboard: React.FC<GlobalDashboardProps> = ({ initialTicketId }) =>
 
   const handleOpenTicket = (ticket: any) => {
       setSelectedTicket(ticket);
-      setIsSlideOverOpen(true);
       
-      // Optimistic UI Update: Marquer comme lu localement au clic
-      setRecentTickets(prev => prev.map(t => 
-          t.id === ticket.id ? { ...t, hasUnread: false } : t
-      ));
+      // Mark as read locally immediately
+      localStorage.setItem(`skalia_read_${ticket.id}`, new Date().toISOString());
+      setRecentTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, hasUnread: false } : t));
+      
+      setIsSlideOverOpen(true);
   };
 
   const handleQuickResolve = async (e: React.MouseEvent, ticketId: string) => {
@@ -691,7 +705,7 @@ const GlobalDashboard: React.FC<GlobalDashboardProps> = ({ initialTicketId }) =>
         isOpen={isSlideOverOpen}
         onClose={() => {
             setIsSlideOverOpen(false);
-            fetchGlobalStats(); // Refresh stats on close
+            fetchGlobalStats(); // Refresh stats on close to update read status
         }}
         ticket={selectedTicket}
         userId={selectedTicket?.clientId} // Important pour lier les uploads au bon dossier client

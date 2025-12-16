@@ -29,7 +29,6 @@ interface AdminProviderProps {
 }
 
 export const AdminProvider: React.FC<AdminProviderProps> = ({ children, currentUser }) => {
-  // Par sécurité, on s'assure que currentUser est présent avant d'accéder aux propriétés, même si le parent le gère.
   const [isAdmin, setIsAdmin] = useState(currentUser?.role === 'admin');
   const [isAdminMode, setIsAdminMode] = useState(currentUser?.role === 'admin');
   const [targetUserId, setTargetUserId] = useState<string>(currentUser?.id || '');
@@ -37,19 +36,35 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children, currentU
   const [clients, setClients] = useState<Client[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
 
+  // Initialisation et gestion des droits
   useEffect(() => {
     if (currentUser) {
         const isUserAdmin = currentUser.role === 'admin';
         setIsAdmin(isUserAdmin);
         
-        // Initialisation de la cible
+        // Initialisation de la cible si pas encore définie
         setTargetUserId(prev => prev || currentUser.id);
 
         if (isUserAdmin) {
             setIsAdminMode(true);
-            fetchClients();
         }
     }
+  }, [currentUser]);
+
+  // Chargement des données Clients (Admin Only) avec Realtime
+  useEffect(() => {
+      if (currentUser?.role === 'admin') {
+          fetchClients();
+
+          // Souscription aux changements pour mise à jour immédiate (ex: changement de logo)
+          const channel = supabase.channel('admin_clients_realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+                fetchClients();
+            })
+            .subscribe();
+
+          return () => { supabase.removeChannel(channel); };
+      }
   }, [currentUser]);
 
   const fetchClients = async () => {
@@ -66,7 +81,8 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children, currentU
               company: p.company_name || 'Sans société',
               avatarInitials: p.avatar_initials || '?',
               email: p.email || '',
-              role: p.role
+              role: p.role,
+              logoUrl: p.logo_url // Récupération vitale pour l'affichage du logo
           }));
           setClients(mappedClients);
       }

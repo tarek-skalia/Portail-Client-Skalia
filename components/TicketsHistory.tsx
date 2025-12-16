@@ -73,6 +73,14 @@ const TicketsHistory: React.FC<TicketsHistoryProps> = ({ userId, initialTicketId
     }
   }, [userId]);
 
+  // Re-fetch quand on ferme le panneau latéral pour mettre à jour le statut "Lu"
+  useEffect(() => {
+      if (!isSlideOverOpen && !isLoading) {
+          // On force une mise à jour locale ou un refetch pour enlever la pastille
+          fetchTickets();
+      }
+  }, [isSlideOverOpen]);
+
   const fetchTickets = async () => {
     // 1. Récupérer les tickets
     const { data: ticketsData, error } = await supabase
@@ -109,9 +117,17 @@ const TicketsHistory: React.FC<TicketsHistoryProps> = ({ userId, initialTicketId
                 const msgs = messagesData.filter((m: any) => m.ticket_id === item.id);
                 if (msgs.length > 0) {
                     const lastMsg = msgs[msgs.length - 1];
-                    // SI le dernier message n'est PAS du client (donc admin ou system), c'est potentiellement non lu
+                    const lastReadStr = localStorage.getItem(`skalia_read_${item.id}`);
+                    const lastReadDate = lastReadStr ? new Date(lastReadStr) : new Date(0); // 1970 par défaut si jamais lu
+                    const lastMsgDate = new Date(lastMsg.created_at);
+
+                    // LOGIQUE NON LU :
+                    // Si le dernier message n'est PAS du client (donc Admin)
+                    // ET que ce message est plus récent que la dernière lecture enregistrée
                     if (lastMsg.sender_type !== 'client') {
-                        hasUnread = true;
+                        if (lastMsgDate > lastReadDate) {
+                            hasUnread = true;
+                        }
                     }
                 }
             }
@@ -136,9 +152,14 @@ const TicketsHistory: React.FC<TicketsHistoryProps> = ({ userId, initialTicketId
 
   const handleRowClick = (ticket: Ticket) => {
       setSelectedTicket(ticket);
-      setIsSlideOverOpen(true);
-      // Optionnel : Marquer comme lu localement instantanément pour UX
+      
+      // Update Local Read Status Immediately
+      localStorage.setItem(`skalia_read_${ticket.id}`, new Date().toISOString());
+      
+      // Mise à jour visuelle immédiate
       setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, hasUnreadMessages: false } : t));
+      
+      setIsSlideOverOpen(true);
   };
 
   const filteredTickets = tickets.filter(t => {
