@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { MENU_ITEMS, ADMIN_MENU_ITEMS } from '../constants';
 import { LogOut, Phone } from 'lucide-react';
 import { Client } from '../types';
@@ -13,8 +13,30 @@ interface SidebarProps {
   onLogout: () => void;
 }
 
+const LOGO_DEV_PUBLIC_KEY = 'pk_PhkKGyy8QSawDAIdG5tLlg';
+
 const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentClient, onLogout }) => {
   const { isAdmin } = useAdmin();
+  const [imgError, setImgError] = useState(false);
+
+  // Reset de l'erreur d'image si le client change
+  useEffect(() => {
+      setImgError(false);
+  }, [currentClient.id, currentClient.logoUrl]);
+
+  const getLogoUrl = () => {
+      if (!currentClient.logoUrl) return null;
+      try {
+          const urlStr = currentClient.logoUrl.startsWith('http') ? currentClient.logoUrl : `https://${currentClient.logoUrl}`;
+          const urlObj = new URL(urlStr);
+          const domain = urlObj.hostname.replace('www.', '');
+          return `https://img.logo.dev/${domain}?token=${LOGO_DEV_PUBLIC_KEY}&retina=true`;
+      } catch (e) {
+          return null;
+      }
+  };
+
+  const logoSrc = getLogoUrl();
 
   return (
     <div className="w-72 h-screen bg-[#4338ca] text-white flex flex-col shadow-2xl flex-shrink-0 sticky top-0 z-50 overflow-hidden font-sans transition-all duration-300">
@@ -136,9 +158,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
       {/* Footer User Profile */}
       <div className="p-4 m-4 mt-0 rounded-2xl bg-indigo-950/30 backdrop-blur-md border border-white/5 relative z-10 shadow-lg group hover:bg-indigo-950/40 transition-colors duration-300 shrink-0">
         <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center font-bold text-sm text-white shadow-md border border-white/20 shrink-0 group-hover:scale-110 transition-transform duration-300">
-                {currentClient.avatarInitials}
+            
+            {/* AVATAR AVEC LOGO */}
+            <div className="w-10 h-10 rounded-full bg-white shadow-md border border-white/20 shrink-0 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center overflow-hidden">
+                {logoSrc && !imgError ? (
+                    <img 
+                        src={logoSrc} 
+                        alt={currentClient.company} 
+                        className="w-full h-full object-contain p-1.5"
+                        onError={() => setImgError(true)}
+                        loading="lazy"
+                    />
+                ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center font-bold text-sm text-white">
+                        {currentClient.avatarInitials}
+                    </div>
+                )}
             </div>
+
             <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-semibold truncate text-white group-hover:text-indigo-100 transition-colors">{currentClient.name}</p>
                 <p className="text-xs text-indigo-200 truncate">{currentClient.company}</p>
