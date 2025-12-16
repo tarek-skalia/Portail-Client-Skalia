@@ -54,7 +54,10 @@ const AppContent: React.FC<{
     const [autoOpenTicketId, setAutoOpenTicketId] = useState<string | null>(null);
 
     useEffect(() => {
-        localStorage.setItem('skalia_last_page', activePage);
+        // On ne sauvegarde pas les pages avec ID (ex: history:123) dans le localStorage, on garde juste la page de base
+        if (!activePage.includes(':')) {
+            localStorage.setItem('skalia_last_page', activePage);
+        }
     }, [activePage]);
 
     // Click Outside Notification Panel
@@ -92,6 +95,31 @@ const AppContent: React.FC<{
     const handleNotificationRead = () => setUnreadNotifications(prev => Math.max(0, prev - 1));
     const handleAllNotificationsRead = () => setUnreadNotifications(0);
 
+    // GESTION INTELLIGENTE DES LIENS DE NOTIFICATION
+    const handleNavigationFromNotification = (link: string) => {
+        if (!link) return;
+
+        // Cas spécial : Lien avec ID (ex: "history:uuid-123" ou "global_view:uuid-456")
+        if (link.includes(':')) {
+            const [page, id] = link.split(':');
+            
+            // 1. On définit l'ID à ouvrir
+            setAutoOpenTicketId(id);
+            
+            // 2. On change la page
+            setActivePage(page);
+
+            // 3. Reset automatique de l'ID après ouverture (pour permettre la réouverture future)
+            // On laisse un délai un peu plus long pour laisser le temps au composant enfant de charger et lire la prop
+            setTimeout(() => setAutoOpenTicketId(null), 3000);
+        } else {
+            // Cas standard
+            setActivePage(link);
+        }
+        
+        setIsNotificationsOpen(false);
+    };
+
     const handleNavigateToProject = (projectId: string) => {
         setHighlightedProjectId(projectId);
         setActivePage('projects');
@@ -114,7 +142,9 @@ const AppContent: React.FC<{
     };
 
     const getPageTitle = (id: string) => {
-        const item = [...MENU_ITEMS, ...ADMIN_MENU_ITEMS].find(i => i.id === id);
+        // Nettoyage si l'ID contient des params
+        const cleanId = id.split(':')[0];
+        const item = [...MENU_ITEMS, ...ADMIN_MENU_ITEMS].find(i => i.id === cleanId);
         return item?.label || 'Skalia';
     };
 
@@ -123,7 +153,7 @@ const AppContent: React.FC<{
 
         // Protection des routes Admin
         if (isAdmin) {
-            if (activePage === 'global_view') return <GlobalDashboard />;
+            if (activePage === 'global_view') return <GlobalDashboard initialTicketId={autoOpenTicketId} />;
             if (activePage === 'users') return <UserManagement />;
         }
 
@@ -145,7 +175,7 @@ const AppContent: React.FC<{
             <BackgroundBlobs />
             <GlobalListeners userId={effectiveUserId} onNewNotification={handleNewNotificationEvent} />
             
-            <Sidebar activePage={activePage} setActivePage={setActivePage} currentClient={targetClient} onLogout={handleLogout} />
+            <Sidebar activePage={activePage.split(':')[0]} setActivePage={setActivePage} currentClient={targetClient} onLogout={handleLogout} />
             
             <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
                 <AdminToolbar />
@@ -160,7 +190,7 @@ const AppContent: React.FC<{
                                 <Bell size={20} />
                                 {unreadNotifications > 0 && <span className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm animate-bounce">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}
                             </button>
-                            {isNotificationsOpen && <NotificationsPanel userId={effectiveUserId} onClose={() => setIsNotificationsOpen(false)} onNavigate={setActivePage} onRead={handleNotificationRead} onAllRead={handleAllNotificationsRead} refreshTrigger={notificationListTrigger} />}
+                            {isNotificationsOpen && <NotificationsPanel userId={effectiveUserId} onClose={() => setIsNotificationsOpen(false)} onNavigate={handleNavigationFromNotification} onRead={handleNotificationRead} onAllRead={handleAllNotificationsRead} refreshTrigger={notificationListTrigger} />}
                         </div>
                         <div className="text-right hidden sm:block">
                             <p className="text-xs font-bold text-slate-900">{targetClient.company}</p>

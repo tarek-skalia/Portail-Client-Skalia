@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Ticket, TicketMessage } from '../types';
-import { X, Send, Paperclip, CheckCircle2, Circle, Clock, User, ShieldAlert, FileText, Download, ShieldCheck } from 'lucide-react';
+import { X, Send, Paperclip, CheckCircle2, Circle, Clock, User, ShieldAlert, FileText, Download, ShieldCheck, ChevronDown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useToast } from './ToastProvider';
 import Skeleton from './Skeleton';
@@ -22,6 +22,10 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
   const [isSending, setIsSending] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   
+  // Gestion du Statut
+  const [currentStatus, setCurrentStatus] = useState<Ticket['status']>('open');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
   // File Upload State in Chat
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,6 +45,7 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
   useEffect(() => {
     if (isOpen && ticket) {
         fetchMessages();
+        setCurrentStatus(ticket.status);
         
         const channel = supabase
             .channel(`ticket_messages:${ticket.id}`)
@@ -112,6 +117,27 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
       scrollToBottom();
   };
 
+  const handleStatusChange = async (newStatus: Ticket['status']) => {
+      if (!ticket) return;
+      setIsUpdatingStatus(true);
+      
+      try {
+          const { error } = await supabase
+            .from('tickets')
+            .update({ status: newStatus, last_update: 'À l\'instant' })
+            .eq('id', ticket.id);
+
+          if (error) throw error;
+
+          setCurrentStatus(newStatus);
+          toast.success("Statut mis à jour", `Le ticket est maintenant ${getStatusLabel(newStatus)}`);
+      } catch (err) {
+          toast.error("Erreur", "Impossible de changer le statut.");
+      } finally {
+          setIsUpdatingStatus(false);
+      }
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           setSelectedFile(e.target.files[0]);
@@ -120,26 +146,19 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
 
   const handleSendMessage = async (e: React.FormEvent) => {
       e.preventDefault();
-      // On autorise l'envoi si texte OU fichier est présent
       if ((!newMessage.trim() && !selectedFile) || !ticket) return;
 
       setIsSending(true);
       
       try {
-          // --- LOGIQUE ADMIN ---
-          // Si isAdmin est vrai, on envoie en tant qu'admin
-          // Le sender_id sera l'ID de l'admin (auth.uid()), mais on peut le récupérer proprement
           const { data: { user } } = await supabase.auth.getUser();
           const currentSenderId = user?.id;
-
           const senderType = isAdmin ? 'admin' : 'client';
 
           let uploadedFileUrl: string | null = null;
 
-          // 1. Upload du fichier (dans le dossier du ticket)
           if (selectedFile) {
                const cleanName = selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-               // On stocke dans tickets/{clientId}/... pour que le client puisse lire ses propres fichiers
                const storagePath = `tickets/${userId || ticket.clientId}/${Date.now()}_${cleanName}`;
                
                const { error: uploadError } = await supabase.storage
@@ -181,19 +200,27 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
       }
   };
 
-  if (!ticket) return null;
+  const getStatusLabel = (status: string) => {
+      switch(status) {
+          case 'open': return 'Ouvert';
+          case 'in_progress': return 'En cours';
+          case 'resolved': return 'Résolu';
+          case 'closed': return 'Fermé';
+          default: return status;
+      }
+  };
 
   const getStatusConfig = (status: Ticket['status']) => {
     switch (status) {
-      case 'open': return { label: 'Ouvert', bg: 'bg-blue-100', text: 'text-blue-700', icon: <Circle size={14} className="fill-blue-600" /> };
-      case 'in_progress': return { label: 'En cours', bg: 'bg-purple-100', text: 'text-purple-700', icon: <Clock size={14} className="animate-pulse" /> };
-      case 'resolved': return { label: 'Résolu', bg: 'bg-emerald-100', text: 'text-emerald-700', icon: <CheckCircle2 size={14} /> };
+      case 'open': return { label: 'Ouvert', bg: 'bg-blue-50', text: 'text-blue-700', icon: <Circle size={14} className="fill-blue-600" /> };
+      case 'in_progress': return { label: 'En cours', bg: 'bg-purple-50', text: 'text-purple-700', icon: <Clock size={14} className="animate-pulse" /> };
+      case 'resolved': return { label: 'Résolu', bg: 'bg-emerald-50', text: 'text-emerald-700', icon: <CheckCircle2 size={14} /> };
       case 'closed': return { label: 'Fermé', bg: 'bg-slate-100', text: 'text-slate-500', icon: <CheckCircle2 size={14} /> };
       default: return { label: status, bg: 'bg-slate-100', text: 'text-slate-500', icon: <Circle size={14} /> };
     }
   };
 
-  const statusConfig = getStatusConfig(ticket.status);
+  if (!ticket) return null;
 
   return (
     <>
@@ -211,27 +238,41 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
       >
         {/* HEADER */}
         <div className="px-6 py-4 border-b border-slate-100 bg-white shrink-0 shadow-sm z-10 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
                  <button 
                     onClick={onClose}
                     className="p-2 -ml-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors"
                 >
                     <X size={20} />
                 </button>
-                <div>
-                     <div className="flex items-center gap-2 mb-0.5">
-                        <span className="font-mono text-xs text-slate-400">#{ticket.id.slice(0,8)}</span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wide ${statusConfig.bg} ${statusConfig.text}`}>
-                            {statusConfig.icon}
-                            {statusConfig.label}
-                        </span>
+                <div className="flex-1 min-w-0">
+                     <div className="flex items-center gap-3 mb-1">
+                        <span className="font-mono text-xs text-slate-400 shrink-0">#{ticket.id.slice(0,8)}</span>
+                        
+                        {/* SELECTEUR DE STATUT */}
+                        <div className="relative group">
+                            <select
+                                value={currentStatus}
+                                onChange={(e) => handleStatusChange(e.target.value as any)}
+                                disabled={isUpdatingStatus}
+                                className={`appearance-none pl-2 pr-6 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wide border cursor-pointer outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-all ${
+                                    getStatusConfig(currentStatus).bg
+                                } ${getStatusConfig(currentStatus).text}`}
+                            >
+                                <option value="open">Ouvert</option>
+                                <option value="in_progress">En cours</option>
+                                <option value="resolved">Résolu</option>
+                                <option value="closed">Fermé</option>
+                            </select>
+                            <ChevronDown size={10} className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${getStatusConfig(currentStatus).text}`} />
+                        </div>
                      </div>
-                     <h2 className="font-bold text-slate-800 line-clamp-1">{ticket.subject}</h2>
+                     <h2 className="font-bold text-slate-800 line-clamp-1 truncate">{ticket.subject}</h2>
                 </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 pl-2">
                  {ticket.priority === 'high' && (
-                     <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-500" title="Priorité Haute">
+                     <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-500 shrink-0" title="Priorité Haute">
                          <ShieldAlert size={16} />
                      </div>
                  )}
@@ -281,7 +322,7 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
                                 {/* Bulle Message */}
                                 <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                                     
-                                    {/* Nom au dessus (Optionnel, utile si admin parle au client) */}
+                                    {/* Nom au dessus */}
                                     {!isMe && !isSequence && (
                                         <span className="text-[10px] text-slate-400 mb-1 ml-1">
                                             {isAdminMsg ? 'Support Skalia' : 'Client'}
@@ -335,7 +376,7 @@ const TicketSlideOver: React.FC<TicketSlideOverProps> = ({ isOpen, onClose, tick
 
         {/* INPUT AREA */}
         <div className="p-4 bg-white border-t border-slate-200 shrink-0">
-            {ticket.status === 'closed' ? (
+            {currentStatus === 'closed' ? (
                  <div className="text-center py-4 text-slate-500 bg-slate-50 rounded-xl border border-slate-100 italic text-sm">
                     Ce ticket est fermé. Vous ne pouvez plus y répondre.
                  </div>
