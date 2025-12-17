@@ -9,7 +9,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { 
     Zap, Clock, CheckCircle2, TrendingUp, Layers, Activity, 
-    ArrowUpRight, Info, Euro, Settings, Plus, AlertCircle, FileText, Calendar, ChevronDown 
+    ArrowUpRight, Info, Euro, Settings, Plus, AlertCircle, FileText, Calendar, ChevronDown, Rocket, Sparkles
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
@@ -121,7 +121,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       prevUserIdRef.current = userId;
 
       if (isUserChange) {
-          // Reset complet seulement si on change d'utilisateur
           setUserName(''); 
           setStats({
             totalExecutions: 0,
@@ -138,7 +137,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       setIsLoading(true);
       fetchDashboardData();
 
-      // Utilisation d'un nom de channel unique par utilisateur pour éviter les conflits Admin/Client
       const channelName = `dashboard_main_${userId}`;
       const channel = supabase.channel(channelName)
         .on('postgres_changes', { 
@@ -156,7 +154,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
 
   const fetchDashboardData = async () => {
     try {
-      // 1. Profil Utilisateur (Toujours recharger pour être sûr)
       const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', userId).single();
       if (profile?.full_name) {
           setUserName(profile.full_name.split(' ')[0]);
@@ -164,14 +161,12 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
           setUserName('Client');
       }
 
-      // 2. AUTOMATIONS ACTIVES & IDs
       const { data: automations } = await supabase.from('automations').select('id, name, status').eq('user_id', userId);
       
       const activeAutosCount = automations?.filter(a => a.status === 'active').length || 0;
       const automationNames = new Map<string, string>(automations?.map(a => [a.id, a.name] as [string, string]) || []);
       const userAutomationIds = automations?.map(a => a.id) || [];
 
-      // 3. CALCUL DES DATES
       const now = new Date();
       let startDate = new Date();
       let prevStartDate = new Date();
@@ -196,7 +191,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
           prevEndDate = new Date(0);
       }
 
-      // 4. LOGS (Filtrés par les automations de l'utilisateur)
       let currentLogs: any[] = [];
       let prevLogs: any[] = [];
 
@@ -221,7 +215,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
           }
       }
 
-      // --- CALCULS KPI ---
       const totalExecs = currentLogs.length;
       const totalExecsPrev = prevLogs.length;
       
@@ -229,7 +222,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       const successRate = totalExecs > 0 ? Math.round((successCount / totalExecs) * 100) : 100;
       const minutesSaved = currentLogs.reduce((acc, l) => acc + (l.minutes_saved || 0), 0);
 
-      // --- BAR CHART ---
       const last14DaysMap = new Map<string, { success: number, error: number, date: string, shortDate: string }>();
       for (let i = 13; i >= 0; i--) {
          const d = new Date();
@@ -250,7 +242,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       });
       const formattedBarData = Array.from(last14DaysMap.values());
 
-      // --- DONUT CHART ---
       const distributionMap = new Map<string, number>();
       currentLogs.forEach(l => {
           const name = automationNames.get(l.automation_id as string) || 'Inconnu';
@@ -301,15 +292,13 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       return { h, m };
   };
 
-  // Calcul du ROI Monétaire
   const moneySaved = Math.round((stats.minutesSaved / 60) * hourlyRate);
 
-  // Trend Calculation
   let trend = 0;
   if (stats.totalExecutionsPrev > 0) {
       trend = Math.round(((stats.totalExecutions - stats.totalExecutionsPrev) / stats.totalExecutionsPrev) * 100);
   } else if (stats.totalExecutions > 0 && timeRange !== 'all') {
-      trend = 100; // Croissance infinie
+      trend = 100;
   }
 
   const getTrendLabel = () => {
@@ -336,10 +325,11 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
       return 'Période';
   };
 
+  const isInitialState = !isLoading && stats.totalExecutions === 0;
+
   return (
     <div className="pb-10 animate-fade-in-up space-y-8">
       
-      {/* 1. HEADER AVEC FILTRE */}
       <section>
           <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
               <div>
@@ -357,7 +347,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
                   </div>
               </div>
 
-              {/* FILTRE DE DATE */}
               <div className="relative group z-20">
                   <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all">
                       <Calendar size={18} className="text-indigo-500" />
@@ -390,230 +379,174 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
           />
       </section>
 
-      {/* 2. KPI HERO & GRID COMPACTE */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          
-          {/* CARTE 1: HERO - ROI */}
-          <div className="md:col-span-2 relative overflow-hidden rounded-2xl p-6 shadow-2xl bg-slate-900 text-white border border-slate-800 group transition-all duration-300">
-              <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-indigo-600/30 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 group-hover:bg-indigo-500/40 transition-colors duration-700"></div>
-              <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-purple-600/20 rounded-full blur-[60px] translate-y-1/3 -translate-x-1/3"></div>
+      {/* BIENVENUE STATE (ONBOARDING) */}
+      {isInitialState && (
+          <section className="bg-gradient-to-br from-indigo-600 to-indigo-900 rounded-[2rem] p-10 text-white shadow-2xl relative overflow-hidden animate-fade-in-up">
+              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3"></div>
+              <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-purple-600/20 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/3"></div>
               
-              <div className="relative z-10 h-full flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                      <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10 text-indigo-300">
-                          {viewMode === 'time' ? <Clock size={24} /> : <Euro size={24} />}
+              <div className="relative z-10 flex flex-col md:flex-row items-center gap-12">
+                  <div className="flex-1 space-y-6">
+                      <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-xs font-bold uppercase tracking-widest text-indigo-100">
+                          <Rocket size={14} /> Initialisation de votre portail
                       </div>
-                      
-                      <div className="flex items-center gap-3">
-                          <div className="bg-white/10 p-1 rounded-lg border border-white/10 flex items-center backdrop-blur-sm">
-                              <button 
-                                onClick={() => setViewMode('time')}
-                                className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${viewMode === 'time' ? 'bg-white text-indigo-900 shadow-sm' : 'text-indigo-200 hover:text-white'}`}
-                              >
-                                  Temps
-                              </button>
-                              <button 
-                                onClick={() => setViewMode('money')}
-                                className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${viewMode === 'money' ? 'bg-emerald-500 text-white shadow-sm' : 'text-indigo-200 hover:text-white'}`}
-                              >
-                                  Argent
-                              </button>
+                      <h2 className="text-4xl md:text-5xl font-black leading-tight tracking-tight">
+                          Propulsez votre agence <br/>vers l'automatisation.
+                      </h2>
+                      <p className="text-lg text-indigo-100/80 max-w-xl leading-relaxed">
+                          Bienvenue chez <span className="text-white font-bold">SKALIA</span>. Vos automatisations sont en cours de configuration par nos ingénieurs. Dès que les premiers flux seront actifs, vos statistiques de rentabilité et de temps gagné apparaîtront ici.
+                      </p>
+                      <div className="flex flex-wrap gap-4 pt-4">
+                          <button 
+                            onClick={handleNewProject}
+                            className="px-8 py-4 bg-white text-indigo-600 font-bold rounded-2xl shadow-xl hover:bg-indigo-50 transition-all flex items-center gap-3 transform hover:scale-105 active:scale-95"
+                          >
+                              Lancer un projet <ArrowUpRight size={20} />
+                          </button>
+                          <button 
+                            onClick={() => onNavigate('automations')}
+                            className="px-8 py-4 bg-white/10 backdrop-blur-md border border-white/20 text-white font-bold rounded-2xl hover:bg-white/20 transition-all"
+                          >
+                              Voir le catalogue
+                          </button>
+                      </div>
+                  </div>
+                  <div className="w-full md:w-1/3 flex justify-center">
+                       <div className="w-64 h-64 bg-white/5 rounded-full border border-white/10 flex items-center justify-center relative">
+                            <div className="w-48 h-48 bg-indigo-500/30 rounded-full animate-pulse flex items-center justify-center">
+                                <Sparkles className="text-white w-20 h-20" />
+                            </div>
+                            {/* Orbital icons */}
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-white rounded-xl shadow-lg flex items-center justify-center text-indigo-600 animate-float">
+                                <Zap size={24} />
+                            </div>
+                            <div className="absolute bottom-10 -right-4 w-14 h-14 bg-emerald-500 rounded-xl shadow-lg flex items-center justify-center text-white animate-float-delayed">
+                                <Euro size={24} />
+                            </div>
+                       </div>
+                  </div>
+              </div>
+          </section>
+      )}
+
+      {/* KPI HERO & GRID COMPACTE (MASQUÉ SI INITIAL STATE POUR FOCUS SUR ONBOARDING) */}
+      {!isInitialState && (
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div className="md:col-span-2 relative overflow-hidden rounded-2xl p-6 shadow-2xl bg-slate-900 text-white border border-slate-800 group transition-all duration-300">
+                  <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-indigo-600/30 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 group-hover:bg-indigo-500/40 transition-colors duration-700"></div>
+                  <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-purple-600/20 rounded-full blur-[60px] translate-y-1/3 -translate-x-1/3"></div>
+                  
+                  <div className="relative z-10 h-full flex flex-col justify-between">
+                      <div className="flex justify-between items-start">
+                          <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10 text-indigo-300">
+                              {viewMode === 'time' ? <Clock size={24} /> : <Euro size={24} />}
                           </div>
                           
-                          <div className="relative">
-                            <button 
-                                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                className="p-2 bg-white/5 hover:bg-white/20 rounded-lg border border-white/10 text-indigo-200 hover:text-white transition-colors"
-                            >
-                                <Settings size={16} />
-                            </button>
-                            {isSettingsOpen && (
-                                <div className="absolute top-10 right-0 bg-white p-4 rounded-xl shadow-2xl border border-slate-200 w-64 z-50 text-slate-800 animate-fade-in">
-                                    <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">Paramètre ROI</h4>
-                                    <p className="text-sm font-medium mb-2">Votre taux horaire moyen (€)</p>
-                                    <input 
-                                        type="number" 
-                                        defaultValue={hourlyRate}
-                                        onBlur={(e) => saveHourlyRate(parseInt(e.target.value))}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') saveHourlyRate(parseInt(e.currentTarget.value)) }}
-                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    />
-                                    <p className="text-[10px] text-slate-400">Appuyez sur Entrée pour valider.</p>
-                                </div>
-                            )}
+                          <div className="flex items-center gap-3">
+                              <div className="bg-white/10 p-1 rounded-lg border border-white/10 flex items-center backdrop-blur-sm">
+                                  <button onClick={() => setViewMode('time')} className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${viewMode === 'time' ? 'bg-white text-indigo-900 shadow-sm' : 'text-indigo-200 hover:text-white'}`}>Temps</button>
+                                  <button onClick={() => setViewMode('money')} className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${viewMode === 'money' ? 'bg-emerald-500 text-white shadow-sm' : 'text-indigo-200 hover:text-white'}`}>Argent</button>
+                              </div>
+                              <div className="relative">
+                                <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg border border-white/10 text-indigo-200 hover:text-white transition-colors"><Settings size={16} /></button>
+                                {isSettingsOpen && (
+                                    <div className="absolute top-10 right-0 bg-white p-4 rounded-xl shadow-2xl border border-slate-200 w-64 z-50 text-slate-800 animate-fade-in">
+                                        <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">Paramètre ROI</h4>
+                                        <p className="text-sm font-medium mb-2">Votre taux horaire moyen (€)</p>
+                                        <input type="number" defaultValue={hourlyRate} onBlur={(e) => saveHourlyRate(parseInt(e.target.value))} onKeyDown={(e) => { if (e.key === 'Enter') saveHourlyRate(parseInt(e.currentTarget.value)) }} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                        <p className="text-[10px] text-slate-400">Appuyez sur Entrée pour valider.</p>
+                                    </div>
+                                )}
+                              </div>
                           </div>
                       </div>
-                  </div>
 
-                  <div className="mt-4">
-                      <div className="flex items-center gap-2 mb-1">
-                          <p className={`font-bold text-xs uppercase tracking-widest ${viewMode === 'money' ? 'text-emerald-300' : 'text-indigo-200'}`}>
-                              {viewMode === 'time' ? 'Temps Économisé' : 'Argent Économisé'}
+                      <div className="mt-4">
+                          <div className="flex items-center gap-2 mb-1">
+                              <p className={`font-bold text-xs uppercase tracking-widest ${viewMode === 'money' ? 'text-emerald-300' : 'text-indigo-200'}`}>{viewMode === 'time' ? 'Temps Économisé' : 'Argent Économisé'}</p>
+                          </div>
+                          <div className="flex items-baseline gap-1.5 min-h-[50px]">
+                              {viewMode === 'time' ? (
+                                  <><span className="text-5xl font-extrabold tracking-tighter text-white drop-shadow-sm">{isLoading ? '-' : <CountUp end={formatTimeSaved(stats.minutesSaved).h} />}</span><span className="text-xl font-medium text-indigo-300">h</span><span className="text-3xl font-bold tracking-tight text-white/80 ml-1">{isLoading ? '-' : <CountUp end={formatTimeSaved(stats.minutesSaved).m} />}</span><span className="text-lg font-medium text-indigo-300">m</span></>
+                              ) : (
+                                  <><span className="text-5xl font-extrabold tracking-tighter text-emerald-400 drop-shadow-sm">{isLoading ? '-' : <CountUp end={moneySaved} />}</span><span className="text-2xl font-medium text-emerald-600 ml-1">€</span></>
+                              )}
+                          </div>
+                          <p className="text-slate-400 text-xs mt-3 font-medium leading-relaxed border-t border-white/10 pt-3">
+                              {viewMode === 'time' ? <span>Vos automatisations ont absorbé l'équivalent de <strong className="text-white">{(stats.minutesSaved / (7 * 60)).toFixed(1)} jours</strong> de travail humain.</span> : <span>Calculé sur une base de <strong className="text-white">{hourlyRate}€/h</strong> ({getTimeRangeLabel()}).</span>}
                           </p>
                       </div>
-                      
-                      <div className="flex items-baseline gap-1.5 min-h-[50px]">
-                          {viewMode === 'time' ? (
-                              <>
-                                <span className="text-5xl font-extrabold tracking-tighter text-white drop-shadow-sm">
-                                    {isLoading ? '-' : <CountUp end={formatTimeSaved(stats.minutesSaved).h} />}
-                                </span>
-                                <span className="text-xl font-medium text-indigo-300">h</span>
-                                <span className="text-3xl font-bold tracking-tight text-white/80 ml-1">
-                                    {isLoading ? '-' : <CountUp end={formatTimeSaved(stats.minutesSaved).m} />}
-                                </span>
-                                <span className="text-lg font-medium text-indigo-300">m</span>
-                              </>
-                          ) : (
-                              <>
-                                <span className="text-5xl font-extrabold tracking-tighter text-emerald-400 drop-shadow-sm">
-                                    {isLoading ? '-' : <CountUp end={moneySaved} />}
-                                </span>
-                                <span className="text-2xl font-medium text-emerald-600 ml-1">€</span>
-                              </>
-                          )}
-                      </div>
-                      <p className="text-slate-400 text-xs mt-3 font-medium leading-relaxed border-t border-white/10 pt-3">
-                          {viewMode === 'time' 
-                            ? <span>Vos automatisations ont absorbé l'équivalent de <strong className="text-white">{(stats.minutesSaved / (7 * 60)).toFixed(1)} jours</strong> de travail humain.</span>
-                            : <span>Calculé sur une base de <strong className="text-white">{hourlyRate}€/h</strong> ({getTimeRangeLabel()}).</span>
-                          }
-                      </p>
-                  </div>
-              </div>
-          </div>
-
-          {/* CARTE 2: VOLUME */}
-          <div className="bg-gradient-to-br from-white to-violet-50/50 p-6 rounded-2xl border border-violet-100 shadow-sm flex flex-col justify-between group hover:border-violet-200 hover:shadow-lg transition-all relative overflow-hidden">
-              <div className="flex justify-between items-start mb-2 relative z-10">
-                  <div className="p-2.5 bg-white text-violet-600 rounded-xl border border-violet-100 shadow-sm group-hover:scale-105 transition-transform duration-300">
-                      <Zap size={20} />
-                  </div>
-                  {timeRange !== 'all' && (
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 border ${trend >= 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                          {trend > 0 ? '+' : ''}{trend}% {getTrendLabel()}
-                      </span>
-                  )}
-              </div>
-              <div className="relative z-10">
-                  <p className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                      {isLoading ? '-' : <CountUp end={stats.totalExecutions} />}
-                  </p>
-                  <p className="text-[10px] font-bold text-violet-400 uppercase tracking-wide mt-1">Volume traité</p>
-              </div>
-              <div className="mt-2 pt-3 border-t border-violet-100 relative z-10">
-                  <p className="text-[10px] text-slate-500 font-medium">
-                      Exécutions réussies ({getTimeRangeLabel().toLowerCase()}).
-                  </p>
-              </div>
-          </div>
-
-          {/* COLONNE: 2 CARTES */}
-          <div className="flex flex-col gap-4">
-              
-              {/* Carte 3: Succès */}
-              <div className="flex-1 bg-gradient-to-br from-white to-emerald-50/60 p-4 rounded-2xl border border-emerald-100 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-all relative overflow-hidden">
-                  <div className="relative z-10">
-                      <p className="text-[10px] font-bold text-emerald-600/80 uppercase tracking-wide mb-0.5">Taux de succès</p>
-                      <p className="text-2xl font-extrabold text-slate-900">
-                          {isLoading ? '-' : <CountUp end={stats.successRate} suffix="%" />}
-                      </p>
-                      <p className="text-[9px] text-slate-400 mt-1">Fiabilité système</p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full border border-emerald-100 flex items-center justify-center text-emerald-600 bg-white shadow-sm group-hover:scale-105 transition-transform z-10">
-                      <CheckCircle2 size={18} />
                   </div>
               </div>
 
-              {/* Carte 4: Systèmes */}
-              <div className="flex-1 bg-gradient-to-br from-white to-indigo-50/60 p-4 rounded-2xl border border-indigo-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all relative overflow-hidden">
-                  <div className="relative z-10">
-                      <p className="text-[10px] font-bold text-indigo-600/80 uppercase tracking-wide mb-0.5">Automatisations</p>
-                      <p className="text-2xl font-extrabold text-slate-900">
-                          {isLoading ? '-' : <CountUp end={stats.activeAutomations} />}
-                      </p>
-                      <p className="text-[9px] text-slate-400 mt-1">Actives en production</p>
+              <div className="bg-gradient-to-br from-white to-violet-50/50 p-6 rounded-2xl border border-violet-100 shadow-sm flex flex-col justify-between group hover:border-violet-200 hover:shadow-lg transition-all relative overflow-hidden">
+                  <div className="flex justify-between items-start mb-2 relative z-10">
+                      <div className="p-2.5 bg-white text-violet-600 rounded-xl border border-violet-100 shadow-sm group-hover:scale-105 transition-transform duration-300"><Zap size={20} /></div>
+                      {timeRange !== 'all' && (
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 border ${trend >= 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>{trend > 0 ? '+' : ''}{trend}% {getTrendLabel()}</span>
+                      )}
                   </div>
-                  <div className="h-10 w-10 rounded-full border border-indigo-100 flex items-center justify-center text-indigo-600 bg-white shadow-sm group-hover:scale-105 transition-transform z-10">
-                      <Layers size={18} />
-                  </div>
+                  <div className="relative z-10"><p className="text-3xl font-extrabold text-slate-900 tracking-tight">{isLoading ? '-' : <CountUp end={stats.totalExecutions} />}</p><p className="text-[10px] font-bold text-violet-400 uppercase tracking-wide mt-1">Volume traité</p></div>
+                  <div className="mt-2 pt-3 border-t border-violet-100 relative z-10"><p className="text-[10px] text-slate-500 font-medium">Exécutions réussies ({getTimeRangeLabel().toLowerCase()}).</p></div>
               </div>
 
-          </div>
-      </section>
+              <div className="flex flex-col gap-4">
+                  <div className="flex-1 bg-gradient-to-br from-white to-emerald-50/60 p-4 rounded-2xl border border-emerald-100 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-all relative overflow-hidden">
+                      <div className="relative z-10"><p className="text-[10px] font-bold text-emerald-600/80 uppercase tracking-wide mb-0.5">Taux de succès</p><p className="text-2xl font-extrabold text-slate-900">{isLoading ? '-' : <CountUp end={stats.successRate} suffix="%" />}</p><p className="text-[9px] text-slate-400 mt-1">Fiabilité système</p></div>
+                      <div className="h-10 w-10 rounded-full border border-emerald-100 flex items-center justify-center text-emerald-600 bg-white shadow-sm group-hover:scale-105 transition-transform z-10"><CheckCircle2 size={18} /></div>
+                  </div>
+                  <div className="flex-1 bg-gradient-to-br from-white to-indigo-50/60 p-4 rounded-2xl border border-indigo-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all relative overflow-hidden">
+                      <div className="relative z-10"><p className="text-[10px] font-bold text-indigo-600/80 uppercase tracking-wide mb-0.5">Automatisations</p><p className="text-2xl font-extrabold text-slate-900">{isLoading ? '-' : <CountUp end={stats.activeAutomations} />}</p><p className="text-[9px] text-slate-400 mt-1">Actives en production</p></div>
+                      <div className="h-10 w-10 rounded-full border border-indigo-100 flex items-center justify-center text-indigo-600 bg-white shadow-sm group-hover:scale-105 transition-transform z-10"><Layers size={18} /></div>
+                  </div>
+              </div>
+          </section>
+      )}
 
       {/* 3. WIDGET ACTIONS */}
       <section className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm flex flex-wrap gap-2 animate-fade-in-up delay-100">
-            <button 
-                onClick={handleNewTicket}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 hover:bg-red-50 hover:text-red-600 hover:border-red-100 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 transition-all group"
-            >
-                <AlertCircle size={16} className="text-slate-400 group-hover:text-red-500" />
-                Signaler un Bug
+            <button onClick={handleNewTicket} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 hover:bg-red-50 hover:text-red-600 hover:border-red-100 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 transition-all group">
+                <AlertCircle size={16} className="text-slate-400 group-hover:text-red-500" />Signaler un Bug
             </button>
-            <button 
-                onClick={handleNewProject}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 transition-all group"
-            >
-                <Plus size={16} className="text-slate-400 group-hover:text-indigo-500" />
-                Nouveau Projet
+            <button onClick={handleNewProject} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 transition-all group">
+                <Plus size={16} className="text-slate-400 group-hover:text-indigo-500" />Nouveau Projet
             </button>
-            <button 
-                onClick={() => onNavigate('invoices')}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-100 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 transition-all group"
-            >
-                <FileText size={16} className="text-slate-400 group-hover:text-amber-500" />
-                Factures
+            <button onClick={() => onNavigate('invoices')} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-100 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 transition-all group">
+                <FileText size={16} className="text-slate-400 group-hover:text-amber-500" />Factures
             </button>
       </section>
 
-      {/* 4. GRAPHIQUES */}
+      {/* 4. GRAPHIQUES AVEC ETAT VIDE SI PAS DE RUNS */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-5 h-[320px]">
           
           {/* GRAPHIQUE 1 : Bar Chart */}
           <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-100/50 p-6 flex flex-col relative overflow-hidden">
               <div className="flex justify-between items-center mb-6 relative z-10">
-                  <div>
-                      <h3 className="text-base font-bold text-slate-900">Activité Journalière</h3>
-                      <p className="text-xs text-slate-500 font-medium">Volume d'exécutions sur les 14 derniers jours</p>
-                  </div>
-                  <div className="flex gap-3 text-[10px] font-bold bg-slate-50 p-1 rounded-lg border border-slate-100">
-                      <span className="flex items-center gap-1.5 px-2 py-1 bg-white rounded shadow-sm text-slate-700 border border-slate-100">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Succès
-                      </span>
-                      <span className="flex items-center gap-1.5 px-2 py-1 text-slate-500 hover:bg-white hover:shadow-sm rounded transition-all">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span> Erreurs
-                      </span>
-                  </div>
+                  <div><h3 className="text-base font-bold text-slate-900">Activité Journalière</h3><p className="text-xs text-slate-500 font-medium">Volume d'exécutions sur les 14 derniers jours</p></div>
+                  {!isInitialState && (
+                    <div className="flex gap-3 text-[10px] font-bold bg-slate-50 p-1 rounded-lg border border-slate-100">
+                        <span className="flex items-center gap-1.5 px-2 py-1 bg-white rounded shadow-sm text-slate-700 border border-slate-100"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Succès</span>
+                        <span className="flex items-center gap-1.5 px-2 py-1 text-slate-500 hover:bg-white hover:shadow-sm rounded transition-all"><span className="w-1.5 h-1.5 rounded-full bg-red-400"></span> Erreurs</span>
+                    </div>
+                  )}
               </div>
               
-              <div className="flex-1 w-full min-h-0 relative z-10">
-                  {isLoading ? <Skeleton className="w-full h-full rounded-xl" /> : (
+              <div className="flex-1 w-full min-h-0 relative z-10 flex items-center justify-center">
+                  {isLoading ? <Skeleton className="w-full h-full rounded-xl" /> : isInitialState ? (
+                      <div className="flex flex-col items-center gap-2 text-slate-400 opacity-60">
+                          <Activity size={40} className="stroke-1" />
+                          <p className="text-sm font-medium">En attente des premières données...</p>
+                      </div>
+                  ) : (
                       <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={dailyActivityData} barSize={20} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                               <defs>
-                                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="0%" stopColor="#6366f1" stopOpacity={1}/>
-                                      <stop offset="100%" stopColor="#4f46e5" stopOpacity={1}/>
-                                  </linearGradient>
-                                  <linearGradient id="errorGradient" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="0%" stopColor="#f87171" stopOpacity={1}/>
-                                      <stop offset="100%" stopColor="#ef4444" stopOpacity={1}/>
-                                  </linearGradient>
+                                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={1}/><stop offset="100%" stopColor="#4f46e5" stopOpacity={1}/></linearGradient>
+                                  <linearGradient id="errorGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f87171" stopOpacity={1}/><stop offset="100%" stopColor="#ef4444" stopOpacity={1}/></linearGradient>
                               </defs>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                              <XAxis 
-                                dataKey="shortDate" 
-                                tick={{fontSize: 10, fill: '#94a3b8', fontWeight: 500}} 
-                                axisLine={false} 
-                                tickLine={false} 
-                                dy={10}
-                              />
-                              <YAxis 
-                                tick={{fontSize: 10, fill: '#94a3b8', fontWeight: 500}} 
-                                axisLine={false} 
-                                tickLine={false} 
-                              />
+                              <XAxis dataKey="shortDate" tick={{fontSize: 10, fill: '#94a3b8', fontWeight: 500}} axisLine={false} tickLine={false} dy={10}/>
+                              <YAxis tick={{fontSize: 10, fill: '#94a3b8', fontWeight: 500}} axisLine={false} tickLine={false} />
                               <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', radius: 6 }} />
                               <Bar dataKey="success" stackId="a" fill="url(#barGradient)" radius={[0, 0, 4, 4]} />
                               <Bar dataKey="error" stackId="a" fill="url(#errorGradient)" radius={[4, 4, 0, 0]} />
@@ -628,39 +561,22 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
               <h3 className="text-base font-bold text-slate-900 mb-1">Répartition de la charge</h3>
               <p className="text-xs text-slate-500 font-medium mb-4">Utilisation par processus ({getTimeRangeLabel().toLowerCase()})</p>
               
-              <div className="flex-1 w-full min-h-0 relative">
+              <div className="flex-1 w-full min-h-0 relative flex items-center justify-center">
                   {isLoading ? <Skeleton className="w-full h-full rounded-full" variant="circular" /> : (
                       distributionData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie
-                                    data={distributionData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={55}
-                                    outerRadius={75}
-                                    paddingAngle={3}
-                                    dataKey="value"
-                                    stroke="none"
-                                    cornerRadius={4}
-                                >
-                                    {distributionData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
+                                <Pie data={distributionData} cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none" cornerRadius={4}>
+                                    {distributionData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                 </Pie>
                                 <Tooltip content={<CustomTooltip />} />
-                                <Legend 
-                                    verticalAlign="bottom" 
-                                    height={24} 
-                                    iconType="circle" 
-                                    iconSize={6}
-                                    formatter={(value) => <span className="text-slate-600 font-medium ml-1 text-[10px]">{value}</span>}
-                                />
+                                <Legend verticalAlign="bottom" height={24} iconType="circle" iconSize={6} formatter={(value) => <span className="text-slate-600 font-medium ml-1 text-[10px]">{value}</span>}/>
                             </PieChart>
                         </ResponsiveContainer>
                       ) : (
-                          <div className="flex items-center justify-center h-full text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                              Pas assez de données
+                          <div className="flex flex-col items-center gap-2 text-slate-400 opacity-60">
+                              <Layers size={40} className="stroke-1" />
+                              <p className="text-sm font-medium">Aucun flux détecté</p>
                           </div>
                       )
                   )}
@@ -672,7 +588,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userId, onNavigate, onNavigateToS
                   )}
               </div>
           </div>
-
       </section>
 
       {/* 5. FLUX D'ACTIVITÉ */}
