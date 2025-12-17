@@ -18,11 +18,49 @@ import BackgroundBlobs from './components/BackgroundBlobs';
 import NotificationsPanel from './components/NotificationsPanel';
 import GlobalListeners from './components/GlobalListeners';
 import AdminToolbar from './components/AdminToolbar';
+import Logo from './components/Logo';
 import { AdminProvider, useAdmin } from './components/AdminContext';
 import { MENU_ITEMS, ADMIN_MENU_ITEMS } from './constants';
-import { ChevronRight, Bell } from 'lucide-react';
+import { ChevronRight, Bell, Monitor } from 'lucide-react';
 import { Client } from './types';
 import { supabase } from './lib/supabase';
+
+// --- COMPOSANT : ÉCRAN DE BLOCAGE MOBILE ---
+const MobileBlocker: React.FC = () => {
+    return (
+        <div className="flex lg:hidden h-screen w-full flex-col items-center justify-center p-8 bg-slate-950 text-white text-center relative overflow-hidden">
+            {/* Background Decor */}
+            <div className="absolute top-[-10%] left-[-10%] w-[300px] h-[300px] bg-indigo-600/20 rounded-full blur-[100px] animate-float"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-[300px] h-[300px] bg-purple-600/20 rounded-full blur-[100px] animate-float-delayed"></div>
+            
+            <div className="relative z-10 animate-fade-in-up flex flex-col items-center">
+                <div className="mb-12 bg-white/5 p-6 rounded-3xl border border-white/10 backdrop-blur-md shadow-2xl">
+                    <Logo className="w-16 h-16" classNameText="text-3xl tracking-widest font-bold" showText={true} />
+                </div>
+                
+                <div className="w-20 h-20 bg-indigo-600/20 rounded-2xl flex items-center justify-center mb-8 border border-indigo-500/30 text-indigo-400">
+                    <Monitor size={40} strokeWidth={1.5} />
+                </div>
+                
+                <h1 className="text-2xl font-extrabold mb-4 tracking-tight">Version Desktop Requise</h1>
+                
+                <p className="text-slate-400 text-sm leading-relaxed max-w-[280px] mb-8 font-medium">
+                    Le portail <span className="text-indigo-400 font-bold">SKALIA</span> est un outil d'analyse haute résolution optimisé pour les écrans larges.
+                </p>
+                
+                <div className="bg-white/5 border border-white/5 rounded-2xl px-6 py-4 backdrop-blur-sm">
+                    <p className="text-xs text-indigo-300 font-bold uppercase tracking-widest">
+                        Accès restreint aux ordinateurs
+                    </p>
+                </div>
+                
+                <p className="mt-12 text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+                    © {new Date().getFullYear()} SKALIA AGENCY
+                </p>
+            </div>
+        </div>
+    );
+};
 
 // Composant Interne: Contenu principal après Auth
 const AppContent: React.FC<{ 
@@ -32,11 +70,7 @@ const AppContent: React.FC<{
     
     const { targetUserId, clients, isAdmin } = useAdmin();
     
-    // Fallback de sécurité : Si targetUserId est vide (non initialisé), on utilise l'ID courant
     const effectiveUserId = targetUserId || currentUser.id;
-    
-    // Trouver le client cible pour l'affichage (Sidebar, Header)
-    // Si la liste clients n'est pas encore chargée, on fallback sur currentUser
     const targetClient = clients.find(c => c.id === effectiveUserId) || currentUser;
 
     const [activePage, setActivePage] = useState<string>(() => {
@@ -48,19 +82,16 @@ const AppContent: React.FC<{
     const [notificationListTrigger, setNotificationListTrigger] = useState(0);
     const notificationRef = useRef<HTMLDivElement>(null);
     
-    // Navigation inter-pages
     const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
     const [supportPreFill, setSupportPreFill] = useState<{subject: string, description: string} | null>(null);
     const [autoOpenTicketId, setAutoOpenTicketId] = useState<string | null>(null);
 
     useEffect(() => {
-        // On ne sauvegarde pas les pages avec ID (ex: history:123) dans le localStorage, on garde juste la page de base
         if (!activePage.includes(':')) {
             localStorage.setItem('skalia_last_page', activePage);
         }
     }, [activePage]);
 
-    // Click Outside Notification Panel
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
           if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
@@ -95,28 +126,16 @@ const AppContent: React.FC<{
     const handleNotificationRead = () => setUnreadNotifications(prev => Math.max(0, prev - 1));
     const handleAllNotificationsRead = () => setUnreadNotifications(0);
 
-    // GESTION INTELLIGENTE DES LIENS DE NOTIFICATION
     const handleNavigationFromNotification = (link: string) => {
         if (!link) return;
-
-        // Cas spécial : Lien avec ID (ex: "history:uuid-123" ou "global_view:uuid-456")
         if (link.includes(':')) {
             const [page, id] = link.split(':');
-            
-            // 1. On définit l'ID à ouvrir
             setAutoOpenTicketId(id);
-            
-            // 2. On change la page
             setActivePage(page);
-
-            // 3. Reset automatique de l'ID après ouverture (pour permettre la réouverture future)
-            // On laisse un délai un peu plus long pour laisser le temps au composant enfant de charger et lire la prop
             setTimeout(() => setAutoOpenTicketId(null), 3000);
         } else {
-            // Cas standard
             setActivePage(link);
         }
-        
         setIsNotificationsOpen(false);
     };
 
@@ -142,7 +161,6 @@ const AppContent: React.FC<{
     };
 
     const getPageTitle = (id: string) => {
-        // Nettoyage si l'ID contient des params
         const cleanId = id.split(':')[0];
         const item = [...MENU_ITEMS, ...ADMIN_MENU_ITEMS].find(i => i.id === cleanId);
         return item?.label || 'Skalia';
@@ -150,8 +168,6 @@ const AppContent: React.FC<{
 
     const renderContent = () => {
         const userIdToUse = effectiveUserId;
-
-        // Protection des routes Admin
         if (isAdmin) {
             if (activePage === 'global_view') return <GlobalDashboard initialTicketId={autoOpenTicketId} />;
             if (activePage === 'users') return <UserManagement />;
@@ -171,36 +187,42 @@ const AppContent: React.FC<{
     };
 
     return (
-        <div className="flex h-screen w-full bg-slate-50/80 overflow-hidden font-sans text-slate-800 relative selection:bg-indigo-100 selection:text-indigo-700">
-            <BackgroundBlobs />
-            <GlobalListeners userId={effectiveUserId} onNewNotification={handleNewNotificationEvent} />
-            
-            <Sidebar activePage={activePage.split(':')[0]} setActivePage={setActivePage} currentClient={targetClient} onLogout={handleLogout} />
-            
-            <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
-                <AdminToolbar />
+        <>
+            {/* 1. ÉCRAN DE BLOCAGE MOBILE (Visible si < 1024px) */}
+            <MobileBlocker />
 
-                <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm">
-                    <div className="flex items-center text-sm text-slate-500 gap-2">
-                        <span>Portail client</span><ChevronRight size={14} className="opacity-50" /><span className="font-semibold text-slate-900">{getPageTitle(activePage)}</span>
-                    </div>
-                    <div className="flex items-center gap-6">
-                        <div className="relative" ref={notificationRef}>
-                            <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className={`p-2 rounded-xl transition-all duration-300 relative ${isNotificationsOpen ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-white/50 text-slate-500 hover:text-indigo-600'}`}>
-                                <Bell size={20} />
-                                {unreadNotifications > 0 && <span className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm animate-bounce">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}
-                            </button>
-                            {isNotificationsOpen && <NotificationsPanel userId={effectiveUserId} onClose={() => setIsNotificationsOpen(false)} onNavigate={handleNavigationFromNotification} onRead={handleNotificationRead} onAllRead={handleAllNotificationsRead} refreshTrigger={notificationListTrigger} />}
+            {/* 2. APPLICATION RÉELLE (Masquée si < 1024px) */}
+            <div className="hidden lg:flex h-screen w-full bg-slate-50/80 overflow-hidden font-sans text-slate-800 relative selection:bg-indigo-100 selection:text-indigo-700">
+                <BackgroundBlobs />
+                <GlobalListeners userId={effectiveUserId} onNewNotification={handleNewNotificationEvent} />
+                
+                <Sidebar activePage={activePage.split(':')[0]} setActivePage={setActivePage} currentClient={targetClient} onLogout={handleLogout} />
+                
+                <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
+                    <AdminToolbar />
+
+                    <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm">
+                        <div className="flex items-center text-sm text-slate-500 gap-2">
+                            <span>Portail client</span><ChevronRight size={14} className="opacity-50" /><span className="font-semibold text-slate-900">{getPageTitle(activePage)}</span>
                         </div>
-                        <div className="text-right hidden sm:block">
-                            <p className="text-xs font-bold text-slate-900">{targetClient.company}</p>
-                            <p className="text-xs text-slate-400 uppercase tracking-wider">ID: {targetClient.id.slice(0, 8)}...</p>
+                        <div className="flex items-center gap-6">
+                            <div className="relative" ref={notificationRef}>
+                                <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className={`p-2 rounded-xl transition-all duration-300 relative ${isNotificationsOpen ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-white/50 text-slate-500 hover:text-indigo-600'}`}>
+                                    <Bell size={20} />
+                                    {unreadNotifications > 0 && <span className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm animate-bounce">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}
+                                </button>
+                                {isNotificationsOpen && <NotificationsPanel userId={effectiveUserId} onClose={() => setIsNotificationsOpen(false)} onNavigate={handleNavigationFromNotification} onRead={handleNotificationRead} onAllRead={handleAllNotificationsRead} refreshTrigger={notificationListTrigger} />}
+                            </div>
+                            <div className="text-right hidden sm:block">
+                                <p className="text-xs font-bold text-slate-900">{targetClient.company}</p>
+                                <p className="text-xs text-slate-400 uppercase tracking-wider">ID: {targetClient.id.slice(0, 8)}...</p>
+                            </div>
                         </div>
-                    </div>
-                </header>
-                <div className="flex-1 overflow-y-auto p-8 scroll-smooth"><div className="max-w-7xl mx-auto w-full h-full">{renderContent()}</div></div>
-            </main>
-        </div>
+                    </header>
+                    <div className="flex-1 overflow-y-auto p-8 scroll-smooth"><div className="max-w-7xl mx-auto w-full h-full">{renderContent()}</div></div>
+                </main>
+            </div>
+        </>
     );
 }
 
@@ -255,7 +277,6 @@ const App: React.FC = () => {
       }
       setIsAuthenticated(true);
     } catch (error: any) {
-        // Fallback profile safe
         setCurrentUser({ 
             id: userId, 
             name: 'Utilisateur', 
@@ -276,7 +297,6 @@ const App: React.FC = () => {
   if (isLoadingAuth) return <div className="h-screen w-full flex items-center justify-center bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>;
   if (isPasswordRecoveryMode) return <UpdatePasswordPage onSuccess={handlePasswordUpdated} />;
   
-  // Protection: Si pas authentifié ou pas de user, login
   if (!isAuthenticated || !currentUser) return <LoginPage />;
 
   return (
