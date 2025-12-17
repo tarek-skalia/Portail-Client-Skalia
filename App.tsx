@@ -21,14 +21,14 @@ import AdminToolbar from './components/AdminToolbar';
 import Logo from './components/Logo';
 import { AdminProvider, useAdmin } from './components/AdminContext';
 import { MENU_ITEMS, ADMIN_MENU_ITEMS } from './constants';
-import { ChevronRight, Bell, Monitor } from 'lucide-react';
+import { ChevronRight, Bell, Monitor, ArrowRight } from 'lucide-react';
 import { Client } from './types';
 import { supabase } from './lib/supabase';
 
 // --- COMPOSANT : ÉCRAN DE BLOCAGE MOBILE ---
-const MobileBlocker: React.FC = () => {
+const MobileBlocker: React.FC<{ onBypass: () => void }> = ({ onBypass }) => {
     return (
-        <div className="flex lg:hidden h-screen w-full flex-col items-center justify-center p-8 bg-slate-950 text-white text-center relative overflow-hidden">
+        <div className="flex flex-col h-screen w-full items-center justify-center p-8 bg-slate-950 text-white text-center relative overflow-hidden z-[500]">
             {/* Background Decor */}
             <div className="absolute top-[-10%] left-[-10%] w-[300px] h-[300px] bg-indigo-600/20 rounded-full blur-[100px] animate-float"></div>
             <div className="absolute bottom-[-10%] right-[-10%] w-[300px] h-[300px] bg-purple-600/20 rounded-full blur-[100px] animate-float-delayed"></div>
@@ -44,14 +44,23 @@ const MobileBlocker: React.FC = () => {
                 
                 <h1 className="text-2xl font-extrabold mb-4 tracking-tight">Version Desktop Requise</h1>
                 
-                <p className="text-slate-400 text-sm leading-relaxed max-w-[280px] mb-8 font-medium">
+                <p className="text-slate-400 text-sm leading-relaxed max-w-[280px] mb-10 font-medium">
                     Le portail <span className="text-indigo-400 font-bold">SKALIA</span> est un outil d'analyse haute résolution optimisé pour les écrans larges.
                 </p>
                 
-                <div className="bg-white/5 border border-white/5 rounded-2xl px-6 py-4 backdrop-blur-sm">
-                    <p className="text-xs text-indigo-300 font-bold uppercase tracking-widest">
-                        Accès restreint aux ordinateurs
-                    </p>
+                <div className="flex flex-col gap-4 w-full max-w-[240px]">
+                    <div className="bg-white/5 border border-white/5 rounded-2xl px-6 py-4 backdrop-blur-sm">
+                        <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">
+                            Accès restreint aux ordinateurs
+                        </p>
+                    </div>
+                    
+                    <button 
+                        onClick={onBypass}
+                        className="text-xs font-bold text-slate-500 hover:text-white transition-colors flex items-center justify-center gap-2 group"
+                    >
+                        Accéder quand même <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                    </button>
                 </div>
                 
                 <p className="mt-12 text-[10px] text-slate-500 uppercase tracking-widest font-bold">
@@ -74,8 +83,6 @@ const AppContent: React.FC<{
     const targetClient = clients.find(c => c.id === effectiveUserId) || currentUser;
 
     const [activePage, setActivePage] = useState<string>(() => {
-        // Au montage, on récupère la dernière page. 
-        // Si l'utilisateur vient de se connecter, la clé a été supprimée par App.tsx (onAuthStateChange)
         return localStorage.getItem('skalia_last_page') || 'dashboard';
     });
 
@@ -88,8 +95,19 @@ const AppContent: React.FC<{
     const [supportPreFill, setSupportPreFill] = useState<{subject: string, description: string} | null>(null);
     const [autoOpenTicketId, setAutoOpenTicketId] = useState<string | null>(null);
 
+    // --- LOGIQUE DE DÉTECTION TAILLE ÉCRAN ---
+    const [isSmallScreen, setIsSmallScreen] = useState(window.innerWidth < 768);
+    const [bypassBlocker, setBypassBlocker] = useState(false);
+
     useEffect(() => {
-        // Sauvegarde de la page pour le rafraîchissement
+        const handleResize = () => {
+            setIsSmallScreen(window.innerWidth < 768);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
         if (activePage && !activePage.includes(':')) {
             localStorage.setItem('skalia_last_page', activePage);
         }
@@ -189,43 +207,42 @@ const AppContent: React.FC<{
         }
     };
 
+    // --- CONDITION D'AFFICHAGE DU BLOCAGE ---
+    if (isSmallScreen && !bypassBlocker) {
+        return <MobileBlocker onBypass={() => setBypassBlocker(true)} />;
+    }
+
     return (
-        <>
-            {/* 1. ÉCRAN DE BLOCAGE MOBILE (Visible si < 1024px) */}
-            <MobileBlocker />
+        <div className="flex h-screen w-full bg-slate-50/80 overflow-hidden font-sans text-slate-800 relative selection:bg-indigo-100 selection:text-indigo-700">
+            <BackgroundBlobs />
+            <GlobalListeners userId={effectiveUserId} onNewNotification={handleNewNotificationEvent} />
+            
+            <Sidebar activePage={activePage.split(':')[0]} setActivePage={setActivePage} currentClient={targetClient} onLogout={handleLogout} />
+            
+            <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
+                <AdminToolbar />
 
-            {/* 2. APPLICATION RÉELLE (Masquée si < 1024px) */}
-            <div className="hidden lg:flex h-screen w-full bg-slate-50/80 overflow-hidden font-sans text-slate-800 relative selection:bg-indigo-100 selection:text-indigo-700">
-                <BackgroundBlobs />
-                <GlobalListeners userId={effectiveUserId} onNewNotification={handleNewNotificationEvent} />
-                
-                <Sidebar activePage={activePage.split(':')[0]} setActivePage={setActivePage} currentClient={targetClient} onLogout={handleLogout} />
-                
-                <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
-                    <AdminToolbar />
-
-                    <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm">
-                        <div className="flex items-center text-sm text-slate-500 gap-2">
-                            <span>Portail client</span><ChevronRight size={14} className="opacity-50" /><span className="font-semibold text-slate-900">{getPageTitle(activePage)}</span>
+                <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm">
+                    <div className="flex items-center text-sm text-slate-500 gap-2">
+                        <span>Portail client</span><ChevronRight size={14} className="opacity-50" /><span className="font-semibold text-slate-900">{getPageTitle(activePage)}</span>
+                    </div>
+                    <div className="flex items-center gap-6">
+                        <div className="relative" ref={notificationRef}>
+                            <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className={`p-2 rounded-xl transition-all duration-300 relative ${isNotificationsOpen ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-white/50 text-slate-500 hover:text-indigo-600'}`}>
+                                <Bell size={20} />
+                                {unreadNotifications > 0 && <span className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm animate-bounce">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}
+                            </button>
+                            {isNotificationsOpen && <NotificationsPanel userId={effectiveUserId} onClose={() => setIsNotificationsOpen(false)} onNavigate={handleNavigationFromNotification} onRead={handleNotificationRead} onAllRead={handleAllNotificationsRead} refreshTrigger={notificationListTrigger} />}
                         </div>
-                        <div className="flex items-center gap-6">
-                            <div className="relative" ref={notificationRef}>
-                                <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className={`p-2 rounded-xl transition-all duration-300 relative ${isNotificationsOpen ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-white/50 text-slate-500 hover:text-indigo-600'}`}>
-                                    <Bell size={20} />
-                                    {unreadNotifications > 0 && <span className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm animate-bounce">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}
-                                </button>
-                                {isNotificationsOpen && <NotificationsPanel userId={effectiveUserId} onClose={() => setIsNotificationsOpen(false)} onNavigate={handleNavigationFromNotification} onRead={handleNotificationRead} onAllRead={handleAllNotificationsRead} refreshTrigger={notificationListTrigger} />}
-                            </div>
-                            <div className="text-right hidden sm:block">
-                                <p className="text-xs font-bold text-slate-900">{targetClient.company}</p>
-                                <p className="text-xs text-slate-400 uppercase tracking-wider">ID: {targetClient.id.slice(0, 8)}...</p>
-                            </div>
+                        <div className="text-right hidden sm:block">
+                            <p className="text-xs font-bold text-slate-900">{targetClient.company}</p>
+                            <p className="text-xs text-slate-400 uppercase tracking-wider">ID: {targetClient.id.slice(0, 8)}...</p>
                         </div>
-                    </header>
-                    <div className="flex-1 overflow-y-auto p-8 scroll-smooth"><div className="max-w-7xl mx-auto w-full h-full">{renderContent()}</div></div>
-                </main>
-            </div>
-        </>
+                    </div>
+                </header>
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth"><div className="max-w-7xl mx-auto w-full h-full">{renderContent()}</div></div>
+            </main>
+        </div>
     );
 }
 
@@ -247,10 +264,7 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') setIsPasswordRecoveryMode(true);
       
-      // --- LOGIQUE DE RÉINITIALISATION D'ONGLET SUR CONNEXION ---
       if (event === 'SIGNED_IN') {
-          // Si c'est une nouvelle connexion (évènement SIGNED_IN), on efface la mémoire de l'onglet précédent
-          // pour forcer le Tableau de Bord par défaut.
           localStorage.removeItem('skalia_last_page');
       }
 
@@ -271,7 +285,6 @@ const App: React.FC = () => {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
       if (error) {
-          // Changement de console.error à console.warn pour éviter le badge "1 Error" dans le terminal
           console.warn("Connexion profil (Info):", error.message);
           throw error;
       }
@@ -289,7 +302,6 @@ const App: React.FC = () => {
       }
       setIsAuthenticated(true);
     } catch (error: any) {
-        // En cas d'erreur de fetch (offline ou projet inexistant), on bascule silencieusement sur un profil démo
         setCurrentUser({ 
             id: userId, 
             name: 'Utilisateur', 
@@ -305,7 +317,6 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => { 
-      // Effacer l'onglet mémoire lors de la déconnexion
       localStorage.removeItem('skalia_last_page');
       await supabase.auth.signOut(); 
   };
