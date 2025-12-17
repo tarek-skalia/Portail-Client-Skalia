@@ -74,6 +74,8 @@ const AppContent: React.FC<{
     const targetClient = clients.find(c => c.id === effectiveUserId) || currentUser;
 
     const [activePage, setActivePage] = useState<string>(() => {
+        // Au montage, on récupère la dernière page. 
+        // Si l'utilisateur vient de se connecter, la clé a été supprimée par App.tsx (onAuthStateChange)
         return localStorage.getItem('skalia_last_page') || 'dashboard';
     });
 
@@ -87,7 +89,8 @@ const AppContent: React.FC<{
     const [autoOpenTicketId, setAutoOpenTicketId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!activePage.includes(':')) {
+        // Sauvegarde de la page pour le rafraîchissement
+        if (activePage && !activePage.includes(':')) {
             localStorage.setItem('skalia_last_page', activePage);
         }
     }, [activePage]);
@@ -243,6 +246,14 @@ const App: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') setIsPasswordRecoveryMode(true);
+      
+      // --- LOGIQUE DE RÉINITIALISATION D'ONGLET SUR CONNEXION ---
+      if (event === 'SIGNED_IN') {
+          // Si c'est une nouvelle connexion (évènement SIGNED_IN), on efface la mémoire de l'onglet précédent
+          // pour forcer le Tableau de Bord par défaut.
+          localStorage.removeItem('skalia_last_page');
+      }
+
       if (session) {
         fetchUserProfile(session.user.id, session.user.email || '');
       } else {
@@ -291,7 +302,11 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogout = async () => { await supabase.auth.signOut(); };
+  const handleLogout = async () => { 
+      // Effacer l'onglet mémoire lors de la déconnexion
+      localStorage.removeItem('skalia_last_page');
+      await supabase.auth.signOut(); 
+  };
   const handlePasswordUpdated = () => setIsPasswordRecoveryMode(false);
 
   if (isLoadingAuth) return <div className="h-screen w-full flex items-center justify-center bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>;
