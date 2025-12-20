@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { MENU_ITEMS, ADMIN_MENU_ITEMS } from '../constants';
-import { LogOut, Phone } from 'lucide-react';
+import { LogOut, Phone, ShieldCheck, CornerUpLeft, User } from 'lucide-react';
 import { Client } from '../types';
 import Logo from './Logo';
 import { useAdmin } from './AdminContext';
@@ -16,10 +16,17 @@ interface SidebarProps {
 const LOGO_DEV_PUBLIC_KEY = 'pk_PhkKGyy8QSawDAIdG5tLlg';
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentClient, onLogout }) => {
-  const { isAdmin } = useAdmin();
+  const { isAdmin, targetUserId, setTargetUserId, clients } = useAdmin();
   const [imgError, setImgError] = useState(false);
 
-  // Reset de l'erreur d'image si le client change
+  // --- LOGIQUE ERP VS CLIENT ---
+  // Est-ce un compte client (ou une vue client) ?
+  const isClientTheme = currentClient.role !== 'admin';
+  // Est-ce un admin qui se fait passer pour un client ?
+  const isImpersonating = isAdmin && isClientTheme;
+
+  const menuToRender = isClientTheme ? MENU_ITEMS : ADMIN_MENU_ITEMS;
+
   useEffect(() => {
       setImgError(false);
   }, [currentClient.id, currentClient.logoUrl]);
@@ -38,17 +45,37 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
 
   const logoSrc = getLogoUrl();
 
+  const handleReturnToAgency = () => {
+      const adminUser = clients.find(c => c.role === 'admin');
+      if (adminUser) {
+          setTargetUserId(adminUser.id);
+          setActivePage('global_view');
+      }
+  };
+
   return (
-    <div className="w-72 h-screen bg-[#4338ca] text-white flex flex-col shadow-2xl flex-shrink-0 sticky top-0 z-50 overflow-hidden font-sans transition-all duration-300">
+    <div className={`w-72 h-screen text-white flex flex-col shadow-2xl flex-shrink-0 sticky top-0 z-50 overflow-hidden font-sans transition-all duration-500 ${isClientTheme ? 'bg-[#4338ca]' : 'bg-slate-900'}`}>
+      
       {/* Decorative animated gradients */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-30">
-        <div className="absolute top-[-20%] left-[-20%] w-[350px] h-[350px] rounded-full bg-purple-500 blur-[80px] animate-float"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[250px] h-[250px] rounded-full bg-indigo-400 blur-[60px] animate-float-delayed"></div>
-        <div className="absolute top-[40%] right-[-30%] w-[200px] h-[200px] rounded-full bg-pink-500 blur-[70px] animate-float opacity-60"></div>
+        <div className={`absolute top-[-20%] left-[-20%] w-[350px] h-[350px] rounded-full blur-[80px] animate-float ${isClientTheme ? 'bg-purple-500' : 'bg-indigo-900'}`}></div>
+        <div className={`absolute bottom-[-10%] right-[-10%] w-[250px] h-[250px] rounded-full blur-[60px] animate-float-delayed ${isClientTheme ? 'bg-indigo-400' : 'bg-blue-900'}`}></div>
       </div>
 
       {/* Header with 3D Framed Logo */}
       <div className="px-6 pt-8 pb-4 relative z-10 shrink-0">
+        {isImpersonating && (
+            <div className="mb-4 animate-fade-in">
+                <button 
+                    onClick={handleReturnToAgency}
+                    className="flex items-center justify-center gap-2 text-xs font-bold text-white uppercase tracking-wider bg-black/30 hover:bg-black/50 border border-white/10 px-3 py-3 rounded-xl w-full transition-all hover:scale-[1.02] shadow-lg group"
+                >
+                    <CornerUpLeft size={14} className="group-hover:-translate-x-1 transition-transform" /> 
+                    Retour Vue Agence
+                </button>
+            </div>
+        )}
+
         <div className="bg-gradient-to-br from-white/10 to-indigo-900/20 border border-white/10 rounded-2xl p-4 shadow-xl backdrop-blur-sm flex items-center justify-center relative overflow-hidden group hover:scale-[1.02] transition-transform duration-500">
             {/* Glossy shine effect */}
             <div className="absolute top-0 left-0 w-full h-[40%] bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
@@ -58,52 +85,37 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
               classNameText="text-2xl drop-shadow-md tracking-wider" 
             />
         </div>
+        
+        {!isClientTheme && (
+            <div className="mt-3 flex justify-center">
+                <span className="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/50 text-[10px] font-bold uppercase tracking-widest text-indigo-300 flex items-center gap-2">
+                    <ShieldCheck size={12} /> Espace Administration
+                </span>
+            </div>
+        )}
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-4 overflow-y-auto space-y-1 relative z-10 custom-scrollbar flex flex-col py-2">
         
-        {/* SECTION ADMIN (si admin) */}
-        {isAdmin && (
-            <div className="mb-4 space-y-1">
-                {ADMIN_MENU_ITEMS.map((item) => {
-                    const isActive = activePage === item.id;
-                    return (
-                        <button
-                        key={item.id}
-                        onClick={() => setActivePage(item.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 group relative overflow-hidden
-                            ${
-                            isActive
-                                ? 'bg-white/10 text-white shadow-lg border border-white/10'
-                                : 'text-indigo-100 hover:bg-white/5 hover:text-white'
-                            }
-                        `}
-                        >
-                        <span className={`relative z-10 transition-transform duration-300 ${isActive ? '' : 'group-hover:scale-110'}`}>
-                            {item.icon}
-                        </span>
-                        <span className="relative z-10">{item.label}</span>
-                        {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full"></div>}
-                        </button>
-                    );
-                })}
-            </div>
-        )}
-
-        {/* TITRE SÉPARATEUR (Visible seulement si Admin) */}
-        {isAdmin && (
-            <div className="px-4 mb-2 mt-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-300/80">
-                    VUE CLIENT
-                </p>
-            </div>
-        )}
+        {/* TITRE DE SECTION */}
+        <div className="px-4 mb-2 mt-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 flex items-center gap-2">
+                {isClientTheme ? (
+                    <>
+                        <User size={10} />
+                        ESPACE CLIENT
+                    </>
+                ) : 'NAVIGATION ERP'}
+            </p>
+        </div>
         
-        {/* SECTION CLIENT (Menu Principal) */}
         <div className="space-y-1">
-            {MENU_ITEMS.map((item) => {
+            {menuToRender.map((item) => {
             const isActive = activePage === item.id;
+            const activeBg = isClientTheme ? 'bg-white text-indigo-700' : 'bg-indigo-600 text-white border border-indigo-500';
+            const activeShadow = isClientTheme ? 'shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'shadow-lg shadow-indigo-900/50';
+
             return (
                 <button
                 key={item.id}
@@ -111,12 +123,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group relative overflow-hidden
                     ${
                     isActive
-                        ? 'bg-white text-indigo-700 shadow-[0_0_20px_rgba(255,255,255,0.3)] translate-x-1 scale-[1.02]'
+                        ? `${activeBg} ${activeShadow} translate-x-1 scale-[1.02]`
                         : 'text-indigo-100 hover:bg-white/10 hover:text-white hover:translate-x-1'
                     }
                 `}
                 >
-                {/* Hover effect background for non-active items */}
                 {!isActive && (
                     <div className="absolute inset-0 bg-white/5 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-300 rounded-xl"></div>
                 )}
@@ -126,7 +137,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
                 </span>
                 <span className="relative z-10">{item.label}</span>
                 
-                {isActive && (
+                {isActive && isClientTheme && (
                     <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse relative z-10" />
                 )}
                 </button>
@@ -137,29 +148,26 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
         <div className="flex-grow"></div>
       </nav>
 
-      {/* Call to Action Button */}
-      <div className="px-4 mb-3 mt-2 relative z-10 shrink-0">
-         <button 
-            type="button"
-            className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 border border-white/10 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2 group relative overflow-hidden hover:scale-[1.02] transition-transform duration-300 active:scale-[0.98]"
-            data-iclosed-link="https://app.iclosed.io/e/tarekskalia/appel-decouverte"
-            data-embed-type="popup"
-         >
-            {/* Hover shine effect */}
-            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-
-            <div className="p-1.5 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors border border-white/10">
-                <Phone size={18} className="text-white transition-colors" />
-            </div>
-            <span className="text-white transition-colors relative z-10">Réservez un appel</span>
-         </button>
-      </div>
+      {/* Call to Action (Seulement pour les clients) */}
+      {isClientTheme && (
+          <div className="px-4 mb-3 mt-2 relative z-10 shrink-0">
+             <button 
+                type="button"
+                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 border border-white/10 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2 group relative overflow-hidden hover:scale-[1.02] transition-transform duration-300 active:scale-[0.98]"
+                data-iclosed-link="https://app.iclosed.io/e/tarekskalia/appel-decouverte"
+                data-embed-type="popup"
+             >
+                <div className="p-1.5 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors border border-white/10">
+                    <Phone size={18} className="text-white transition-colors" />
+                </div>
+                <span className="text-white transition-colors relative z-10">Réservez un appel</span>
+             </button>
+          </div>
+      )}
 
       {/* Footer User Profile */}
-      <div className="p-4 m-4 mt-0 rounded-2xl bg-indigo-950/30 backdrop-blur-md border border-white/5 relative z-10 shadow-lg group hover:bg-indigo-950/40 transition-colors duration-300 shrink-0">
+      <div className="p-4 m-4 mt-0 rounded-2xl bg-black/20 backdrop-blur-md border border-white/5 relative z-10 shadow-lg group hover:bg-black/30 transition-colors duration-300 shrink-0">
         <div className="flex items-center gap-3 mb-3">
-            
-            {/* AVATAR AVEC LOGO - STYLE CORRIGÉ */}
             <div className="w-10 h-10 rounded-full bg-white shadow-md border border-white/20 shrink-0 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center overflow-hidden">
                 {logoSrc && !imgError ? (
                     <img 
@@ -178,7 +186,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
 
             <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-semibold truncate text-white group-hover:text-indigo-100 transition-colors">{currentClient.name}</p>
-                <p className="text-xs text-indigo-200 truncate">{currentClient.company}</p>
+                <p className="text-xs text-indigo-300 truncate">{currentClient.company}</p>
             </div>
         </div>
         

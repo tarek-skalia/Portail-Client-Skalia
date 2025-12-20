@@ -5,7 +5,7 @@ import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
 import { PROJECT_OWNERS } from '../../constants';
 import { Project, ProjectTask } from '../../types';
-import { Plus, Trash2, Briefcase, User, CheckSquare, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Briefcase, User, CheckSquare, Users, Lock } from 'lucide-react';
 
 interface ProjectFormProps {
   onSuccess: () => void;
@@ -14,9 +14,26 @@ interface ProjectFormProps {
 }
 
 const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialData }) => {
-  const { targetUserId } = useAdmin();
+  const { targetUserId, isAdmin, clients } = useAdmin();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+
+  const availableClients = clients.filter(c => c.role !== 'admin');
+
+  // Détecter mode contextuel
+  const currentViewedClient = clients.find(c => c.id === targetUserId);
+  const isContextualMode = currentViewedClient && currentViewedClient.role !== 'admin';
+
+  // Le champ est verrouillé si : Mode Contextuel OU Mode Édition
+  const isClientLocked = isContextualMode || !!initialData;
+
+  // Client Selection
+  const [selectedClientId, setSelectedClientId] = useState(() => {
+      if (initialData) return initialData.clientId;
+      if (isContextualMode) return targetUserId;
+      if (availableClients.length > 0) return availableClients[0].id;
+      return targetUserId;
+  });
 
   // Fields
   const [title, setTitle] = useState('');
@@ -36,6 +53,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
   // Initialisation
   useEffect(() => {
       if (initialData) {
+          setSelectedClientId(initialData.clientId);
           setTitle(initialData.title);
           setDescription(initialData.description);
           setStatus(initialData.status);
@@ -59,7 +77,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
 
           // Load Tasks
           if (initialData.tasks) {
-              // On clone pour éviter de muter la prop directement
               setTasks(initialData.tasks.map(t => ({ ...t })));
           } else {
               setTasks([]);
@@ -79,7 +96,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
 
   const handleRemoveTask = (index: number) => {
       const taskToRemove = tasks[index];
-      // Si la tâche a un ID (existe en base), on la marque pour suppression
       if (taskToRemove.id) {
           setTasksToDelete([...tasksToDelete, taskToRemove.id]);
       }
@@ -102,7 +118,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
       const ownerAvatar = PROJECT_OWNERS[ownerName]; 
 
       const payload = {
-          user_id: targetUserId,
+          user_id: selectedClientId, // Use selected client
           title,
           description,
           status,
@@ -141,16 +157,13 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
 
           // --- MANAGE TASKS ---
           if (currentProjectId) {
-              // 1. Delete removed tasks
               if (tasksToDelete.length > 0) {
                   await supabase.from('project_tasks').delete().in('id', tasksToDelete);
               }
 
-              // 2. Process Add/Update
               const newTasks = tasks.filter(t => !t.id && t.name?.trim());
               const existingTasks = tasks.filter(t => t.id && t.name?.trim());
 
-              // Bulk Insert New
               if (newTasks.length > 0) {
                   await supabase.from('project_tasks').insert(newTasks.map(t => ({
                       project_id: currentProjectId,
@@ -160,7 +173,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
                   })));
               }
 
-              // Update Existing (Parallel)
               if (existingTasks.length > 0) {
                   await Promise.all(existingTasks.map(t => 
                       supabase.from('project_tasks').update({
@@ -185,6 +197,38 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onSuccess, onCancel, initialD
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
         
+        {/* CLIENT SELECTOR (ADMIN ONLY) */}
+        {isAdmin && (
+            <div className={`p-4 rounded-xl border ${isClientLocked ? 'bg-slate-100 border-slate-200' : 'bg-indigo-50/50 border-indigo-100'}`}>
+                <label className={`block text-xs font-bold uppercase mb-2 flex items-center gap-2 ${isClientLocked ? 'text-slate-500' : 'text-indigo-600'}`}>
+                    {isClientLocked ? <Lock size={14} /> : <Users size={14} />} 
+                    {isClientLocked ? 'Projet assigné à (Verrouillé)' : 'Client assigné'}
+                </label>
+                <div className="relative">
+                    <select
+                        value={selectedClientId}
+                        onChange={(e) => setSelectedClientId(e.target.value)}
+                        disabled={isClientLocked}
+                        className={`w-full pl-3 pr-8 py-2.5 rounded-lg text-sm font-bold outline-none appearance-none transition-colors ${
+                            isClientLocked 
+                            ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300' 
+                            : 'bg-white border border-indigo-200 text-slate-700 focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:border-indigo-300'
+                        }`}
+                    >
+                        {availableClients.map(client => (
+                            <option key={client.id} value={client.id}>
+                                {client.company} ({client.name})
+                            </option>
+                        ))}
+                    </select>
+                    <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isClientLocked ? 'text-slate-400' : 'text-indigo-500'}`}>
+                        {isClientLocked ? <Lock size={16} /> : <User size={16} />}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* ... Reste du formulaire identique ... */}
         {/* TITRE */}
         <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Titre du projet</label>

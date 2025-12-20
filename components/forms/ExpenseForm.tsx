@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
 import { Expense } from '../../types';
+import { Users, User, Lock } from 'lucide-react';
 
 interface ExpenseFormProps {
   onSuccess: () => void;
@@ -12,9 +13,33 @@ interface ExpenseFormProps {
 }
 
 const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel, initialData }) => {
-  const { targetUserId } = useAdmin();
+  const { targetUserId, isAdmin, clients } = useAdmin();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+
+  // Filtrer les clients (exclure l'admin)
+  const availableClients = clients.filter(c => c.role !== 'admin');
+
+  // Détecter si on est en "Mode Contextuel" (Vue Client spécifique)
+  const currentViewedClient = clients.find(c => c.id === targetUserId);
+  const isContextualMode = currentViewedClient && currentViewedClient.role !== 'admin';
+
+  // Le champ est verrouillé si : Mode Contextuel OU Mode Édition
+  const isClientLocked = isContextualMode || !!initialData;
+
+  // Client Selection
+  const [selectedClientId, setSelectedClientId] = useState(() => {
+      if (initialData) return initialData.clientId;
+      
+      // Si on est en mode contextuel, on force le client actuel
+      if (isContextualMode) return targetUserId;
+
+      // Sinon (Vue Global), on prend le premier de la liste par défaut
+      if (availableClients.length > 0) {
+          return availableClients[0].id;
+      }
+      return targetUserId;
+  });
 
   // Fields
   const [serviceName, setServiceName] = useState('');
@@ -28,6 +53,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel, initialD
   // Initialisation
   useEffect(() => {
       if (initialData) {
+          setSelectedClientId(initialData.clientId);
           setServiceName(initialData.serviceName);
           setProvider(initialData.provider);
           setAmount(initialData.amount);
@@ -43,7 +69,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel, initialD
       setLoading(true);
 
       const payload = {
-          user_id: targetUserId,
+          user_id: selectedClientId,
           service_name: serviceName,
           provider,
           amount,
@@ -69,7 +95,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel, initialD
                   created_at: new Date().toISOString()
               });
               if (error) throw error;
-              toast.success("Ajouté", "L'abonnement a été ajouté.");
+              toast.success("Ajouté", "L'abonnement a été ajouté au dossier client.");
           }
           
           onSuccess();
@@ -84,6 +110,37 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSuccess, onCancel, initialD
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
         
+        {/* CLIENT SELECTOR (ADMIN ONLY) */}
+        {isAdmin && (
+            <div className={`p-4 rounded-xl border ${isClientLocked ? 'bg-slate-100 border-slate-200' : 'bg-indigo-50/50 border-indigo-100'}`}>
+                <label className={`block text-xs font-bold uppercase mb-2 flex items-center gap-2 ${isClientLocked ? 'text-slate-500' : 'text-indigo-600'}`}>
+                    {isClientLocked ? <Lock size={14} /> : <Users size={14} />} 
+                    {isClientLocked ? 'Client (Verrouillé)' : 'Dépense pour le client'}
+                </label>
+                <div className="relative">
+                    <select
+                        value={selectedClientId}
+                        onChange={(e) => setSelectedClientId(e.target.value)}
+                        disabled={isClientLocked}
+                        className={`w-full pl-3 pr-8 py-2.5 rounded-lg text-sm font-bold outline-none appearance-none transition-colors ${
+                            isClientLocked 
+                            ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300' 
+                            : 'bg-white border border-indigo-200 text-slate-700 focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:border-indigo-300'
+                        }`}
+                    >
+                        {availableClients.map(client => (
+                            <option key={client.id} value={client.id}>
+                                {client.company} ({client.name})
+                            </option>
+                        ))}
+                    </select>
+                    <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isClientLocked ? 'text-slate-400' : 'text-indigo-500'}`}>
+                        {isClientLocked ? <Lock size={16} /> : <User size={16} />}
+                    </div>
+                </div>
+            </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nom du service</label>

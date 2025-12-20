@@ -162,3 +162,38 @@ export interface Notification {
   isRead: boolean;
   createdAt: string;
 }
+
+// --- CRM TYPES ---
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'negotiation' | 'won' | 'lost';
+
+export interface CRMField {
+  id: string;
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'date' | 'select' | 'boolean';
+  options?: string[]; // Pour type 'select'
+}
+
+export interface Lead {
+  id: string;
+  created_at: string;
+  first_name: string;
+  last_name: string;
+  company: string;
+  email: string;
+  phone: string;
+  value: number;
+  status: LeadStatus;
+  source: string;
+  notes: string;
+  custom_data: Record<string, any>; // Stockage flexible
+}
+
+export interface CRMActivity {
+  id: string;
+  lead_id: string;
+  type: 'note' | 'call' | 'email' | 'meeting' | 'status_change';
+  content: string;
+  created_at: string;
+  created_by?: string;
+}

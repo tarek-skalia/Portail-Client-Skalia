@@ -11,17 +11,21 @@ import ExpensesPage from './components/ExpensesPage';
 import ProjectsPipeline from './components/ProjectsPipeline';
 import ProjectRoadmap from './components/ProjectRoadmap';
 import GlobalDashboard from './components/GlobalDashboard';
+import GlobalProjects from './components/GlobalProjects';
+import GlobalFinance from './components/GlobalFinance';
+import GlobalAutomations from './components/GlobalAutomations';
+import GlobalExpenses from './components/GlobalExpenses';
+import CRMPage from './components/CRMPage'; // Import CRM
 import UserManagement from './components/UserManagement';
 import LoginPage from './components/LoginPage';
 import UpdatePasswordPage from './components/UpdatePasswordPage';
 import BackgroundBlobs from './components/BackgroundBlobs'; 
 import NotificationsPanel from './components/NotificationsPanel';
 import GlobalListeners from './components/GlobalListeners';
-import AdminToolbar from './components/AdminToolbar';
 import Logo from './components/Logo';
 import { AdminProvider, useAdmin } from './components/AdminContext';
 import { MENU_ITEMS, ADMIN_MENU_ITEMS } from './constants';
-import { ChevronRight, Bell, Monitor, ArrowRight } from 'lucide-react';
+import { ChevronRight, Bell, Monitor, ArrowRight, Home, LayoutGrid } from 'lucide-react';
 import { Client } from './types';
 import { supabase } from './lib/supabase';
 
@@ -79,11 +83,14 @@ const AppContent: React.FC<{
     
     const { targetUserId, clients, isAdmin } = useAdmin();
     
+    // Détermination : sommes-nous en vue Client ou ERP ?
     const effectiveUserId = targetUserId || currentUser.id;
     const targetClient = clients.find(c => c.id === effectiveUserId) || currentUser;
+    const isViewingAsClient = isAdmin && targetClient.role !== 'admin';
 
+    // Page par défaut différente selon le mode
     const [activePage, setActivePage] = useState<string>(() => {
-        return localStorage.getItem('skalia_last_page') || 'dashboard';
+        return isAdmin ? 'global_view' : 'dashboard';
     });
 
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -99,6 +106,19 @@ const AppContent: React.FC<{
     const [isSmallScreen, setIsSmallScreen] = useState(window.innerWidth < 768);
     const [bypassBlocker, setBypassBlocker] = useState(false);
 
+    // Reset page quand on change de contexte (ERP <-> Client)
+    useEffect(() => {
+        if (isViewingAsClient) {
+            // Si on bascule sur un client, on va sur son Dashboard
+            if (activePage.startsWith('global_') || activePage === 'users' || activePage === 'crm') setActivePage('dashboard');
+        } else if (isAdmin) {
+            // Si on revient en ERP, on va sur la Global View
+            if (!activePage.startsWith('global_') && activePage !== 'crm' && activePage !== 'users') {
+                setActivePage('global_view');
+            }
+        }
+    }, [targetUserId, isAdmin]);
+
     useEffect(() => {
         const handleResize = () => {
             setIsSmallScreen(window.innerWidth < 768);
@@ -106,12 +126,6 @@ const AppContent: React.FC<{
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-
-    useEffect(() => {
-        if (activePage && !activePage.includes(':')) {
-            localStorage.setItem('skalia_last_page', activePage);
-        }
-    }, [activePage]);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -189,11 +203,22 @@ const AppContent: React.FC<{
 
     const renderContent = () => {
         const userIdToUse = effectiveUserId;
-        if (isAdmin) {
-            if (activePage === 'global_view') return <GlobalDashboard initialTicketId={autoOpenTicketId} />;
-            if (activePage === 'users') return <UserManagement />;
+
+        // ROUTAGE ERP
+        if (!isViewingAsClient && isAdmin) {
+            switch (activePage) {
+                case 'global_view': return <GlobalDashboard initialTicketId={autoOpenTicketId} />;
+                case 'global_projects': return <GlobalProjects />;
+                case 'global_finance': return <GlobalFinance />;
+                case 'global_automations': return <GlobalAutomations />;
+                case 'global_expenses': return <GlobalExpenses />;
+                case 'crm': return <CRMPage />; // Nouvelle page CRM
+                case 'users': return <UserManagement />;
+                default: return <GlobalDashboard />;
+            }
         }
 
+        // ROUTAGE CLIENT
         switch (activePage) {
           case 'dashboard': return <Dashboard userId={userIdToUse} onNavigate={setActivePage} onNavigateToSupport={handleNavigateToSupport} />;
           case 'automations': return <AutomationsList userId={userIdToUse} onNavigateToSupport={handleNavigateToSupport} />;
@@ -207,7 +232,6 @@ const AppContent: React.FC<{
         }
     };
 
-    // --- CONDITION D'AFFICHAGE DU BLOCAGE ---
     if (isSmallScreen && !bypassBlocker) {
         return <MobileBlocker onBypass={() => setBypassBlocker(true)} />;
     }
@@ -220,11 +244,15 @@ const AppContent: React.FC<{
             <Sidebar activePage={activePage.split(':')[0]} setActivePage={setActivePage} currentClient={targetClient} onLogout={handleLogout} />
             
             <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
-                <AdminToolbar />
-
-                <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm">
+                <header className="h-16 bg-white/70 backdrop-blur-lg border-b border-white/40 flex items-center justify-between px-8 sticky top-0 z-20 shrink-0 shadow-sm transition-all">
                     <div className="flex items-center text-sm text-slate-500 gap-2">
-                        <span>Portail client</span><ChevronRight size={14} className="opacity-50" /><span className="font-semibold text-slate-900">{getPageTitle(activePage)}</span>
+                        {isViewingAsClient ? (
+                            <span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 font-bold"><Monitor size={14} /> Vue Client</span>
+                        ) : (
+                            <span className="flex items-center gap-1.5 font-bold text-slate-900"><LayoutGrid size={16} className="text-slate-900" /> ERP Skalia</span>
+                        )}
+                        <ChevronRight size={14} className="opacity-50" />
+                        <span className="font-semibold text-slate-900">{getPageTitle(activePage)}</span>
                     </div>
                     <div className="flex items-center gap-6">
                         <div className="relative" ref={notificationRef}>
@@ -263,10 +291,7 @@ const App: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') setIsPasswordRecoveryMode(true);
-      
-      if (event === 'SIGNED_IN') {
-          localStorage.removeItem('skalia_last_page');
-      }
+      if (event === 'SIGNED_IN') localStorage.removeItem('skalia_last_page');
 
       if (session) {
         fetchUserProfile(session.user.id, session.user.email || '');
@@ -284,10 +309,7 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
-      if (error) {
-          console.warn("Connexion profil (Info):", error.message);
-          throw error;
-      }
+      if (error) throw error;
 
       if (data) {
         setCurrentUser({

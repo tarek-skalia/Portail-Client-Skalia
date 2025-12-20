@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
-import { Plus, Trash2, Calculator, Zap, Mail, Link as LinkIcon, User, Building } from 'lucide-react';
+import { Plus, Trash2, Calculator, Zap, Mail, Link as LinkIcon, User, Building, Users, Lock } from 'lucide-react';
 import { InvoiceItem, Invoice } from '../../types';
 
 // --- CONFIGURATION N8N ---
@@ -17,9 +17,26 @@ interface InvoiceFormProps {
 }
 
 const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialData }) => {
-  const { targetUserId } = useAdmin();
+  const { targetUserId, isAdmin, clients } = useAdmin();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+
+  const availableClients = clients.filter(c => c.role !== 'admin');
+
+  // Détecter mode contextuel
+  const currentViewedClient = clients.find(c => c.id === targetUserId);
+  const isContextualMode = currentViewedClient && currentViewedClient.role !== 'admin';
+
+  // Le champ est verrouillé si : Mode Contextuel OU Mode Édition
+  const isClientLocked = isContextualMode || !!initialData;
+
+  // Client Selection
+  const [selectedClientId, setSelectedClientId] = useState(() => {
+      if (initialData) return initialData.clientId;
+      if (isContextualMode) return targetUserId;
+      if (availableClients.length > 0) return availableClients[0].id;
+      return targetUserId;
+  });
 
   // Client Data
   const [clientName, setClientName] = useState('');
@@ -41,37 +58,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
   // Items Repeater
   const [items, setItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0 }]);
   
-  // CORRECTION: Valeur par défaut à 0.
   const [taxRate, setTaxRate] = useState(0);
 
-  // Initialisation : Récupérer les infos du client (Nom, Société, Email, ID Stripe)
-  useEffect(() => {
-      const fetchClientInfo = async () => {
-          if (targetUserId) {
-              const { data } = await supabase
-                .from('profiles')
-                .select('full_name, company_name, email, stripe_customer_id')
-                .eq('id', targetUserId)
-                .single();
-                
-              if (data) {
-                  const displayName = data.company_name || data.full_name || '';
-                  setClientName(displayName);
-                  setClientCompany(data.company_name || '');
-                  
-                  if (!initialData) {
-                      if (data.email) setBillingEmail(data.email);
-                      if (data.stripe_customer_id) setStripeCustomerId(data.stripe_customer_id);
-                  }
-              }
-          }
-      };
-      fetchClientInfo();
-  }, [targetUserId, initialData]);
-
-  // Initialisation : Données existantes (Mode Édition)
+  // Initialisation : Mode Édition
   useEffect(() => {
       if (initialData) {
+          setSelectedClientId(initialData.clientId);
           setNumber(initialData.number);
           setProjectName(initialData.projectName);
           setStatus(initialData.status === 'open' ? 'pending' : initialData.status as any);
@@ -93,10 +85,34 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
           setPaymentLink(initialData.paymentLink || '');
           setPdfUrl(initialData.pdfUrl || '');
           setItems(initialData.items || [{ description: '', quantity: 1, unit_price: 0 }]);
-          
           setTaxRate(initialData.taxRate ?? 0);
       }
   }, [initialData]);
+
+  // Initialisation : Récupérer les infos du client sélectionné
+  useEffect(() => {
+      const fetchClientInfo = async () => {
+          if (selectedClientId) {
+              const { data } = await supabase
+                .from('profiles')
+                .select('full_name, company_name, email, stripe_customer_id')
+                .eq('id', selectedClientId)
+                .single();
+                
+              if (data) {
+                  const displayName = data.company_name || data.full_name || '';
+                  setClientName(displayName);
+                  setClientCompany(data.company_name || '');
+                  
+                  if (!initialData) {
+                      if (data.email) setBillingEmail(data.email);
+                      if (data.stripe_customer_id) setStripeCustomerId(data.stripe_customer_id);
+                  }
+              }
+          }
+      };
+      fetchClientInfo();
+  }, [selectedClientId, initialData]);
 
   // Computed
   const subTotal = items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
@@ -135,7 +151,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                   pdf_url: pdfUrl,
                   payment_link: paymentLink,
                   items: items,
-                  tax_rate: taxRate
+                  tax_rate: taxRate,
+                  user_id: selectedClientId // Peut changer si on réassigne
               };
 
               const { error } = await supabase
@@ -160,25 +177,23 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                       email: billingEmail, 
                       name: clientName,    
                       company: clientCompany, 
-                      supabase_user_id: targetUserId,
+                      supabase_user_id: selectedClientId, // ID du client sélectionné
                       stripe_customer_id: stripeCustomerId 
                   },
                   invoice: {
                       projectName,
                       issueDate,
                       dueDate,
-                      taxRate, // Format CamelCase
-                      tax_rate: taxRate, // Format SnakeCase (Force la DB à utiliser cette valeur)
+                      taxRate,
+                      tax_rate: taxRate, 
                       amount: totalAmount,
                       currency: 'eur'
                   },
                   items: items 
               };
 
-              // Debug Log
               console.log("Envoi à n8n (Test):", n8nPayload);
 
-              // IMPORTANT: 'keepalive: true' garantit que la requête survit à la fermeture du composant
               await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
                   method: 'POST',
                   mode: 'no-cors', 
@@ -189,7 +204,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                   keepalive: true
               });
               
-              toast.success("Traitement lancé", `La demande a été envoyée à Stripe.`);
+              toast.success("Traitement lancé", `La demande a été envoyée à Stripe pour ${clientCompany || clientName}.`);
               onSuccess();
           }
 
@@ -204,12 +219,43 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
   return (
     <form onSubmit={handleSubmit} className="space-y-5 pt-2">
         
+        {/* CLIENT SELECTOR (ADMIN ONLY) */}
+        {isAdmin && (
+            <div className={`p-4 rounded-xl border ${isClientLocked ? 'bg-slate-100 border-slate-200' : 'bg-indigo-50/50 border-indigo-100'}`}>
+                <label className={`block text-xs font-bold uppercase mb-2 flex items-center gap-2 ${isClientLocked ? 'text-slate-500' : 'text-indigo-600'}`}>
+                    {isClientLocked ? <Lock size={14} /> : <Users size={14} />} 
+                    {isClientLocked ? 'Facturer à (Verrouillé)' : 'Facturer à'}
+                </label>
+                <div className="relative">
+                    <select
+                        value={selectedClientId}
+                        onChange={(e) => setSelectedClientId(e.target.value)}
+                        disabled={isClientLocked}
+                        className={`w-full pl-3 pr-8 py-2.5 rounded-lg text-sm font-bold outline-none appearance-none transition-colors ${
+                            isClientLocked 
+                            ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300' 
+                            : 'bg-white border border-indigo-200 text-slate-700 focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:border-indigo-300'
+                        }`}
+                    >
+                        {availableClients.map(client => (
+                            <option key={client.id} value={client.id}>
+                                {client.company} ({client.name})
+                            </option>
+                        ))}
+                    </select>
+                    <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isClientLocked ? 'text-slate-400' : 'text-indigo-500'}`}>
+                        {isClientLocked ? <Lock size={16} /> : <User size={16} />}
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* SECTION INFOS CLIENT */}
         {!initialData && (
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
                 <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                        <User size={14} /> Informations Client
+                        <User size={14} /> Informations Client (Auto)
                     </h3>
                     {stripeCustomerId && (
                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold">
@@ -247,16 +293,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onSuccess, onCancel, initialD
                         </div>
                     </div>
                 </div>
-                
-                <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-2.5 flex items-start gap-2.5 text-xs text-indigo-800">
-                    <Zap size={14} className="shrink-0 mt-0.5" />
-                    <div>
-                        <strong>Mode Automatique :</strong> La validation créera la facture Stripe, enverra le PDF par email et mettra à jour ce portail automatiquement.
-                    </div>
-                </div>
             </div>
         )}
 
+        {/* ... Rest of the form remains same ... */}
         {/* SECTION FACTURE */}
         <div className="grid grid-cols-2 gap-4">
             <div>

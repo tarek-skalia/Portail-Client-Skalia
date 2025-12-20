@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
-import { Plus, Trash2, GripVertical, Info, Fingerprint } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Info, Fingerprint, Users, User, Lock } from 'lucide-react';
 import { Automation } from '../../types';
 
 interface AutomationFormProps {
@@ -18,9 +18,26 @@ interface Step {
 }
 
 const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, initialData }) => {
-  const { targetUserId } = useAdmin();
+  const { targetUserId, isAdmin, clients } = useAdmin();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+
+  const availableClients = clients.filter(c => c.role !== 'admin');
+
+  // Détecter mode contextuel
+  const currentViewedClient = clients.find(c => c.id === targetUserId);
+  const isContextualMode = currentViewedClient && currentViewedClient.role !== 'admin';
+
+  // Le champ est verrouillé si : Mode Contextuel OU Mode Édition
+  const isClientLocked = isContextualMode || !!initialData;
+
+  // Client Selection
+  const [selectedClientId, setSelectedClientId] = useState(() => {
+      if (initialData) return initialData.clientId;
+      if (isContextualMode) return targetUserId;
+      if (availableClients.length > 0) return availableClients[0].id;
+      return targetUserId;
+  });
 
   // Fields
   const [customId, setCustomId] = useState('');
@@ -34,6 +51,7 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
   // Initialisation pour l'édition
   useEffect(() => {
       if (initialData) {
+          setSelectedClientId(initialData.clientId);
           setCustomId(initialData.id);
           setName(initialData.name);
           setDescription(initialData.description);
@@ -77,7 +95,7 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
       }
 
       const payload = {
-          user_id: targetUserId,
+          user_id: selectedClientId,
           name,
           description,
           status,
@@ -89,7 +107,6 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
       try {
           if (initialData) {
               // UPDATE
-              // Note: On ne met pas à jour l'ID (clé primaire)
               const { error } = await supabase
                 .from('automations')
                 .update(payload)
@@ -98,7 +115,6 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
               toast.success("Mis à jour", "L'automatisation a été modifiée.");
           } else {
               // INSERT
-              // Utilisation de l'ID manuel fourni par l'utilisateur (ex: ID N8N)
               const { error } = await supabase
                 .from('automations')
                 .insert({
@@ -122,6 +138,38 @@ const AutomationForm: React.FC<AutomationFormProps> = ({ onSuccess, onCancel, in
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
         
+        {/* CLIENT SELECTOR (ADMIN ONLY) */}
+        {isAdmin && (
+            <div className={`p-4 rounded-xl border ${isClientLocked ? 'bg-slate-100 border-slate-200' : 'bg-indigo-50/50 border-indigo-100'}`}>
+                <label className={`block text-xs font-bold uppercase mb-2 flex items-center gap-2 ${isClientLocked ? 'text-slate-500' : 'text-indigo-600'}`}>
+                    {isClientLocked ? <Lock size={14} /> : <Users size={14} />} 
+                    {isClientLocked ? 'Assigné à (Verrouillé)' : 'Assigner au client'}
+                </label>
+                <div className="relative">
+                    <select
+                        value={selectedClientId}
+                        onChange={(e) => setSelectedClientId(e.target.value)}
+                        disabled={isClientLocked}
+                        className={`w-full pl-3 pr-8 py-2.5 rounded-lg text-sm font-bold outline-none appearance-none transition-colors ${
+                            isClientLocked 
+                            ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300' 
+                            : 'bg-white border border-indigo-200 text-slate-700 focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:border-indigo-300'
+                        }`}
+                    >
+                        {availableClients.map(client => (
+                            <option key={client.id} value={client.id}>
+                                {client.company} ({client.name})
+                            </option>
+                        ))}
+                    </select>
+                    <div className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isClientLocked ? 'text-slate-400' : 'text-indigo-500'}`}>
+                        {isClientLocked ? <Lock size={16} /> : <User size={16} />}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* ... Rest of form ... */}
         {/* ID TECHNIQUE */}
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-2">
