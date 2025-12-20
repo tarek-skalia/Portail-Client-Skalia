@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Expense } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAdmin } from './AdminContext';
-import { CreditCard, Search, Plus, Edit3, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { CreditCard, Search, Plus, Edit3, Trash2, AlertTriangle, RefreshCw, BarChart4, CheckCircle2, XCircle } from 'lucide-react';
 import Skeleton from './Skeleton';
 import ExpenseSlideOver from './ExpenseSlideOver';
 import Modal from './ui/Modal';
@@ -95,6 +95,18 @@ const GlobalExpenses: React.FC = () => {
       getClientName(exp.clientId).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // --- KPI CALCULATIONS ---
+  const activeExpenses = expenses.filter(e => e.status === 'active');
+  
+  // Calcul Coût Mensuel Lissé
+  const totalMonthlyCost = activeExpenses.reduce((acc, exp) => {
+      if (exp.billingCycle === 'monthly') return acc + exp.amount;
+      return acc + (exp.amount / 12);
+  }, 0);
+
+  const totalYearlyCost = totalMonthlyCost * 12;
+  const inactiveCount = expenses.filter(e => e.status === 'inactive').length;
+
   if (isLoading) return <div className="p-8"><Skeleton className="h-96 w-full rounded-2xl" /></div>;
 
   return (
@@ -107,23 +119,65 @@ const GlobalExpenses: React.FC = () => {
                 <h1 className="text-3xl font-extrabold text-slate-900">Dépenses & Abonnements</h1>
                 <p className="text-slate-500 mt-1">Vue consolidée de tous les abonnements gérés pour les clients.</p>
             </div>
-            
-            <div className="flex gap-3">
-                <div className="relative w-64">
+        </div>
+
+        {/* --- KPI SECTION --- */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Coût Mensuel Global</p>
+                    <p className="text-2xl font-extrabold text-indigo-600">
+                        {Math.round(totalMonthlyCost).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                    </p>
+                </div>
+                <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg"><CreditCard size={20} /></div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Budget Annuel (Est.)</p>
+                    <p className="text-2xl font-extrabold text-slate-800">
+                        {Math.round(totalYearlyCost).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                    </p>
+                </div>
+                <div className="p-2.5 bg-slate-50 text-slate-600 rounded-lg"><BarChart4 size={20} /></div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Abonnements Actifs</p>
+                    <p className="text-2xl font-extrabold text-emerald-600">{activeExpenses.length}</p>
+                </div>
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle2 size={20} /></div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Outils Inactifs</p>
+                    <p className="text-2xl font-extrabold text-slate-500">{inactiveCount}</p>
+                </div>
+                <div className="p-2.5 bg-slate-50 text-slate-400 rounded-lg"><XCircle size={20} /></div>
+            </div>
+        </div>
+
+        {/* TOOLBAR */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200">
+            <div className="flex gap-3 w-full justify-between md:justify-end">
+                <div className="relative flex-1 md:max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input 
                         type="text" 
-                        placeholder="Rechercher..." 
+                        placeholder="Rechercher (Outil, Client)..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                 </div>
                 <button 
                     onClick={() => { setEditingExpense(null); setIsModalOpen(true); }}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-95"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95 text-sm"
                 >
-                    <Plus size={18} /> Ajouter
+                    <Plus size={16} /> Ajouter
                 </button>
             </div>
         </div>

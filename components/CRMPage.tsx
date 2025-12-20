@@ -5,7 +5,7 @@ import { Lead, CRMField, LeadStatus } from '../types';
 import { 
     Kanban, Table as TableIcon, Plus, Search, Filter, 
     Settings, MoreHorizontal, GripVertical, Calendar, Type, Hash, List, Trash2,
-    DollarSign, User, Building, Phone, Mail, ChevronRight, X
+    DollarSign, User, Building, Phone, Mail, ChevronRight, X, PieChart, Target, Layers
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import Modal from './ui/Modal';
@@ -159,7 +159,6 @@ const CRMPage: React.FC = () => {
     const handleDragStart = (e: React.DragEvent, id: string) => {
         setDraggedLeadId(id);
         e.dataTransfer.effectAllowed = 'move';
-        // Petit hack pour l'image fantôme
         const ghost = document.getElementById(`lead-card-${id}`);
         if (ghost) e.dataTransfer.setDragImage(ghost, 20, 20);
     };
@@ -173,7 +172,6 @@ const CRMPage: React.FC = () => {
         e.preventDefault();
         if (!draggedLeadId) return;
 
-        // Optimistic UI Update
         const updatedLeads = leads.map(l => l.id === draggedLeadId ? { ...l, status } : l);
         setLeads(updatedLeads);
 
@@ -182,19 +180,18 @@ const CRMPage: React.FC = () => {
             toast.success("Statut mis à jour", `Le lead est maintenant "${STATUSES.find(s => s.id === status)?.label}"`);
         } catch (error) {
             toast.error("Erreur", "La synchronisation a échoué.");
-            fetchLeadsOnly(); // Rollback
+            fetchLeadsOnly();
         }
         setDraggedLeadId(null);
     };
 
-    // --- CALCULS & FILTRES ---
+    // --- CALCULS KPI & FILTRES ---
     const filteredLeads = leads.filter(l => 
         (l.company?.toLowerCase().includes(searchTerm.toLowerCase()) || 
          l.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
          l.email?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
-    // Calcul Intelligent : Pipeline Actif (Exclut Gagné/Perdu) vs Total Gagné
     const activePipelineValue = filteredLeads
         .filter(l => !['won', 'lost'].includes(l.status))
         .reduce((acc, l) => acc + (l.value || 0), 0);
@@ -203,42 +200,73 @@ const CRMPage: React.FC = () => {
         .filter(l => l.status === 'won')
         .reduce((acc, l) => acc + (l.value || 0), 0);
 
+    // KPI: Taux de conversion
+    const totalFinished = filteredLeads.filter(l => ['won', 'lost'].includes(l.status)).length;
+    const totalWon = filteredLeads.filter(l => l.status === 'won').length;
+    const conversionRate = totalFinished > 0 ? Math.round((totalWon / totalFinished) * 100) : 0;
+
+    // KPI: Total Leads
+    const totalLeads = filteredLeads.length;
+
     if (isLoading) return <div className="p-8"><Skeleton className="h-96 w-full rounded-2xl" /></div>;
 
     return (
-        <div className="h-[calc(100vh-6rem)] flex flex-col animate-fade-in-up">
+        <div className="h-[calc(100vh-6rem)] flex flex-col animate-fade-in-up pb-4">
             
-            {/* HEADER TOOLBAR */}
-            <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-4 px-1 shrink-0">
-                <div>
-                    <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-2">
-                        CRM & Pipeline <span className="text-xs font-normal bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">Bêta</span>
-                    </h1>
-                    <div className="flex items-center gap-4 mt-2">
-                        <div className="flex items-center gap-2 text-sm text-slate-500" title="Total des opportunités en cours (hors gagnés/perdus)">
-                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                            Pipeline Actif : <span className="font-bold text-slate-900">{activePipelineValue.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-500 border-l border-slate-200 pl-4" title="Total du chiffre d'affaires signé">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            Gagné : <span className="font-bold text-emerald-600">{wonPipelineValue.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</span>
-                        </div>
+            {/* KPI BAR */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 shrink-0">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Pipeline Actif</p>
+                        <p className="text-2xl font-extrabold text-indigo-600">
+                            {activePipelineValue.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0})}
+                        </p>
                     </div>
+                    <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg"><Layers size={20} /></div>
                 </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Affaires Gagnées</p>
+                        <p className="text-2xl font-extrabold text-emerald-600">
+                            {wonPipelineValue.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0})}
+                        </p>
+                    </div>
+                    <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg"><DollarSign size={20} /></div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Taux Conversion</p>
+                        <p className="text-2xl font-extrabold text-slate-800">{conversionRate}%</p>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 text-slate-600 rounded-lg"><PieChart size={20} /></div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Total Leads</p>
+                        <p className="text-2xl font-extrabold text-slate-500">{totalLeads}</p>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 text-slate-400 rounded-lg"><Target size={20} /></div>
+                </div>
+            </div>
+
+            {/* HEADER TOOLBAR */}
+            <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-4 shrink-0 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-3 w-full">
                     {/* View Switcher */}
-                    <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
                         <button 
                             onClick={() => setViewMode('kanban')}
-                            className={`p-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`p-1.5 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Vue Kanban"
                         >
                             <Kanban size={18} />
                         </button>
                         <button 
                             onClick={() => setViewMode('table')}
-                            className={`p-2 rounded-md transition-all ${viewMode === 'table' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`p-1.5 rounded-md transition-all ${viewMode === 'table' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Vue Liste"
                         >
                             <TableIcon size={18} />
@@ -249,16 +277,16 @@ const CRMPage: React.FC = () => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input 
                             type="text" 
-                            placeholder="Rechercher (Nom, Société, Email)..." 
+                            placeholder="Rechercher..." 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm text-sm"
+                            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
                         />
                     </div>
 
                     <button 
                         onClick={() => setIsFieldModalOpen(true)}
-                        className="p-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm"
+                        className="p-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm"
                         title="Gérer les colonnes"
                     >
                         <Settings size={20} />
@@ -266,7 +294,7 @@ const CRMPage: React.FC = () => {
 
                     <button 
                         onClick={() => openLeadModal()}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-95 text-sm"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95 text-sm whitespace-nowrap"
                     >
                         <Plus size={18} /> <span className="hidden sm:inline">Nouveau Lead</span>
                     </button>
@@ -274,11 +302,11 @@ const CRMPage: React.FC = () => {
             </div>
 
             {/* MAIN CONTENT AREA */}
-            <div className="flex-1 overflow-hidden min-h-0">
+            <div className="flex-1 overflow-hidden min-h-0 pb-4">
                 
                 {/* --- VUE KANBAN --- */}
                 {viewMode === 'kanban' && (
-                    <div className="h-full overflow-x-auto overflow-y-hidden flex gap-4 pb-4 px-1">
+                    <div className="h-full overflow-x-auto overflow-y-hidden flex gap-4 px-1">
                         {STATUSES.map(status => {
                             const columnLeads = filteredLeads.filter(l => l.status === status.id);
                             const columnValue = columnLeads.reduce((acc, l) => acc + (l.value || 0), 0);
@@ -291,9 +319,9 @@ const CRMPage: React.FC = () => {
                                     onDrop={(e) => handleDrop(e, status.id)}
                                 >
                                     {/* Column Header */}
-                                    <div className={`p-3 m-2 mb-0 rounded-xl border ${status.color} bg-opacity-50 flex justify-between items-center`}>
+                                    <div className={`p-3 m-2 mb-0 rounded-xl border ${status.color} bg-opacity-50 flex justify-between items-center shadow-sm bg-white`}>
                                         <span className="font-bold text-sm uppercase tracking-wide truncate">{status.label}</span>
-                                        <span className="text-xs font-bold px-2 py-0.5 bg-white/60 rounded-full">{columnLeads.length}</span>
+                                        <span className="text-xs font-bold px-2 py-0.5 bg-slate-100 rounded-full text-slate-600 border border-slate-200">{columnLeads.length}</span>
                                     </div>
                                     <div className="px-4 pb-2 text-[10px] font-medium text-slate-400 text-right">
                                         {columnValue > 0 ? columnValue.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0}) : '-'}
@@ -315,7 +343,7 @@ const CRMPage: React.FC = () => {
                                                         {lead.company || `${lead.first_name} ${lead.last_name}`}
                                                     </span>
                                                     {lead.value > 0 && (
-                                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0 ml-1">
+                                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0 ml-1 border border-emerald-100">
                                                             {lead.value.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0})}
                                                         </span>
                                                     )}

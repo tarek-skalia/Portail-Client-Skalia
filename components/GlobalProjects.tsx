@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Project } from '../types';
 import { supabase } from '../lib/supabase';
-import { Kanban, Filter, Search, CheckCircle2, AlertTriangle, Clock, Briefcase, Plus, Edit3, Trash2 } from 'lucide-react';
+import { Kanban, Filter, Search, CheckCircle2, AlertTriangle, Clock, Briefcase, Plus, Edit3, Trash2, TrendingUp, AlertCircle, BarChart3, Layers } from 'lucide-react';
 import Skeleton from './Skeleton';
 import ProjectSlideOver from './ProjectSlideOver';
 import { useAdmin } from './AdminContext';
@@ -159,6 +159,26 @@ const GlobalProjects: React.FC = () => {
       return labels[status] || status;
   };
 
+  // --- CALCUL DES KPIS ---
+  const activeProjects = projects.filter(p => ['in_progress', 'review'].includes(p.status)).length;
+  
+  const riskyProjects = projects.filter(p => {
+      if (p.status === 'completed' || !p.endDate) return false;
+      const today = new Date();
+      // Format DD/MM/YYYY vers Date object
+      const [d, m, y] = p.endDate.split('/').map(Number);
+      const deadline = new Date(y, m - 1, d);
+      const diffTime = deadline.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays < 3; // Moins de 3 jours ou retard
+  }).length;
+
+  const totalProgress = projects.length > 0 
+    ? Math.round(projects.reduce((acc, p) => acc + (p.progress || 0), 0) / projects.length) 
+    : 0;
+
+  const backlogCount = projects.filter(p => ['onboarding', 'uncategorized'].includes(p.status)).length;
+
   if (isLoading) return <div className="p-8"><Skeleton className="h-64 w-full rounded-2xl" /></div>;
 
   return (
@@ -171,42 +191,80 @@ const GlobalProjects: React.FC = () => {
                 <h1 className="text-3xl font-extrabold text-slate-900">Opérations</h1>
                 <p className="text-slate-500 mt-1">Vue consolidée de tous les projets de l'agence.</p>
             </div>
-            
-            <div className="flex gap-3">
-                <div className="relative w-64">
+        </div>
+
+        {/* --- KPI SECTION --- */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">En production</p>
+                    <p className="text-2xl font-extrabold text-blue-600">{activeProjects}</p>
+                </div>
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg"><Briefcase size={20} /></div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Risques / Retards</p>
+                    <p className={`text-2xl font-extrabold ${riskyProjects > 0 ? 'text-red-600' : 'text-slate-700'}`}>{riskyProjects}</p>
+                </div>
+                <div className={`p-2.5 rounded-lg ${riskyProjects > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-400'}`}><AlertCircle size={20} /></div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Vélocité Globale</p>
+                    <p className="text-2xl font-extrabold text-emerald-600">{totalProgress}%</p>
+                </div>
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg"><BarChart3 size={20} /></div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Backlog</p>
+                    <p className="text-2xl font-extrabold text-amber-600">{backlogCount}</p>
+                </div>
+                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-lg"><Layers size={20} /></div>
+            </div>
+        </div>
+
+        {/* TOOLBAR */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200">
+            {/* STATUS TABS */}
+            <div className="flex gap-2 overflow-x-auto w-full md:w-auto scrollbar-hide">
+                {['all', 'onboarding', 'in_progress', 'review', 'completed'].map(status => (
+                    <button
+                        key={status}
+                        onClick={() => setFilterStatus(status)}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                            filterStatus === status 
+                            ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100' 
+                            : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
+                        }`}
+                    >
+                        {status === 'all' ? 'Tous' : getStatusLabel(status)}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex gap-3 w-full md:w-auto">
+                <div className="relative flex-1 md:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input 
                         type="text" 
-                        placeholder="Chercher un projet ou client..." 
+                        placeholder="Rechercher..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                 </div>
                 <button 
                     onClick={() => { setEditingProject(null); setIsModalOpen(true); }}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-95"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition-all whitespace-nowrap text-sm"
                 >
-                    <Plus size={18} /> Créer Projet
+                    <Plus size={16} /> <span className="hidden sm:inline">Nouveau</span>
                 </button>
             </div>
-        </div>
-
-        {/* STATUS TABS */}
-        <div className="flex gap-2 overflow-x-auto pb-2">
-            {['all', 'onboarding', 'in_progress', 'review', 'completed'].map(status => (
-                <button
-                    key={status}
-                    onClick={() => setFilterStatus(status)}
-                    className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all whitespace-nowrap ${
-                        filterStatus === status 
-                        ? 'bg-slate-800 text-white border-slate-800' 
-                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                    }`}
-                >
-                    {status === 'all' ? 'Tous' : getStatusLabel(status)}
-                </button>
-            ))}
         </div>
 
         {/* PROJECTS GRID */}
@@ -278,7 +336,6 @@ const GlobalProjects: React.FC = () => {
                             
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
-                                    {/* FIX: Utilisation de (project.tasks || []) pour éviter l'erreur 'possibly undefined' */}
                                     {(project.tasks || []).filter(t => t.completed).length === (project.tasks || []).length && (project.tasks || []).length > 0 ? (
                                         <span className="text-emerald-600 text-xs font-bold flex items-center gap-1">
                                             <CheckCircle2 size={12} /> Tout terminé

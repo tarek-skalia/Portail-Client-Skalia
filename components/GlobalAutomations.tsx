@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Automation } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAdmin } from './AdminContext';
-import { Zap, Activity, AlertTriangle, CheckCircle2, PauseCircle, XCircle, Search, Plus, Edit3, Trash2 } from 'lucide-react';
+import { Zap, Activity, AlertTriangle, CheckCircle2, PauseCircle, XCircle, Search, Plus, Edit3, Trash2, Cpu, Server, Play } from 'lucide-react';
 import Skeleton from './Skeleton';
 import AutomationSlideOver from './AutomationSlideOver';
 import Modal from './ui/Modal';
@@ -17,6 +17,14 @@ const GlobalAutomations: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // KPI Stats
+  const [stats, setStats] = useState({
+      uptime: 100,
+      criticalErrors: 0,
+      totalRuns: 0,
+      activeWorkflows: 0
+  });
+
   // UI State
   const [selectedAutomation, setSelectedAutomation] = useState<Automation | null>(null);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
@@ -32,6 +40,8 @@ const GlobalAutomations: React.FC = () => {
     
     const channel = supabase.channel('global_automations_realtime')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'automations' }, () => fetchGlobalAutomations())
+        // On écoute aussi les logs pour mettre à jour les KPIs en temps réel
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'automation_logs' }, () => fetchGlobalAutomations())
         .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -39,25 +49,47 @@ const GlobalAutomations: React.FC = () => {
 
   const fetchGlobalAutomations = async () => {
     try {
-        const { data, error } = await supabase
+        // 1. Récupération des Automatisations
+        const { data: automationsData, error } = await supabase
             .from('automations')
             .select('*')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        // Fetch logs for "Last Run" (Optional - simple version here)
-        // Note: For a global view with potentially many items, calculating "last run" for everyone might be heavy.
-        // We can skip it or do a smart fetch. For now, let's keep it simple.
+        // 2. Récupération des Logs (Limité aux 30 derniers jours pour éviter surcharge)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const { data: logsData } = await supabase
+            .from('automation_logs')
+            .select('status')
+            .gte('created_at', thirtyDaysAgo.toISOString());
 
-        const mapped: Automation[] = (data || []).map((item: any) => ({
+        // --- CALCUL DES KPIs ---
+        const totalRuns = logsData?.length || 0;
+        const errorRuns = logsData?.filter(l => l.status === 'error').length || 0;
+        const uptime = totalRuns > 0 ? ((totalRuns - errorRuns) / totalRuns) * 100 : 100;
+        
+        const activeCount = automationsData?.filter(a => a.status === 'active').length || 0;
+        const criticalErrors = automationsData?.filter(a => ['error', 'maintenance'].includes(a.status)).length || 0;
+
+        setStats({
+            uptime: Math.round(uptime),
+            criticalErrors: criticalErrors,
+            totalRuns: totalRuns,
+            activeWorkflows: activeCount
+        });
+
+        // Mapping
+        const mapped: Automation[] = (automationsData || []).map((item: any) => ({
             id: item.id,
             clientId: item.user_id,
             name: item.name,
             description: item.description || '',
             status: item.status,
-            lastRun: 'Voir détails', // Placeholder
-            runsThisMonth: 0, // Placeholder
+            lastRun: 'Voir détails', 
+            runsThisMonth: 0, 
             toolIcons: item.tool_icons || [],
             pipelineSteps: item.pipeline_steps || [],
             userGuide: item.user_guide || ''
@@ -118,23 +150,69 @@ const GlobalAutomations: React.FC = () => {
                 <h1 className="text-3xl font-extrabold text-slate-900">Systèmes & Automatisations</h1>
                 <p className="text-slate-500 mt-1">Gérez l'infrastructure d'automatisation de tous vos clients.</p>
             </div>
-            
-            <div className="flex gap-3">
-                <div className="relative w-64">
+        </div>
+
+        {/* --- KPIs SECTION --- */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Santé Infrastructure</p>
+                    <p className={`text-2xl font-extrabold ${stats.uptime < 98 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {stats.uptime}%
+                    </p>
+                </div>
+                <div className={`p-2.5 rounded-lg ${stats.uptime < 98 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                    <Server size={20} />
+                </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Alertes Critiques</p>
+                    <p className={`text-2xl font-extrabold ${stats.criticalErrors > 0 ? 'text-red-600' : 'text-slate-700'}`}>
+                        {stats.criticalErrors}
+                    </p>
+                </div>
+                <div className={`p-2.5 rounded-lg ${stats.criticalErrors > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-400'}`}>
+                    <AlertTriangle size={20} />
+                </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Volume Traité (30j)</p>
+                    <p className="text-2xl font-extrabold text-indigo-600">{stats.totalRuns.toLocaleString()}</p>
+                </div>
+                <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg"><Activity size={20} /></div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Workflows Actifs</p>
+                    <p className="text-2xl font-extrabold text-blue-600">{stats.activeWorkflows}</p>
+                </div>
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg"><Cpu size={20} /></div>
+            </div>
+        </div>
+
+        {/* TOOLBAR */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200">
+            <div className="flex gap-3 w-full justify-between md:justify-end">
+                <div className="relative flex-1 md:max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input 
                         type="text" 
-                        placeholder="Rechercher..." 
+                        placeholder="Rechercher (Nom, Client)..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
                     />
                 </div>
                 <button 
                     onClick={() => { setEditingAutomation(null); setIsModalOpen(true); }}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-95"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition-all whitespace-nowrap text-sm"
                 >
-                    <Plus size={18} /> Ajouter
+                    <Plus size={16} /> <span className="hidden sm:inline">Nouveau</span>
                 </button>
             </div>
         </div>
