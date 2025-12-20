@@ -278,13 +278,14 @@ const GlobalProjects: React.FC = () => {
                             
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
-                                    {project.tasks?.filter(t => t.completed).length === project.tasks?.length && project.tasks?.length > 0 ? (
+                                    {/* FIX: Utilisation de (project.tasks || []) pour éviter l'erreur 'possibly undefined' */}
+                                    {(project.tasks || []).filter(t => t.completed).length === (project.tasks || []).length && (project.tasks || []).length > 0 ? (
                                         <span className="text-emerald-600 text-xs font-bold flex items-center gap-1">
                                             <CheckCircle2 size={12} /> Tout terminé
                                         </span>
                                     ) : (
                                         <span className="text-slate-400 text-xs flex items-center gap-1">
-                                            <Clock size={12} /> {project.tasks?.length} tâches
+                                            <Clock size={12} /> {(project.tasks || []).length} tâches
                                         </span>
                                     )}
                                 </div>
