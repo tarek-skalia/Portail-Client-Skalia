@@ -5,7 +5,8 @@ import { Lead, CRMField, LeadStatus } from '../types';
 import { 
     Kanban, Table as TableIcon, Plus, Search, Filter, 
     Settings, MoreHorizontal, GripVertical, Calendar, Type, Hash, List, Trash2,
-    DollarSign, User, Building, Phone, Mail, ChevronRight, X, PieChart, Target, Layers
+    DollarSign, User, Building, Phone, Mail, ChevronRight, X, PieChart, Target, Layers,
+    Clock, Check, AlertCircle, Send, HelpCircle
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import Modal from './ui/Modal';
@@ -20,6 +21,19 @@ const STATUSES: { id: LeadStatus; label: string; color: string }[] = [
     { id: 'won', label: 'Gagné', color: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
     { id: 'lost', label: 'Perdu', color: 'bg-red-50 border-red-100 text-red-700' },
 ];
+
+// Helper pour le Rotting Time
+const getRottingData = (dateStr?: string) => {
+    if (!dateStr) return { style: 'bg-white border-slate-200', days: 0, isRotting: false };
+    
+    const diff = new Date().getTime() - new Date(dateStr).getTime();
+    const days = Math.floor(diff / (1000 * 3600 * 24));
+
+    if (days > 14) return { style: 'bg-red-50 border-red-200 shadow-red-100', days, isRotting: true, level: 'critical' };
+    if (days > 7) return { style: 'bg-amber-50 border-amber-200 shadow-amber-100', days, isRotting: true, level: 'warning' };
+    
+    return { style: 'bg-white border-slate-200', days, isRotting: false, level: 'normal' };
+};
 
 const CRMPage: React.FC = () => {
     const toast = useToast();
@@ -69,6 +83,7 @@ const CRMPage: React.FC = () => {
     };
 
     const fetchLeadsOnly = async () => {
+        // On récupère updated_at pour le rotting time
         const { data } = await supabase.from('crm_leads').select('*').order('created_at', { ascending: false });
         if (data) setLeads(data);
     };
@@ -108,6 +123,20 @@ const CRMPage: React.FC = () => {
             await supabase.from('crm_leads').delete().eq('id', id);
             toast.success("Supprimé", "Lead retiré de la base.");
             fetchLeadsOnly();
+        }
+    };
+
+    // QUICK ACTION : Mark as Won
+    const handleQuickWon = async (e: React.MouseEvent, lead: Lead) => {
+        e.stopPropagation();
+        try {
+            await supabase.from('crm_leads').update({ 
+                status: 'won', 
+                updated_at: new Date().toISOString() 
+            }).eq('id', lead.id);
+            toast.success("Félicitations ! 🚀", "Affaire gagnée.");
+        } catch (err) {
+            toast.error("Erreur", "Impossible de mettre à jour.");
         }
     };
 
@@ -157,10 +186,14 @@ const CRMPage: React.FC = () => {
     // --- LOGIQUE KANBAN DRAG & DROP ---
 
     const handleDragStart = (e: React.DragEvent, id: string) => {
-        setDraggedLeadId(id);
         e.dataTransfer.effectAllowed = 'move';
-        const ghost = document.getElementById(`lead-card-${id}`);
-        if (ghost) e.dataTransfer.setDragImage(ghost, 20, 20);
+        setTimeout(() => {
+            setDraggedLeadId(id);
+        }, 0);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedLeadId(null);
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -172,11 +205,14 @@ const CRMPage: React.FC = () => {
         e.preventDefault();
         if (!draggedLeadId) return;
 
-        const updatedLeads = leads.map(l => l.id === draggedLeadId ? { ...l, status } : l);
+        const updatedLeads = leads.map(l => l.id === draggedLeadId ? { ...l, status, updated_at: new Date().toISOString() } : l); // Optimistic UI update including timestamp
         setLeads(updatedLeads);
 
         try {
-            await supabase.from('crm_leads').update({ status }).eq('id', draggedLeadId);
+            await supabase.from('crm_leads').update({ 
+                status,
+                updated_at: new Date().toISOString() // Important pour reset le rotting time
+            }).eq('id', draggedLeadId);
             toast.success("Statut mis à jour", `Le lead est maintenant "${STATUSES.find(s => s.id === status)?.label}"`);
         } catch (error) {
             toast.error("Erreur", "La synchronisation a échoué.");
@@ -215,7 +251,8 @@ const CRMPage: React.FC = () => {
             
             {/* KPI BAR */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 shrink-0">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group relative cursor-help">
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Pipeline Actif</p>
                         <p className="text-2xl font-extrabold text-indigo-600">
@@ -223,9 +260,13 @@ const CRMPage: React.FC = () => {
                         </p>
                     </div>
                     <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg"><Layers size={20} /></div>
+                    {/* Tooltip */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                        Valeur totale des leads en cours de négociation (hors gagnés/perdus).
+                    </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group relative cursor-help">
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Affaires Gagnées</p>
                         <p className="text-2xl font-extrabold text-emerald-600">
@@ -233,22 +274,34 @@ const CRMPage: React.FC = () => {
                         </p>
                     </div>
                     <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg"><DollarSign size={20} /></div>
+                    {/* Tooltip */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                        Montant total des deals marqués comme "Gagné".
+                    </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group relative cursor-help">
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Taux Conversion</p>
                         <p className="text-2xl font-extrabold text-slate-800">{conversionRate}%</p>
                     </div>
                     <div className="p-2.5 bg-slate-50 text-slate-600 rounded-lg"><PieChart size={20} /></div>
+                    {/* Tooltip */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                        Ratio des affaires gagnées sur le total des affaires clôturées (gagnées + perdues).
+                    </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group relative cursor-help">
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Total Leads</p>
                         <p className="text-2xl font-extrabold text-slate-500">{totalLeads}</p>
                     </div>
                     <div className="p-2.5 bg-slate-50 text-slate-400 rounded-lg"><Target size={20} /></div>
+                    {/* Tooltip */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                        Nombre total de prospects dans la base de données.
+                    </div>
                 </div>
             </div>
 
@@ -329,51 +382,98 @@ const CRMPage: React.FC = () => {
 
                                     {/* Column Body */}
                                     <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-                                        {columnLeads.map(lead => (
-                                            <div 
-                                                key={lead.id}
-                                                id={`lead-card-${lead.id}`}
-                                                draggable
-                                                onDragStart={(e) => handleDragStart(e, lead.id)}
-                                                onClick={() => openLeadModal(lead)}
-                                                className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 cursor-grab active:cursor-grabbing transition-all group relative"
-                                            >
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className="font-bold text-slate-800 text-sm line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                                                        {lead.company || `${lead.first_name} ${lead.last_name}`}
-                                                    </span>
-                                                    {lead.value > 0 && (
-                                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0 ml-1 border border-emerald-100">
-                                                            {lead.value.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0})}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                
-                                                <div className="space-y-0.5">
-                                                    {lead.company && (lead.first_name || lead.last_name) && (
-                                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                                                            <User size={10} /> {lead.first_name} {lead.last_name}
-                                                        </div>
-                                                    )}
-                                                    {lead.email && (
-                                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 truncate">
-                                                            <Mail size={10} /> {lead.email}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                        {columnLeads.map(lead => {
+                                            // Calcul du Rotting Time
+                                            const rotting = getRottingData(lead.updated_at || lead.created_at);
+                                            const isDragging = draggedLeadId === lead.id;
 
-                                                {/* Affichage d'un tag custom si présent */}
-                                                {Object.keys(lead.custom_data).length > 0 && (
-                                                    <div className="mt-2 pt-2 border-t border-slate-50 flex flex-wrap gap-1">
-                                                        {Object.entries(lead.custom_data).slice(0,2).map(([key, val]) => (
-                                                            <span key={key} className="text-[9px] bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 truncate max-w-[100px]">
-                                                                {String(val)}
-                                                            </span>
-                                                        ))}
+                                            return (
+                                                <div 
+                                                    key={lead.id}
+                                                    id={`lead-card-${lead.id}`}
+                                                    draggable
+                                                    onDragStart={(e) => handleDragStart(e, lead.id)}
+                                                    onDragEnd={handleDragEnd}
+                                                    onClick={() => openLeadModal(lead)}
+                                                    className={`
+                                                        p-3 rounded-xl border shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-all group relative overflow-hidden
+                                                        ${rotting.style}
+                                                        ${rotting.isRotting ? 'border-l-4' : ''}
+                                                        ${isDragging ? 'opacity-0' : 'opacity-100'}
+                                                    `}
+                                                >
+                                                    {/* QUICK ACTIONS OVERLAY (Survol) */}
+                                                    <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 duration-200">
+                                                        {lead.phone && (
+                                                            <a href={`tel:${lead.phone}`} onClick={(e) => e.stopPropagation()} className="p-2.5 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 hover:scale-110 transition-all shadow-sm" title="Appeler">
+                                                                <Phone size={18} />
+                                                            </a>
+                                                        )}
+                                                        {/* Suppression Bouton Mail ici comme demandé */}
+                                                        {lead.status !== 'won' && (
+                                                            <button 
+                                                                onClick={(e) => handleQuickWon(e, lead)} 
+                                                                className="p-2.5 bg-emerald-50 text-emerald-600 rounded-full hover:bg-emerald-100 hover:scale-110 transition-all shadow-sm"
+                                                                title="Marquer comme Gagné"
+                                                            >
+                                                                <Check size={18} />
+                                                            </button>
+                                                        )}
                                                     </div>
-                                                )}
-                                            </div>
-                                        ))}
+
+                                                    <div className="flex justify-between items-start mb-2 relative z-10">
+                                                        <span className="font-bold text-slate-800 text-sm line-clamp-1 group-hover:text-indigo-600 transition-colors">
+                                                            {lead.company || `${lead.first_name} ${lead.last_name}`}
+                                                        </span>
+                                                        
+                                                        {/* ROTTING ALERT */}
+                                                        {rotting.isRotting && (
+                                                            <div className="absolute top-0 right-0 -mr-1 -mt-1" title={`${rotting.days} jours sans activité`}>
+                                                                <AlertCircle size={14} className={rotting.level === 'critical' ? 'text-red-500' : 'text-amber-500'} />
+                                                            </div>
+                                                        )}
+
+                                                        {/* VALEUR */}
+                                                        {lead.value > 0 && !rotting.isRotting && (
+                                                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0 ml-1 border border-emerald-100">
+                                                                {lead.value.toLocaleString('fr-FR', {style:'currency', currency:'EUR', maximumFractionDigits:0})}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    <div className="space-y-0.5 relative z-10">
+                                                        {lead.company && (lead.first_name || lead.last_name) && (
+                                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                                                                <User size={10} /> {lead.first_name} {lead.last_name}
+                                                            </div>
+                                                        )}
+                                                        {lead.email && (
+                                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 truncate">
+                                                                <Mail size={10} /> {lead.email}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Affichage d'un tag custom si présent */}
+                                                    {Object.keys(lead.custom_data).length > 0 && (
+                                                        <div className="mt-2 pt-2 border-t border-slate-50 flex flex-wrap gap-1 relative z-10">
+                                                            {Object.entries(lead.custom_data).slice(0,2).map(([key, val]) => (
+                                                                <span key={key} className="text-[9px] bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 truncate max-w-[100px]">
+                                                                    {String(val)}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Rotting Footer Text */}
+                                                    {rotting.isRotting && (
+                                                        <div className={`mt-2 text-[9px] font-bold uppercase tracking-wide flex items-center gap-1 ${rotting.level === 'critical' ? 'text-red-500' : 'text-amber-600'}`}>
+                                                            <Clock size={10} /> {rotting.days}j sans action
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             );
@@ -393,7 +493,6 @@ const CRMPage: React.FC = () => {
                                         <th className="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Valeur</th>
                                         <th className="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email</th>
                                         <th className="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Téléphone</th>
-                                        {/* Colonnes Dynamiques */}
                                         {fields.map(field => (
                                             <th key={field.id} className="px-6 py-3 text-[10px] font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50/30 border-l border-indigo-100">
                                                 {field.label}
@@ -425,7 +524,6 @@ const CRMPage: React.FC = () => {
                                             <td className="px-6 py-2 text-xs text-slate-600 truncate max-w-[150px]">{lead.email || <span className="text-slate-300">-</span>}</td>
                                             <td className="px-6 py-2 text-xs text-slate-600 font-mono">{lead.phone || <span className="text-slate-300">-</span>}</td>
                                             
-                                            {/* Données Dynamiques */}
                                             {fields.map(field => (
                                                 <td key={field.id} className="px-6 py-2 text-xs text-slate-600 border-l border-slate-50">
                                                     {lead.custom_data[field.key] ? String(lead.custom_data[field.key]) : <span className="text-slate-300">-</span>}
@@ -446,10 +544,11 @@ const CRMPage: React.FC = () => {
                 )}
             </div>
 
-            {/* --- MODAL CREATION / EDITION LEAD --- */}
+            {/* ... MODALS ... */}
+            {/* Le reste du code des modals est inchangé */}
             <Modal isOpen={isLeadModalOpen} onClose={() => setIsLeadModalOpen(false)} title={editingLead ? "Modifier le Lead" : "Nouveau Lead"} maxWidth="max-w-4xl">
                 <form onSubmit={handleSaveLead} className="space-y-8">
-                    {/* INFO PRINCIPALES */}
+                    {/* ... Contenu du formulaire ... */}
                     <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-4">
                             <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2">Identité</h4>
@@ -482,7 +581,6 @@ const CRMPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* DEAL INFO */}
                     <div className="space-y-4">
                         <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2">Détails du Deal</h4>
                         <div className="grid grid-cols-3 gap-6">
@@ -503,7 +601,6 @@ const CRMPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* CHAMPS DYNAMIQUES */}
                     {fields.length > 0 && (
                         <div className="space-y-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
                             <h4 className="text-sm font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-2">
@@ -545,7 +642,6 @@ const CRMPage: React.FC = () => {
                         </div>
                     )}
 
-                    {/* NOTES */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1">Notes internes</label>
                         <textarea rows={3} value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full p-3 border rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Détails importants..."></textarea>
@@ -558,11 +654,9 @@ const CRMPage: React.FC = () => {
                 </form>
             </Modal>
 
-            {/* --- MODAL GESTION CHAMPS --- */}
             <Modal isOpen={isFieldModalOpen} onClose={() => setIsFieldModalOpen(false)} title="Configurer les colonnes" maxWidth="max-w-2xl">
+                {/* ... Contenu gestion champs ... */}
                 <div className="space-y-8">
-                    
-                    {/* Liste des champs existants */}
                     <div className="space-y-3">
                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Colonnes Actives</h4>
                         {fields.length === 0 ? (
@@ -586,7 +680,6 @@ const CRMPage: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Formulaire ajout */}
                     <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100">
                         <h4 className="text-sm font-bold text-indigo-800 mb-4 flex items-center gap-2"><Plus size={16} /> Ajouter une colonne</h4>
                         <form onSubmit={handleSaveField} className="space-y-4">
@@ -606,7 +699,6 @@ const CRMPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Options pour Select */}
                             {fieldData.type === 'select' && (
                                 <div>
                                     <label className="block text-xs font-bold text-indigo-600 mb-1">Options de la liste</label>

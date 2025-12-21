@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Expense } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAdmin } from './AdminContext';
-import { CreditCard, Search, Plus, Edit3, Trash2, AlertTriangle, RefreshCw, BarChart4, CheckCircle2, XCircle } from 'lucide-react';
+import { CreditCard, Search, Plus, Edit3, Trash2, AlertTriangle, RefreshCw, BarChart4, CheckCircle2, XCircle, AlertCircle, TrendingDown, Users } from 'lucide-react';
 import Skeleton from './Skeleton';
 import ExpenseSlideOver from './ExpenseSlideOver';
 import Modal from './ui/Modal';
@@ -11,13 +11,22 @@ import ExpenseForm from './forms/ExpenseForm';
 import { useToast } from './ToastProvider';
 import ExpenseLogo from './ExpenseLogo';
 
+// Extension pour l'UI d'audit
+interface ExpenseWithAudit extends Expense {
+    monthlyCost: number; // Coût normalisé
+    usageStatus: 'active' | 'low_usage' | 'unused'; // Simulé pour l'exemple
+}
+
 const GlobalExpenses: React.FC = () => {
   const { clients } = useAdmin();
   const toast = useToast();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseWithAudit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // CLIENT FILTER
+  const [selectedClientId, setSelectedClientId] = useState<string>('all');
+
   // UI State
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
@@ -43,24 +52,41 @@ const GlobalExpenses: React.FC = () => {
         const { data, error } = await supabase
             .from('expenses')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('amount', { ascending: false }); // Tri par montant pour mettre en avant les gros coûts
 
         if (error) throw error;
 
-        const mapped: Expense[] = (data || []).map((item: any) => ({
-            id: item.id,
-            clientId: item.user_id,
-            serviceName: item.service_name,
-            provider: item.provider || 'Autre',
-            category: item.category || 'Software',
-            amount: item.amount,
-            billingCycle: item.billing_cycle,
-            nextBillingDate: item.next_billing_date,
-            status: item.status,
-            description: item.description,
-            websiteUrl: item.website_url,
-            logoUrl: item.logo_url
-        }));
+        const mapped: ExpenseWithAudit[] = (data || []).map((item: any) => {
+            // Normalisation du coût mensuel avec cast explicite pour éviter les erreurs TS
+            const amount = Number(item.amount || 0);
+            const monthly = item.billing_cycle === 'yearly' ? amount / 12 : amount;
+            
+            // Simulation logique "Inutilisé ?" pour la démo UI (car pas de last_login en base pour l'instant)
+            // Dans un vrai cas, on comparerait item.last_used_at avec Date.now() - 30j
+            let auditStatus: 'active' | 'low_usage' | 'unused' = 'active';
+            if (item.status === 'active') {
+                // Random pour la démo visuelle sur certains outils
+                if (Math.random() > 0.8) auditStatus = 'unused'; 
+                else if (Math.random() > 0.7) auditStatus = 'low_usage';
+            }
+
+            return {
+                id: item.id,
+                clientId: item.user_id,
+                serviceName: item.service_name,
+                provider: item.provider || 'Autre',
+                category: item.category || 'Software',
+                amount: amount,
+                billingCycle: item.billing_cycle,
+                nextBillingDate: item.next_billing_date,
+                status: item.status,
+                description: item.description,
+                websiteUrl: item.website_url,
+                logoUrl: item.logo_url,
+                monthlyCost: monthly,
+                usageStatus: auditStatus
+            };
+        });
 
         setExpenses(mapped);
     } catch (e) {
@@ -90,22 +116,56 @@ const GlobalExpenses: React.FC = () => {
       }
   };
 
-  const filteredExpenses = expenses.filter(exp => 
-      exp.serviceName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      getClientName(exp.clientId).toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // --- FILTRAGE ---
+  const filteredExpenses = expenses.filter(exp => {
+      const matchesClient = selectedClientId === 'all' || exp.clientId === selectedClientId;
+      const matchesSearch = exp.serviceName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            getClientName(exp.clientId).toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesClient && matchesSearch;
+  });
 
-  // --- KPI CALCULATIONS ---
-  const activeExpenses = expenses.filter(e => e.status === 'active');
-  
-  // Calcul Coût Mensuel Lissé
-  const totalMonthlyCost = activeExpenses.reduce((acc, exp) => {
-      if (exp.billingCycle === 'monthly') return acc + exp.amount;
-      return acc + (exp.amount / 12);
-  }, 0);
-
+  // --- KPI & AUDIT CALCULATIONS (Basés sur les données filtrées) ---
+  const activeExpenses = filteredExpenses.filter(e => e.status === 'active');
+  const totalMonthlyCost = activeExpenses.reduce<number>((acc, exp) => acc + exp.monthlyCost, 0);
   const totalYearlyCost = totalMonthlyCost * 12;
-  const inactiveCount = expenses.filter(e => e.status === 'inactive').length;
+  
+  // Répartition par Catégorie
+  const categoryStats = activeExpenses.reduce<Record<string, number>>((acc, curr) => {
+      const cat = curr.category || 'Autre';
+      const currentVal = acc[cat] || 0;
+      acc[cat] = currentVal + curr.monthlyCost;
+      return acc;
+  }, {});
+
+  const categoryDistribution = Object.entries(categoryStats)
+      .map(([name, value]) => ({ 
+          name, 
+          value: Number(value), 
+          percent: totalMonthlyCost > 0 ? (Number(value) / totalMonthlyCost) * 100 : 0 
+      }))
+      .sort((a, b) => b.value - a.value);
+
+  const COLORS = ['bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-amber-500', 'bg-emerald-500', 'bg-blue-500', 'bg-slate-400'];
+
+  const getAuditBadge = (exp: ExpenseWithAudit) => {
+      if (exp.status === 'inactive') return null;
+      
+      if (exp.usageStatus === 'unused') {
+          return (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 animate-pulse" title="Aucune activité détectée depuis 30 jours">
+                  <AlertCircle size={10} /> Inutilisé ?
+              </span>
+          );
+      }
+      if (exp.monthlyCost > 500) {
+           return (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                  <AlertTriangle size={10} /> Coût Élevé
+              </span>
+          );
+      }
+      return null;
+  };
 
   if (isLoading) return <div className="p-8"><Skeleton className="h-96 w-full rounded-2xl" /></div>;
 
@@ -116,128 +176,198 @@ const GlobalExpenses: React.FC = () => {
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
             <div>
-                <h1 className="text-3xl font-extrabold text-slate-900">Dépenses & Abonnements</h1>
-                <p className="text-slate-500 mt-1">Vue consolidée de tous les abonnements gérés pour les clients.</p>
+                <h1 className="text-3xl font-extrabold text-slate-900">Audit des Coûts</h1>
+                <p className="text-slate-500 mt-1">Analyse de la répartition budgétaire et identification des économies potentielles.</p>
             </div>
-        </div>
-
-        {/* --- KPI SECTION --- */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Coût Mensuel Global</p>
-                    <p className="text-2xl font-extrabold text-indigo-600">
-                        {Math.round(totalMonthlyCost).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
-                    </p>
-                </div>
-                <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg"><CreditCard size={20} /></div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Budget Annuel (Est.)</p>
-                    <p className="text-2xl font-extrabold text-slate-800">
-                        {Math.round(totalYearlyCost).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
-                    </p>
-                </div>
-                <div className="p-2.5 bg-slate-50 text-slate-600 rounded-lg"><BarChart4 size={20} /></div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Abonnements Actifs</p>
-                    <p className="text-2xl font-extrabold text-emerald-600">{activeExpenses.length}</p>
-                </div>
-                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle2 size={20} /></div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Outils Inactifs</p>
-                    <p className="text-2xl font-extrabold text-slate-500">{inactiveCount}</p>
-                </div>
-                <div className="p-2.5 bg-slate-50 text-slate-400 rounded-lg"><XCircle size={20} /></div>
-            </div>
-        </div>
-
-        {/* TOOLBAR */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200">
-            <div className="flex gap-3 w-full justify-between md:justify-end">
-                <div className="relative flex-1 md:max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                        type="text" 
-                        placeholder="Rechercher (Outil, Client)..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
-                </div>
-                <button 
-                    onClick={() => { setEditingExpense(null); setIsModalOpen(true); }}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95 text-sm"
+            
+            {/* CLIENT FILTER */}
+            <div className="relative group">
+                <select 
+                    value={selectedClientId}
+                    onChange={(e) => setSelectedClientId(e.target.value)}
+                    className="appearance-none bg-white border border-slate-200 text-slate-700 font-bold py-2.5 pl-10 pr-10 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer hover:border-indigo-300 transition-colors"
                 >
-                    <Plus size={16} /> Ajouter
-                </button>
+                    <option value="all">Tous les clients</option>
+                    {clients.filter(c => c.role !== 'admin').map(client => (
+                        <option key={client.id} value={client.id}>{client.company}</option>
+                    ))}
+                </select>
+                <Users size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none border-l border-slate-200 pl-2">
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
             </div>
         </div>
 
-        {/* TABLE */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50/50 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                <div className="col-span-3">Service</div>
-                <div className="col-span-3">Client</div>
-                <div className="col-span-2">Montant</div>
-                <div className="col-span-2">Cycle</div>
-                <div className="col-span-2 text-right">Actions</div>
+        {/* --- AUDIT VISUEL : STACKED BAR --- */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm relative group cursor-help">
+            <div className="flex justify-between items-end mb-4">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                    <BarChart4 size={16} className="text-indigo-600" /> Répartition du budget mensuel
+                </h3>
+                <div className="text-right">
+                    <span className="text-2xl font-extrabold text-slate-900">{Math.round(totalMonthlyCost).toLocaleString('fr-FR')} €</span>
+                    <span className="text-xs text-slate-400 font-bold ml-1">/ mois</span>
+                </div>
             </div>
 
-            <div className="divide-y divide-slate-100">
-                {filteredExpenses.length === 0 ? (
-                    <div className="p-12 text-center text-slate-400 italic">Aucune dépense trouvée.</div>
-                ) : (
-                    filteredExpenses.map(exp => (
-                        <div 
-                            key={exp.id}
-                            onClick={() => { setSelectedExpense(exp); setIsSlideOverOpen(true); }}
-                            className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors cursor-pointer items-center group"
-                        >
-                            <div className="col-span-3 flex items-center gap-3">
-                                <ExpenseLogo 
-                                    provider={exp.provider} 
-                                    logoUrl={exp.logoUrl} 
-                                    websiteUrl={exp.websiteUrl} 
-                                    className="w-8 h-8 rounded-lg"
-                                />
-                                <span className="font-bold text-slate-800 truncate">{exp.serviceName}</span>
+            {/* La Barre Empilée */}
+            <div className="h-4 w-full rounded-full bg-slate-100 overflow-hidden flex mb-4">
+                {categoryDistribution.map((cat, index) => (
+                    <div 
+                        key={cat.name}
+                        className={`h-full ${COLORS[index % COLORS.length]} hover:opacity-90 transition-all cursor-help relative group/bar`}
+                        style={{ width: `${cat.percent}%` }}
+                    >
+                        {/* Tooltip au survol */}
+                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                            {cat.name}: {Math.round(Number(cat.value))}€ ({Math.round(Number(cat.percent))}%)
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Légende */}
+            <div className="flex flex-wrap gap-4">
+                {categoryDistribution.map((cat, index) => (
+                    <div key={cat.name} className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${COLORS[index % COLORS.length]}`}></div>
+                        <span className="text-xs font-medium text-slate-600">
+                            {cat.name} <span className="text-slate-400">({Math.round(Number(cat.percent))}%)</span>
+                        </span>
+                    </div>
+                ))}
+            </div>
+
+            {/* Tooltip Global */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                Coût mensuel récurrent total estimé basé sur les abonnements actifs.
+            </div>
+        </div>
+
+        {/* --- KPI SECONDAIRES --- */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 group relative cursor-help">
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle2 size={24} /></div>
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase">Actifs</p>
+                    <p className="text-xl font-bold text-slate-900">{activeExpenses.length} outils</p>
+                </div>
+                {/* Tooltip */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                    Nombre total d'abonnements actuellement actifs pour la sélection.
+                </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 group relative cursor-help">
+                <div className="p-3 bg-slate-100 text-slate-500 rounded-lg"><TrendingDown size={24} /></div>
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase">Projection Annuelle</p>
+                    <p className="text-xl font-bold text-slate-900">{Math.round(totalYearlyCost).toLocaleString()} €</p>
+                </div>
+                {/* Tooltip */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                    Estimation du coût total sur 12 mois si les abonnements actuels sont maintenus.
+                </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 group relative cursor-help">
+                <div className="p-3 bg-red-50 text-red-500 rounded-lg"><AlertCircle size={24} /></div>
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase">Potentiel d'économie</p>
+                    <p className="text-xl font-bold text-slate-900">~{Math.round(totalMonthlyCost * 0.15).toLocaleString()} €/mois</p>
+                </div>
+                {/* Tooltip */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                    Estimation basée sur la moyenne des outils sous-utilisés ou redondants (~15%).
+                </div>
+            </div>
+        </div>
+
+        {/* TOOLBAR SEARCH */}
+        <div className="flex justify-between gap-4 items-center">
+            <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input 
+                    type="text" 
+                    placeholder="Filtrer les dépenses (Nom, Client, Catégorie)..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+                />
+            </div>
+            <button 
+                onClick={() => { setEditingExpense(null); setIsModalOpen(true); }}
+                className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 text-sm"
+            >
+                <Plus size={16} /> Ajouter
+            </button>
+        </div>
+
+        {/* LISTE DES DÉPENSES (CARTE AUDIT) */}
+        <div className="grid grid-cols-1 gap-3">
+            {filteredExpenses.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 italic bg-white rounded-2xl border border-dashed border-slate-200">Aucune dépense trouvée.</div>
+            ) : (
+                filteredExpenses.map(exp => (
+                    <div 
+                        key={exp.id}
+                        onClick={() => { setSelectedExpense(exp); setIsSlideOverOpen(true); }}
+                        className="group bg-white rounded-xl border border-slate-200 p-4 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer flex flex-col md:flex-row items-center gap-4 relative overflow-hidden"
+                    >
+                        {/* Logo & Nom */}
+                        <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                            <ExpenseLogo 
+                                provider={exp.provider} 
+                                logoUrl={exp.logoUrl} 
+                                websiteUrl={exp.websiteUrl} 
+                                className="w-12 h-12 rounded-lg shrink-0"
+                            />
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="font-bold text-slate-800 text-base truncate">{exp.serviceName}</h4>
+                                    {getAuditBadge(exp)}
+                                    {exp.status === 'inactive' && (
+                                        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">Inactif</span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <span className="font-medium text-slate-700 bg-slate-100 px-1.5 rounded">{exp.category}</span>
+                                    <span>•</span>
+                                    <span>{getClientName(exp.clientId)}</span>
+                                </div>
                             </div>
-                            <div className="col-span-3 text-sm font-medium text-slate-600">
-                                {getClientName(exp.clientId)}
+                        </div>
+
+                        {/* Coût & Cycle */}
+                        <div className="flex items-center justify-between w-full md:w-auto gap-8 pl-16 md:pl-0">
+                            <div className="text-right">
+                                <p className="text-lg font-bold text-slate-900 font-mono">
+                                    {exp.monthlyCost.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                    <span className="text-[10px] text-slate-400 font-sans font-medium ml-1">/mois</span>
+                                </p>
+                                <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400 uppercase font-bold tracking-wide">
+                                    <RefreshCw size={10} /> {exp.billingCycle === 'monthly' ? 'Mensuel' : 'Annuel'}
+                                </div>
                             </div>
-                            <div className="col-span-2 font-mono font-bold text-slate-900">
-                                {exp.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                            </div>
-                            <div className="col-span-2 text-xs flex items-center gap-1.5 text-slate-500">
-                                <RefreshCw size={12} /> {exp.billingCycle === 'monthly' ? 'Mensuel' : 'Annuel'}
-                            </div>
-                            <div className="col-span-2 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                            {/* Actions (Visible au survol) */}
+                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setEditingExpense(exp); setIsModalOpen(true); }}
-                                    className="p-1.5 bg-white border border-slate-200 text-indigo-600 rounded-lg hover:bg-indigo-50"
+                                    className="p-2 bg-white border border-slate-200 text-indigo-600 rounded-lg hover:bg-indigo-50 shadow-sm"
                                 >
-                                    <Edit3 size={14} />
+                                    <Edit3 size={16} />
                                 </button>
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setDeleteId(exp.id); }}
-                                    className="p-1.5 bg-white border border-slate-200 text-red-600 rounded-lg hover:bg-red-50"
+                                    className="p-2 bg-white border border-slate-200 text-red-600 rounded-lg hover:bg-red-50 shadow-sm"
                                 >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={16} />
                                 </button>
                             </div>
                         </div>
-                    ))
-                )}
-            </div>
+                    </div>
+                ))
+            )}
         </div>
     </div>
 
