@@ -177,6 +177,7 @@ export interface CRMField {
 export interface Lead {
   id: string;
   created_at: string;
+  updated_at?: string; // FIX: Ajout du champ manquant
   first_name: string;
   last_name: string;
   company: string;
