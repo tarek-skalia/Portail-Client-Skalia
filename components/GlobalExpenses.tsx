@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Expense } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAdmin } from './AdminContext';
-import { CreditCard, Search, Plus, Edit3, Trash2, AlertTriangle, RefreshCw, BarChart4, CheckCircle2, XCircle, AlertCircle, TrendingDown, Users } from 'lucide-react';
+import { CreditCard, Search, Plus, Edit3, Trash2, AlertTriangle, RefreshCw, BarChart4, CheckCircle2, TrendingDown, Users } from 'lucide-react';
 import Skeleton from './Skeleton';
 import ExpenseSlideOver from './ExpenseSlideOver';
 import Modal from './ui/Modal';
@@ -14,7 +14,6 @@ import ExpenseLogo from './ExpenseLogo';
 // Extension pour l'UI d'audit
 interface ExpenseWithAudit extends Expense {
     monthlyCost: number; // Coût normalisé
-    usageStatus: 'active' | 'low_usage' | 'unused'; // Simulé pour l'exemple
 }
 
 const GlobalExpenses: React.FC = () => {
@@ -61,15 +60,6 @@ const GlobalExpenses: React.FC = () => {
             const amount = Number(item.amount || 0);
             const monthly = item.billing_cycle === 'yearly' ? amount / 12 : amount;
             
-            // Simulation logique "Inutilisé ?" pour la démo UI (car pas de last_login en base pour l'instant)
-            // Dans un vrai cas, on comparerait item.last_used_at avec Date.now() - 30j
-            let auditStatus: 'active' | 'low_usage' | 'unused' = 'active';
-            if (item.status === 'active') {
-                // Random pour la démo visuelle sur certains outils
-                if (Math.random() > 0.8) auditStatus = 'unused'; 
-                else if (Math.random() > 0.7) auditStatus = 'low_usage';
-            }
-
             return {
                 id: item.id,
                 clientId: item.user_id,
@@ -83,8 +73,7 @@ const GlobalExpenses: React.FC = () => {
                 description: item.description,
                 websiteUrl: item.website_url,
                 logoUrl: item.logo_url,
-                monthlyCost: monthly,
-                usageStatus: auditStatus
+                monthlyCost: monthly
             };
         });
 
@@ -147,26 +136,6 @@ const GlobalExpenses: React.FC = () => {
 
   const COLORS = ['bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-amber-500', 'bg-emerald-500', 'bg-blue-500', 'bg-slate-400'];
 
-  const getAuditBadge = (exp: ExpenseWithAudit) => {
-      if (exp.status === 'inactive') return null;
-      
-      if (exp.usageStatus === 'unused') {
-          return (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 animate-pulse" title="Aucune activité détectée depuis 30 jours">
-                  <AlertCircle size={10} /> Inutilisé ?
-              </span>
-          );
-      }
-      if (exp.monthlyCost > 500) {
-           return (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                  <AlertTriangle size={10} /> Coût Élevé
-              </span>
-          );
-      }
-      return null;
-  };
-
   if (isLoading) return <div className="p-8"><Skeleton className="h-96 w-full rounded-2xl" /></div>;
 
   return (
@@ -177,7 +146,7 @@ const GlobalExpenses: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
             <div>
                 <h1 className="text-3xl font-extrabold text-slate-900">Audit des Coûts</h1>
-                <p className="text-slate-500 mt-1">Analyse de la répartition budgétaire et identification des économies potentielles.</p>
+                <p className="text-slate-500 mt-1">Analyse de la répartition budgétaire de l'infrastructure.</p>
             </div>
             
             {/* CLIENT FILTER */}
@@ -246,7 +215,7 @@ const GlobalExpenses: React.FC = () => {
         </div>
 
         {/* --- KPI SECONDAIRES --- */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 group relative cursor-help">
                 <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle2 size={24} /></div>
                 <div>
@@ -267,17 +236,6 @@ const GlobalExpenses: React.FC = () => {
                 {/* Tooltip */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
                     Estimation du coût total sur 12 mois si les abonnements actuels sont maintenus.
-                </div>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 group relative cursor-help">
-                <div className="p-3 bg-red-50 text-red-500 rounded-lg"><AlertCircle size={24} /></div>
-                <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Potentiel d'économie</p>
-                    <p className="text-xl font-bold text-slate-900">~{Math.round(totalMonthlyCost * 0.15).toLocaleString()} €/mois</p>
-                </div>
-                {/* Tooltip */}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Estimation basée sur la moyenne des outils sous-utilisés ou redondants (~15%).
                 </div>
             </div>
         </div>
@@ -324,7 +282,6 @@ const GlobalExpenses: React.FC = () => {
                             <div className="min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                     <h4 className="font-bold text-slate-800 text-base truncate">{exp.serviceName}</h4>
-                                    {getAuditBadge(exp)}
                                     {exp.status === 'inactive' && (
                                         <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">Inactif</span>
                                     )}
