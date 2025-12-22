@@ -314,7 +314,7 @@ const App: React.FC = () => {
       if (event === 'SIGNED_IN') localStorage.removeItem('skalia_last_page');
       
       // Gestion spécifique si le refresh token est révoqué
-      if (event === 'TOKEN_REFRESH_REVOKED') {
+      if ((event as string) === 'TOKEN_REFRESH_REVOKED') {
           console.warn("Token Refresh Revoked - Force Logout");
           await supabase.auth.signOut();
           setIsAuthenticated(false);
