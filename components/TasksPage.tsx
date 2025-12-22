@@ -4,8 +4,7 @@ import { supabase } from '../lib/supabase';
 import { 
     Check, Plus, User, Briefcase, Calendar as CalendarIcon, Trash2, Filter, 
     AlertCircle, LayoutList, Building, Search, X, CheckCircle2,
-    Briefcase as ProjectIcon, Layers, Clock, CalendarDays, ChevronLeft, ChevronRight,
-    AlertTriangle
+    Briefcase as ProjectIcon, Layers, Clock, CalendarDays, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { PROJECT_OWNERS } from '../constants';
@@ -55,10 +54,8 @@ const TasksPage: React.FC = () => {
     // LISTES POUR DROPDOWNS
     const [availableProjects, setAvailableProjects] = useState<any[]>([]);
 
-    // MODAL CREATION & DELETE
+    // MODAL CREATION
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [taskToDelete, setTaskToDelete] = useState<UnifiedTask | null>(null); // Pour la modale de suppression
-    
     const [newTask, setNewTask] = useState({
         title: '',
         context: 'internal' as 'internal' | 'project',
@@ -72,7 +69,6 @@ const TasksPage: React.FC = () => {
         taskType: 'agency' as 'agency' | 'client'
     });
     const [isSaving, setIsSaving] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -232,35 +228,15 @@ const TasksPage: React.FC = () => {
         }
     };
 
-    const handleDeleteClick = (e: React.MouseEvent, task: UnifiedTask) => {
-        e.stopPropagation();
-        setTaskToDelete(task);
-    };
+    const deleteTask = async (task: UnifiedTask) => {
+        if (!window.confirm("Supprimer cette tâche ?")) return;
 
-    const executeDelete = async () => {
-        if (!taskToDelete) return;
-        setIsDeleting(true);
-
-        // Optimistic UI update
-        const previousTasks = [...tasks];
-        setTasks(prev => prev.filter(t => t.id !== taskToDelete.id));
-
-        try {
-            if (taskToDelete.origin === 'internal') {
-                await supabase.from('internal_tasks').delete().eq('id', taskToDelete.id);
-            } else {
-                await supabase.from('project_tasks').delete().eq('id', taskToDelete.id);
-            }
-            toast.info("Supprimé", "La tâche a été retirée.");
-        } catch (error) {
-            // Rollback en cas d'erreur
-            setTasks(previousTasks);
-            toast.error("Erreur", "Impossible de supprimer la tâche.");
-            console.error(error);
-        } finally {
-            setIsDeleting(false);
-            setTaskToDelete(null);
+        if (task.origin === 'internal') {
+            await supabase.from('internal_tasks').delete().eq('id', task.id);
+        } else {
+            await supabase.from('project_tasks').delete().eq('id', task.id);
         }
+        toast.info("Supprimé", "Tâche retirée.");
     };
 
     // --- FILTRAGE AVANCÉ ---
@@ -567,7 +543,7 @@ const TasksPage: React.FC = () => {
                                                 )}
 
                                                 <button 
-                                                    onClick={(e) => handleDeleteClick(e, task)}
+                                                    onClick={() => deleteTask(task)}
                                                     className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all ml-2"
                                                 >
                                                     <Trash2 size={16} />
@@ -822,34 +798,6 @@ const TasksPage: React.FC = () => {
                         </button>
                     </div>
                 </form>
-            </Modal>
-
-            {/* MODAL SUPPRESSION */}
-            <Modal isOpen={!!taskToDelete} onClose={() => setTaskToDelete(null)} title="Supprimer la tâche ?" maxWidth="max-w-md">
-                <div className="text-center p-4">
-                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <AlertTriangle size={32} />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-900 mb-2">Êtes-vous sûr ?</h3>
-                    <p className="text-slate-500 text-sm mb-6">
-                        Cette action est irréversible.
-                    </p>
-                    <div className="flex gap-3 justify-center">
-                        <button 
-                            onClick={() => setTaskToDelete(null)}
-                            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
-                        >
-                            Annuler
-                        </button>
-                        <button 
-                            onClick={executeDelete}
-                            disabled={isDeleting}
-                            className="px-4 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors shadow-md shadow-red-200 flex items-center gap-2"
-                        >
-                            {isDeleting ? 'Suppression...' : 'Confirmer'}
-                        </button>
-                    </div>
-                </div>
             </Modal>
         </div>
     );

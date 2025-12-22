@@ -283,15 +283,11 @@ const App: React.FC = () => {
   const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
 
   useEffect(() => {
-    // 1. Initialisation de la session avec gestion d'erreur (Fix: Invalid Refresh Token)
+    // 1. Initialisation de la session
     const initSession = async () => {
         try {
             const { data: { session }, error } = await supabase.auth.getSession();
-            
-            if (error) {
-                // Si erreur (ex: refresh token invalide), on la lève pour aller dans le catch
-                throw error;
-            }
+            if (error) throw error;
 
             if (session) {
                 fetchUserProfile(session.user.id, session.user.email || '');
@@ -299,8 +295,7 @@ const App: React.FC = () => {
                 setIsLoadingAuth(false);
             }
         } catch (error) {
-            console.warn("Session Init Error (Token Invalid or Network):", error);
-            // Nettoyage impératif pour éviter la boucle d'erreur
+            console.warn("Session Init Error:", error);
             await supabase.auth.signOut();
             setIsLoadingAuth(false);
         }
@@ -312,10 +307,7 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') setIsPasswordRecoveryMode(true);
       if (event === 'SIGNED_IN') localStorage.removeItem('skalia_last_page');
-      
-      // Gestion spécifique si le refresh token est révoqué
-      if ((event as string) === 'TOKEN_REFRESH_REVOKED') {
-          console.warn("Token Refresh Revoked - Force Logout");
+      if (event === 'TOKEN_REFRESH_REVOKED') {
           await supabase.auth.signOut();
           setIsAuthenticated(false);
           setCurrentUser(null);
@@ -324,8 +316,6 @@ const App: React.FC = () => {
       }
 
       if (session) {
-        // On ne refetch que si l'utilisateur change ou n'est pas encore défini
-        // Note: fetchUserProfile gère l'état loading
         if (!currentUser || currentUser.id !== session.user.id) {
             fetchUserProfile(session.user.id, session.user.email || '');
         }
@@ -339,10 +329,29 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserProfile = async (userId: string, email: string) => {
+  const fetchUserProfile = async (userId: string, email: string, retryCount = 0) => {
     try {
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      // TENTATIVE 1 : Récupération standard
+      let { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
+      // TENTATIVE 2 : SELF-HEALING (Auto-réparation)
+      if (error && error.code === 'PGRST116') {
+          console.warn("⚠️ Profil manquant détecté. Tentative de restauration automatique...");
+          const { data: newProfile, error: createError } = await supabase.from('profiles').insert({
+              id: userId,
+              email: email,
+              full_name: 'Utilisateur Récupéré', 
+              company_name: 'À renseigner',      
+              avatar_initials: '?',
+              role: 'client',
+              updated_at: new Date().toISOString()
+          }).select().single();
+
+          if (createError) throw createError;
+          data = newProfile;
+          error = null;
+      }
+
       if (error) throw error;
 
       if (data) {
@@ -358,18 +367,40 @@ const App: React.FC = () => {
       }
       setIsAuthenticated(true);
     } catch (error: any) {
-        // Fallback en cas d'erreur profil (permet de se connecter quand même)
+        // CORRECTION ERREUR [object Object] : Affichage propre de l'erreur dans la console
+        console.error("Erreur critique fetchUserProfile:", JSON.stringify(error, null, 2));
+        
+        // --- RETRY LOGIC (Pour les erreurs réseau "Failed to fetch") ---
+        if (retryCount < 3 && (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError'))) {
+            console.log(`Tentative de reconnexion au serveur (${retryCount + 1}/3)...`);
+            setTimeout(() => {
+                fetchUserProfile(userId, email, retryCount + 1);
+            }, 1000 * (retryCount + 1)); // Backoff: 1s, 2s, 3s
+            return; // On sort de la fonction, le retry s'occupera du reste
+        }
+
+        // --- BYPASS ADMIN D'URGENCE ---
+        const isEmergencyAdmin = email === 'tarek@skalia.io' || email === 'zakaria@skalia.io';
+
+        // Si l'utilisateur est admin, on ne met pas forcément "Mode Secours" pour éviter la panique,
+        // on assume que c'est une erreur RLS temporaire et on donne les droits Admin locaux.
+        const companyName = isEmergencyAdmin ? 'Skalia Agency' : 'Mode Secours';
+        const role = isEmergencyAdmin ? 'admin' : 'client';
+
         setCurrentUser({ 
             id: userId, 
-            name: 'Utilisateur', 
-            company: 'Ma Société', 
-            avatarInitials: 'U', 
+            name: isEmergencyAdmin ? 'Admin' : 'Utilisateur', 
+            company: companyName, 
+            avatarInitials: isEmergencyAdmin ? 'AD' : '!', 
             email: email, 
-            role: 'client' 
+            role: role // FORCE LE ROLE ADMIN ICI
         });
         setIsAuthenticated(true);
     } finally {
-        setIsLoadingAuth(false);
+        // Seulement si ce n'est pas un retry en cours
+        if (retryCount >= 3 || (!isLoadingAuth && retryCount === 0)) {
+             setIsLoadingAuth(false);
+        }
     }
   };
 

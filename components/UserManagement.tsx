@@ -155,23 +155,52 @@ const UserManagement: React.FC = () => {
               toast.success("Mis à jour", "Le profil a été modifié.");
 
           } else {
+              // --- CRÉATION NOUVEAU CLIENT ---
               const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
               });
 
+              let newUserId = null;
+
+              // 1. TENTATIVE DE SIGN UP
               const { data: authData, error: authError } = await tempClient.auth.signUp({
                   email: formData.email,
                   password: formData.password,
               });
 
-              if (authError) throw authError;
-              
-              const newUserId = authData.user?.id;
-              if (!newUserId) throw new Error("L'utilisateur Auth n'a pas pu être créé.");
+              if (authError) {
+                  // --- AUTO-RECOVERY STRATEGY ---
+                  // Si l'utilisateur existe déjà, on tente de se connecter pour récupérer son ID
+                  if (authError.message.includes("already registered")) {
+                      
+                      const { data: signInData, error: signInError } = await tempClient.auth.signInWithPassword({
+                          email: formData.email,
+                          password: formData.password,
+                      });
 
-              const { error: profileError } = await supabase
+                      if (signInData.user) {
+                          newUserId = signInData.user.id;
+                          toast.info("Compte existant détecté", "Restauration du profil en cours...");
+                      } else {
+                          throw new Error("Un compte existe déjà avec cet email, mais le mot de passe est différent.");
+                      }
+                  } else {
+                      throw authError;
+                  }
+              } else {
+                  newUserId = authData.user?.id;
+              }
+              
+              if (!newUserId) throw new Error("L'identifiant utilisateur n'a pas pu être généré.");
+
+              // 2. CRÉATION / RESTAURATION DU PROFIL (UPSERT)
+              // IMPORTANT : Si on a une session sur tempClient (nouvel utilisateur connecté), on l'utilise pour créer le profil.
+              // Cela permet de passer la règle RLS "Users can insert their own profile" sans avoir besoin de droits Admin spéciaux.
+              const profileClient = authData?.session ? tempClient : supabase;
+
+              const { error: profileError } = await profileClient
                 .from('profiles')
-                .insert({
+                .upsert({
                     id: newUserId,
                     email: formData.email,
                     full_name: formData.fullName,
@@ -179,32 +208,27 @@ const UserManagement: React.FC = () => {
                     avatar_initials: formData.fullName.substring(0, 2).toUpperCase(),
                     role: formData.role,
                     stripe_customer_id: formData.stripeCustomerId || null,
-                    logo_url: formData.website || null
-                });
+                    logo_url: formData.website || null,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' });
 
               if (profileError) {
-                  if (profileError.code === '23505') {
-                       await supabase.from('profiles').update({
-                            full_name: formData.fullName,
-                            company_name: formData.companyName,
-                            role: formData.role,
-                            stripe_customer_id: formData.stripeCustomerId || null,
-                            logo_url: formData.website || null,
-                            avatar_initials: formData.fullName.substring(0, 2).toUpperCase(),
-                       }).eq('id', newUserId);
-                  } else {
-                      throw profileError;
-                  }
+                  console.error("Erreur création profil:", profileError);
+                  throw new Error(`Erreur permission (RLS) : ${profileError.message}. L'utilisateur Auth est créé, mais pas le profil.`);
               }
 
-              toast.success("Utilisateur créé", "Compte Auth & Profil générés.");
-              if (!authData.session) setTimeout(() => toast.info("Info", "Email de confirmation envoyé."), 1500);
+              toast.success("Client opérationnel", "Le compte et le profil sont actifs.");
+              // Si c'est une vraie création (pas une récup), authData.session peut être null si confirm required
+              if (authData?.user && !authData?.session && !newUserId) {
+                   toast.info("Info", "Email de confirmation envoyé.");
+              }
           }
 
           setIsModalOpen(false);
           fetchUsers();
 
       } catch (err: any) {
+          console.error(err);
           toast.error("Erreur", err.message || "Echec de l'opération.");
       } finally {
           setIsSubmitting(false);
@@ -215,7 +239,7 @@ const UserManagement: React.FC = () => {
   const handleCreate = () => { setEditingUser(null); setIsModalOpen(true); };
   
   const handleDelete = async (id: string) => {
-      if (window.confirm("Supprimer cet utilisateur ? Cette action est irréversible.")) {
+      if (window.confirm("Supprimer cet utilisateur ? Cette action masque le client du dashboard mais conserve le compte de connexion (Auth).")) {
           const { error } = await supabase.from('profiles').delete().eq('id', id);
           if (error) toast.error("Erreur", "Impossible de supprimer.");
           else { toast.success("Supprimé", "Utilisateur retiré."); fetchUsers(); }
