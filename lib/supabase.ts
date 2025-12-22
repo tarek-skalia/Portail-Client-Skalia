@@ -125,6 +125,35 @@ export interface Database {
           created_at?: string
         }
       }
+      internal_tasks: {
+        Row: {
+          id: string
+          title: string
+          assignee: string | null
+          priority: 'low' | 'medium' | 'high'
+          due_date: string | null
+          completed: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          assignee?: string | null
+          priority?: 'low' | 'medium' | 'high'
+          due_date?: string | null
+          completed?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          assignee?: string | null
+          priority?: 'low' | 'medium' | 'high'
+          due_date?: string | null
+          completed?: boolean
+          created_at?: string
+        }
+      }
       automations: {
         Row: {
           id: string

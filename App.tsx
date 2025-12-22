@@ -15,7 +15,8 @@ import GlobalProjects from './components/GlobalProjects';
 import GlobalFinance from './components/GlobalFinance';
 import GlobalAutomations from './components/GlobalAutomations';
 import GlobalExpenses from './components/GlobalExpenses';
-import CRMPage from './components/CRMPage'; // Import CRM
+import CRMPage from './components/CRMPage'; 
+import TasksPage from './components/TasksPage'; // Import TasksPage
 import UserManagement from './components/UserManagement';
 import LoginPage from './components/LoginPage';
 import UpdatePasswordPage from './components/UpdatePasswordPage';
@@ -209,10 +210,11 @@ const AppContent: React.FC<{
             switch (activePage) {
                 case 'global_view': return <GlobalDashboard initialTicketId={autoOpenTicketId} />;
                 case 'global_projects': return <GlobalProjects />;
+                case 'global_tasks': return <TasksPage />; // Nouvelle page Tâches
                 case 'global_finance': return <GlobalFinance />;
                 case 'global_automations': return <GlobalAutomations />;
                 case 'global_expenses': return <GlobalExpenses />;
-                case 'crm': return <CRMPage />; // Nouvelle page CRM
+                case 'crm': return <CRMPage />;
                 case 'users': return <UserManagement />;
                 default: return <GlobalDashboard />;
             }
@@ -281,20 +283,52 @@ const App: React.FC = () => {
   const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        fetchUserProfile(session.user.id, session.user.email || '');
-      } else {
-        setIsLoadingAuth(false);
-      }
-    });
+    // 1. Initialisation de la session avec gestion d'erreur (Fix: Invalid Refresh Token)
+    const initSession = async () => {
+        try {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error) {
+                // Si erreur (ex: refresh token invalide), on la lève pour aller dans le catch
+                throw error;
+            }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                fetchUserProfile(session.user.id, session.user.email || '');
+            } else {
+                setIsLoadingAuth(false);
+            }
+        } catch (error) {
+            console.warn("Session Init Error (Token Invalid or Network):", error);
+            // Nettoyage impératif pour éviter la boucle d'erreur
+            await supabase.auth.signOut();
+            setIsLoadingAuth(false);
+        }
+    };
+
+    initSession();
+
+    // 2. Écouteur d'état
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') setIsPasswordRecoveryMode(true);
       if (event === 'SIGNED_IN') localStorage.removeItem('skalia_last_page');
+      
+      // Gestion spécifique si le refresh token est révoqué
+      if (event === 'TOKEN_REFRESH_REVOKED') {
+          console.warn("Token Refresh Revoked - Force Logout");
+          await supabase.auth.signOut();
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+          setIsLoadingAuth(false);
+          return;
+      }
 
       if (session) {
-        fetchUserProfile(session.user.id, session.user.email || '');
+        // On ne refetch que si l'utilisateur change ou n'est pas encore défini
+        // Note: fetchUserProfile gère l'état loading
+        if (!currentUser || currentUser.id !== session.user.id) {
+            fetchUserProfile(session.user.id, session.user.email || '');
+        }
       } else {
         setCurrentUser(null);
         setIsAuthenticated(false);
@@ -324,6 +358,7 @@ const App: React.FC = () => {
       }
       setIsAuthenticated(true);
     } catch (error: any) {
+        // Fallback en cas d'erreur profil (permet de se connecter quand même)
         setCurrentUser({ 
             id: userId, 
             name: 'Utilisateur', 

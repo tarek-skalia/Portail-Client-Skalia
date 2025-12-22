@@ -14,7 +14,8 @@ import {
   Briefcase,
   PieChart,
   Target,
-  Layers
+  Layers,
+  CheckSquare
 } from 'lucide-react';
 import { MenuItem, ChartDataPoint, Client, Automation, Ticket, Invoice, Expense, Project } from './types';
 
@@ -34,8 +35,9 @@ export const MENU_ITEMS: MenuItem[] = [
 export const ADMIN_MENU_ITEMS: MenuItem[] = [
   { id: 'global_view', label: 'Vue Globale Agence', icon: <Globe size={20} /> },
   { id: 'global_projects', label: 'Opérations (Projets)', icon: <Briefcase size={20} /> },
-  { id: 'global_automations', label: 'Systèmes (Autos)', icon: <Zap size={20} /> }, // NOUVEAU
-  { id: 'global_expenses', label: 'Dépenses Clients', icon: <CreditCard size={20} /> }, // NOUVEAU
+  { id: 'global_tasks', label: 'Tâches & To-Do', icon: <CheckSquare size={20} /> }, // NOUVEAU
+  { id: 'global_automations', label: 'Systèmes (Autos)', icon: <Zap size={20} /> },
+  { id: 'global_expenses', label: 'Dépenses Clients', icon: <CreditCard size={20} /> },
   { id: 'global_finance', label: 'Finance & Tréso', icon: <PieChart size={20} /> },
   { id: 'crm', label: 'CRM & Leads', icon: <Target size={20} /> },
   { id: 'users', label: 'Annuaire Clients', icon: <Users size={20} /> },
