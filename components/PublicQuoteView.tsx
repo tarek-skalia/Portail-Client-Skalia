@@ -1,11 +1,15 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
-import { Check, Download, AlertCircle, FileText, Calendar, DollarSign, PenTool, CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, Zap, Target, Users, ShieldCheck, Star } from 'lucide-react';
+import { 
+    Check, Download, AlertCircle, FileText, Calendar, DollarSign, PenTool, 
+    CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
+    Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit
+} from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
 
-// --- DATA HARDCODÉE AGENCE (Pour le Storytelling) ---
+// --- DATA STATIC (PDF CONTENT) ---
 const AGENCY_TEAM = [
     {
         name: 'Zakaria Jellouli',
@@ -24,6 +28,24 @@ const METHODOLOGY_STEPS = [
     { num: '02', title: 'Réalisation', desc: 'Construction des flux, intégration IA et tests rigoureux.' },
     { num: '03', title: 'Livraison', desc: 'Démonstration, transfert de propriété et formation.' },
     { num: '04', title: 'Support', desc: 'Maintenance continue et ajustements post-lancement.' },
+];
+
+const SKALIA_EXPERTISE = [
+    {
+        title: "Automatisation & Intégration",
+        desc: "Conception de systèmes complets qui connectent vos outils et optimisent vos processus de bout en bout.",
+        icon: <Zap size={20} />
+    },
+    {
+        title: "Agents IA sur mesure",
+        desc: "Développement d’agents intelligents capables de traiter vos tâches complexes comme de vrais collaborateurs.",
+        icon: <BrainCircuit size={20} />
+    },
+    {
+        title: "Formation en entreprise",
+        desc: "Transmission des savoir-faire pour assurer l’adoption et l’utilisation optimale des solutions.",
+        icon: <Users size={20} />
+    }
 ];
 
 // Helper pour formatage
@@ -220,151 +242,233 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const companyName = quote.profile?.company_name || quote.recipient_company || 'votre entreprise';
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans selection:bg-indigo-200 selection:text-indigo-900">
+        <div className="min-h-screen bg-white font-sans selection:bg-indigo-200 selection:text-indigo-900 overflow-x-hidden">
             
-            {/* --- HERO SECTION IMMERSIVE (Style PDF Skalia) --- */}
-            <header className="relative bg-gradient-to-br from-[#2E1065] to-[#4C1D95] text-white overflow-hidden min-h-[90vh] flex flex-col justify-center">
-                {/* Abstract Waves Background */}
-                <div className="absolute inset-0 opacity-20 pointer-events-none">
-                    <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] border-[40px] border-white/10 rounded-full animate-pulse"></div>
-                    <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] border-[60px] border-white/5 rounded-full"></div>
-                    <div className="absolute top-[40%] right-[20%] w-[200px] h-[200px] bg-indigo-500/30 blur-[100px]"></div>
+            {/* --- HERO SECTION IMMERSIVE (Style PDF Skalia + Tech) --- */}
+            <header className="relative bg-[#0F0A1F] text-white min-h-[90vh] flex flex-col justify-center overflow-hidden">
+                
+                {/* Tech Background Grid & Glows */}
+                <div className="absolute inset-0 pointer-events-none">
+                    {/* Grid Pattern */}
+                    <div className="absolute inset-0 opacity-10" 
+                         style={{ backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
+                    </div>
+                    {/* Glowing Orbs */}
+                    <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-purple-700/20 rounded-full blur-[120px] animate-pulse"></div>
+                    <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[100px]"></div>
                 </div>
 
-                <div className="max-w-5xl mx-auto px-6 relative z-10 w-full">
-                    {/* Logo & Date */}
-                    <div className="flex justify-between items-start mb-16 opacity-0 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+                <div className="max-w-6xl mx-auto px-6 relative z-10 w-full flex flex-col h-full justify-center py-20">
+                    
+                    {/* Top Bar */}
+                    <div className="absolute top-8 left-6 right-6 flex justify-between items-start animate-fade-in">
                         <Logo className="w-12 h-12" classNameText="text-2xl" showText={true} />
-                        <div className="text-right text-indigo-200 text-sm font-medium">
-                            <p>Proposition émise le</p>
-                            <p className="text-white font-bold">{new Date(quote.created_at).toLocaleDateString()}</p>
+                        <div className="text-right text-indigo-300/80 text-xs font-mono border border-white/10 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm">
+                            <p>REF: {quote.id.slice(0,8).toUpperCase()}</p>
+                            <p>{new Date(quote.created_at).toLocaleDateString()}</p>
                         </div>
                     </div>
 
-                    {/* Main Title */}
-                    <div className="max-w-3xl">
-                        <div className="inline-block px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-indigo-200 text-sm font-bold uppercase tracking-widest mb-6 opacity-0 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-                            Offre de projet sur mesure
+                    {/* Main Title Content */}
+                    <div className="max-w-4xl mt-12">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold uppercase tracking-widest mb-8 animate-fade-in-up">
+                            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                            Proposition de Projet
                         </div>
-                        <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-6 opacity-0 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
-                            Accélérez la croissance de <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-purple-300">{companyName}</span>.
+                        
+                        <h1 className="text-5xl md:text-7xl font-bold leading-none tracking-tight mb-6 animate-fade-in-up delay-100">
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-indigo-300">
+                                {quote.title}
+                            </span>
                         </h1>
-                        <p className="text-xl text-indigo-100/80 max-w-2xl leading-relaxed opacity-0 animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
-                            {quote.description || "Nous avons conçu une solution d'automatisation intelligente pour libérer votre potentiel et éliminer les tâches répétitives."}
-                        </p>
+                        
+                        <div className="flex items-center gap-4 animate-fade-in-up delay-200">
+                            <div className="h-px w-12 bg-indigo-500"></div>
+                            <p className="text-2xl md:text-3xl text-indigo-200 font-light">
+                                Pour <span className="font-bold text-white">{companyName}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Footer Contact Info (Hud Style) */}
+                    <div className="mt-20 md:absolute md:bottom-12 md:left-6 md:mt-0 animate-fade-in delay-300">
+                        <div className="flex flex-col md:flex-row gap-6 md:gap-12 text-sm text-indigo-200/70 border-t md:border-t-0 md:border-l border-white/10 pt-6 md:pt-0 md:pl-6">
+                            
+                            <div className="space-y-1">
+                                <p className="font-bold text-white mb-2 uppercase tracking-wider text-xs">Agence</p>
+                                <div className="flex items-center gap-2"><MapPin size={14} /> Quai Banning 6, 4000 Liège</div>
+                                <div className="flex items-center gap-2"><Hash size={14} /> BE1023214594</div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <p className="font-bold text-white mb-2 uppercase tracking-wider text-xs">Contact</p>
+                                <a href="tel:+32465580790" className="flex items-center gap-2 hover:text-white transition-colors"><Phone size={14} /> +32 465 58 07 90</a>
+                                <a href="mailto:contact@skalia.io" className="flex items-center gap-2 hover:text-white transition-colors"><Mail size={14} /> contact@skalia.io</a>
+                                <a href="https://skalia.io" target="_blank" className="flex items-center gap-2 hover:text-white transition-colors"><Globe size={14} /> skalia.io</a>
+                            </div>
+
+                        </div>
                     </div>
 
                     {/* Scroll Indicator */}
-                    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce opacity-0 animate-fade-in" style={{ animationDelay: '1.5s' }}>
-                        <ArrowRight className="rotate-90 text-indigo-300/50" size={32} />
+                    <div className="hidden md:block absolute bottom-12 right-6 animate-bounce text-indigo-400 opacity-50">
+                        <ArrowRight className="rotate-90" size={24} />
                     </div>
                 </div>
             </header>
 
-            {/* --- SECTION ÉQUIPE & VALEURS (Glassmorphism Light) --- */}
-            <section className="py-24 bg-white relative overflow-hidden">
-                <div className="max-w-5xl mx-auto px-6">
-                    <div className="flex flex-col md:flex-row gap-16 items-start">
-                        
-                        {/* Text Content */}
-                        <div className="flex-1 space-y-8">
-                            <h2 className="text-4xl font-bold text-slate-900">
-                                L'équipe <span className="text-indigo-600">Skalia</span>.
-                            </h2>
-                            <p className="text-lg text-slate-600 leading-relaxed">
-                                Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner en clarté en automatisant leurs processus avec l’intelligence artificielle. 
-                            </p>
-                            
-                            <div className="grid grid-cols-1 gap-6 mt-8">
-                                {[
-                                    { icon: Zap, title: "Réactivité", desc: "Des solutions déployées en quelques jours, pas des mois." },
-                                    { icon: ShieldCheck, title: "Transparence", desc: "Pas de coûts cachés, code documenté et accessible." },
-                                    { icon: Target, title: "Innovation", desc: "Les dernières technologies IA au service de votre business." }
-                                ].map((val, i) => (
-                                    <div key={i} className="flex items-start gap-4 p-4 rounded-xl hover:bg-slate-50 transition-colors">
-                                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
-                                            <val.icon size={24} />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-slate-900">{val.title}</h4>
-                                            <p className="text-sm text-slate-500 mt-1">{val.desc}</p>
-                                        </div>
-                                    </div>
-                                ))}
+            {/* --- SECTION 2 : LE PROJET (Description Détaillée) --- */}
+            <section className="py-20 bg-slate-50 relative">
+                <div className="max-w-4xl mx-auto px-6 relative z-10">
+                    <div className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100">
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                                <Target size={24} />
                             </div>
+                            <h2 className="text-3xl font-bold text-slate-900">Le Projet</h2>
                         </div>
+                        
+                        <div className="prose prose-lg text-slate-600 leading-relaxed whitespace-pre-line">
+                            {quote.description || "Aucune description détaillée disponible pour ce projet."}
+                        </div>
+                    </div>
+                </div>
+                {/* Decor */}
+                <div className="absolute top-1/2 left-0 w-64 h-64 bg-indigo-100/50 rounded-full blur-[80px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
+            </section>
 
-                        {/* Team Cards */}
-                        <div className="w-full md:w-auto flex flex-col sm:flex-row gap-6">
-                            {AGENCY_TEAM.map((member, i) => (
-                                <div key={i} className="group relative w-full sm:w-48 aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl">
-                                    <img src={member.img} alt={member.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90"></div>
-                                    <div className="absolute bottom-0 left-0 w-full p-4 text-white">
-                                        <p className="font-bold text-lg">{member.name}</p>
-                                        <p className="text-xs text-indigo-300 font-medium uppercase tracking-wider">{member.role}</p>
+            {/* --- SECTION 3 : SKALIA (Expertise & Team) --- */}
+            <section className="py-24 bg-white relative overflow-hidden">
+                <div className="max-w-6xl mx-auto px-6">
+                    
+                    <div className="text-center max-w-3xl mx-auto mb-20">
+                        <h2 className="text-4xl font-bold text-slate-900 mb-6">
+                            L'expertise <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Skalia</span>.
+                        </h2>
+                        <p className="text-lg text-slate-600 leading-relaxed">
+                            Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner en clarté en automatisant leurs processus avec l’intelligence artificielle. Notre approche pragmatique transforme la complexité en solutions simples.
+                        </p>
+                    </div>
+
+                    {/* Savoir-Faire Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+                        {SKALIA_EXPERTISE.map((exp, i) => (
+                            <div key={i} className="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-indigo-100 hover:shadow-lg transition-all group">
+                                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm mb-6 group-hover:scale-110 transition-transform duration-300">
+                                    {exp.icon}
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-900 mb-3">{exp.title}</h3>
+                                <p className="text-slate-500 leading-relaxed text-sm">
+                                    {exp.desc}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Team & Values Split */}
+                    <div className="flex flex-col md:flex-row gap-16 items-center">
+                        {/* Values */}
+                        <div className="flex-1 space-y-6">
+                            <h3 className="text-2xl font-bold text-slate-900 mb-6">Nos Valeurs</h3>
+                            {[
+                                { title: "Réactivité", desc: "Des solutions déployées rapidement." },
+                                { title: "Transparence", desc: "Pas de coûts cachés, code documenté." },
+                                { title: "Innovation", desc: "Les dernières technologies IA." }
+                            ].map((val, i) => (
+                                <div key={i} className="flex items-center gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm shrink-0">
+                                        {i+1}
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">{val.title}</h4>
+                                        <p className="text-sm text-slate-500">{val.desc}</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                    </div>
-                </div>
-            </section>
-
-            {/* --- SECTION METHODOLOGIE (Timeline) --- */}
-            <section className="py-24 bg-slate-900 text-white relative">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px]"></div>
-                <div className="max-w-5xl mx-auto px-6 relative z-10">
-                    <h2 className="text-3xl font-bold mb-16 text-center">Notre méthode en 4 étapes</h2>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                        {METHODOLOGY_STEPS.map((step, i) => (
-                            <div key={i} className="relative group">
-                                {/* Connector Line */}
-                                {i < METHODOLOGY_STEPS.length - 1 && (
-                                    <div className="hidden md:block absolute top-8 left-full w-full h-[2px] bg-white/10 group-hover:bg-indigo-500/50 transition-colors"></div>
-                                )}
-                                
-                                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl font-bold text-indigo-400 mb-6 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all shadow-lg shadow-indigo-900/20">
-                                    {step.num}
+                        {/* Team Photos */}
+                        <div className="flex gap-6">
+                            {AGENCY_TEAM.map((member, i) => (
+                                <div key={i} className="group relative w-40 md:w-48 aspect-[3/4] rounded-2xl overflow-hidden shadow-xl border-4 border-white">
+                                    <img src={member.img} alt={member.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90"></div>
+                                    <div className="absolute bottom-0 left-0 w-full p-4 text-white">
+                                        <p className="font-bold text-sm">{member.name}</p>
+                                        <p className="text-[10px] text-indigo-300 font-medium uppercase tracking-wider">{member.role}</p>
+                                    </div>
                                 </div>
-                                <h3 className="text-xl font-bold mb-3">{step.title}</h3>
-                                <p className="text-slate-400 text-sm leading-relaxed">
-                                    {step.desc}
-                                </p>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            {/* --- SECTION METHODOLOGIE (Timeline Fixed) --- */}
+            <section className="py-24 bg-[#0F0A1F] text-white relative overflow-hidden">
+                <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#4f46e5 1px, transparent 1px)', backgroundSize: '30px 30px'}}></div>
+                
+                <div className="max-w-6xl mx-auto px-6 relative z-10">
+                    <h2 className="text-3xl md:text-4xl font-bold mb-20 text-center">Notre méthode en 4 étapes</h2>
+                    
+                    <div className="relative">
+                        {/* THE CONNECTING LINE (Absolute centered) */}
+                        {/* Desktop: Horizontal */}
+                        <div className="hidden md:block absolute top-8 left-0 right-0 h-0.5 bg-indigo-900/50 z-0">
+                            <div className="h-full bg-indigo-500 w-full origin-left transform scale-x-100 transition-transform duration-1000"></div>
+                        </div>
+                        {/* Mobile: Vertical */}
+                        <div className="md:hidden absolute left-8 top-0 bottom-0 w-0.5 bg-indigo-900/50 z-0"></div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
+                            {METHODOLOGY_STEPS.map((step, i) => (
+                                <div key={i} className="relative z-10 flex md:block items-start gap-6 group">
+                                    {/* Circle Number */}
+                                    <div className="w-16 h-16 rounded-2xl bg-[#1a152e] border border-indigo-500/30 flex items-center justify-center text-2xl font-bold text-indigo-400 shrink-0 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all shadow-[0_0_20px_rgba(79,70,229,0.15)] group-hover:shadow-[0_0_30px_rgba(79,70,229,0.4)]">
+                                        {step.num}
+                                    </div>
+                                    
+                                    <div className="mt-2 md:mt-8">
+                                        <h3 className="text-xl font-bold mb-2 text-white">{step.title}</h3>
+                                        <p className="text-slate-400 text-sm leading-relaxed">
+                                            {step.desc}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </section>
 
-            {/* --- SECTION PRICING (Modern Cards) --- */}
+            {/* --- SECTION PRICING (Tech Cards) --- */}
             <section className="py-24 bg-slate-50">
-                <div className="max-w-4xl mx-auto px-6">
+                <div className="max-w-5xl mx-auto px-6">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl font-bold text-slate-900 mb-4">Investissement</h2>
+                        <h2 className="text-3xl font-bold text-slate-900 mb-4">Proposition Financière</h2>
                         <p className="text-slate-500 max-w-lg mx-auto">
-                            Une tarification transparente adaptée à vos besoins.
+                            Une tarification claire et transparente.
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                         
-                        {/* CARD 1: SETUP (One Shot) */}
-                        <div className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-4 opacity-10">
-                                <Layers size={120} />
+                        {/* CARD 1: SETUP */}
+                        <div className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <Layers size={140} />
                             </div>
-                            <h3 className="text-lg font-bold text-slate-500 uppercase tracking-widest mb-2">Initialisation</h3>
-                            <div className="text-4xl font-extrabold text-slate-900 mb-6">
-                                {formatCurrency(oneShotTotal)}<span className="text-lg text-slate-400 font-medium">HT</span>
+                            <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-4">Initialisation</h3>
+                            <div className="flex items-baseline gap-2 mb-8">
+                                <span className="text-5xl font-extrabold text-slate-900">{formatCurrency(oneShotTotal)}</span>
+                                <span className="text-xl text-slate-400 font-medium">HT</span>
                             </div>
                             
                             <ul className="space-y-4 mb-8 relative z-10">
                                 {oneShotItems.map((item, idx) => (
                                     <li key={idx} className="flex items-start gap-3 text-slate-700">
-                                        <CheckCircle2 className="text-emerald-500 shrink-0 mt-0.5" size={18} />
+                                        <div className="mt-1 p-0.5 bg-emerald-100 rounded-full text-emerald-600 shrink-0"><Check size={12} strokeWidth={3} /></div>
                                         <span className="text-sm font-medium">{item.description}</span>
                                     </li>
                                 ))}
@@ -372,33 +476,36 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             </ul>
                         </div>
 
-                        {/* CARD 2: RECURRING (Abonnement) */}
-                        <div className="bg-slate-900 rounded-3xl p-8 shadow-2xl border border-indigo-500/30 relative overflow-hidden text-white transform md:-translate-y-4">
-                            <div className="absolute top-0 right-0 p-4 opacity-10">
-                                <RefreshCw size={120} />
+                        {/* CARD 2: RECURRING (Dark Mode) */}
+                        <div className="bg-[#0F0A1F] rounded-[2rem] p-10 shadow-2xl shadow-indigo-900/20 border border-indigo-500/20 relative overflow-hidden text-white transform md:-translate-y-4 group">
+                            <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/20 to-transparent pointer-events-none"></div>
+                            <div className="absolute top-0 right-0 p-6 opacity-10">
+                                <RefreshCw size={140} />
                             </div>
-                            <div className="inline-block px-3 py-1 bg-indigo-500 rounded-full text-[10px] font-bold uppercase tracking-wide mb-4">
-                                Recommandé
+                            
+                            <div className="inline-block px-3 py-1 bg-indigo-500 rounded-full text-[10px] font-bold uppercase tracking-wide mb-6">
+                                Mensualité
                             </div>
-                            <h3 className="text-lg font-bold text-indigo-200 uppercase tracking-widest mb-2">Suivi & Maintenance</h3>
-                            <div className="text-4xl font-extrabold text-white mb-6">
-                                {formatCurrency(recurringTotal)}<span className="text-lg text-indigo-300 font-medium">/mois</span>
+                            
+                            <div className="flex items-baseline gap-2 mb-8">
+                                <span className="text-5xl font-extrabold text-white">{formatCurrency(recurringTotal)}</span>
+                                <span className="text-xl text-indigo-300 font-medium">/mois</span>
                             </div>
                             
                             <ul className="space-y-4 mb-8 relative z-10">
                                 {recurringItems.length > 0 ? recurringItems.map((item, idx) => (
                                     <li key={idx} className="flex items-start gap-3 text-indigo-50">
-                                        <CheckCircle2 className="text-indigo-400 shrink-0 mt-0.5" size={18} />
+                                        <div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div>
                                         <span className="text-sm font-medium">{item.description}</span>
                                     </li>
                                 )) : (
                                     <>
                                         <li className="flex items-start gap-3 text-indigo-50">
-                                            <CheckCircle2 className="text-indigo-400 shrink-0 mt-0.5" size={18} />
+                                            <div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div>
                                             <span className="text-sm font-medium">Hébergement serveurs & Base de données</span>
                                         </li>
                                         <li className="flex items-start gap-3 text-indigo-50">
-                                            <CheckCircle2 className="text-indigo-400 shrink-0 mt-0.5" size={18} />
+                                            <div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div>
                                             <span className="text-sm font-medium">Support technique prioritaire</span>
                                         </li>
                                     </>
@@ -409,16 +516,18 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     </div>
 
                     {/* TOTAL RECAP */}
-                    <div className="mt-12 bg-white rounded-2xl p-6 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
+                    <div className="mt-12 bg-white rounded-2xl p-8 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
                         <div className="text-center md:text-left">
-                            <p className="text-sm text-slate-500 font-medium">Conditions de démarrage</p>
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Conditions de démarrage</p>
+                            <p className="text-base text-slate-800">
                                 {termsType === '100_percent' ? '100% à la commande' : termsType === '50_50' ? 'Acompte 50% à la commande' : 'Acompte 30% à la commande'}
                             </p>
                         </div>
                         <div className="text-center md:text-right">
-                            <p className="text-sm font-bold text-slate-400 uppercase">Total à régler aujourd'hui (TTC)</p>
-                            <p className="text-3xl font-black text-indigo-600">{formatCurrency(totalDueNowTTC)}</p>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total à régler aujourd'hui (TTC)</p>
+                            <p className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                                {formatCurrency(totalDueNowTTC)}
+                            </p>
                         </div>
                     </div>
 
@@ -427,16 +536,19 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
             {/* --- STICKY FOOTER CTA --- */}
             {quote.status !== 'signed' && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 p-4 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
+                <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-200 p-4 z-50 shadow-[0_-5px_30px_rgba(0,0,0,0.08)]">
                     <div className="max-w-5xl mx-auto flex justify-between items-center">
                         <div className="hidden md:block">
-                            <p className="text-xs font-bold text-slate-500 uppercase">{quote.title}</p>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{quote.title}</p>
                             <p className="font-bold text-slate-900">Pour {companyName}</p>
                         </div>
                         <button 
                             onClick={handleOpenSignModal}
-                            className="w-full md:w-auto bg-slate-900 hover:bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-xl hover:shadow-indigo-500/30 transition-all flex items-center justify-center gap-3 transform hover:-translate-y-1"
+                            className="w-full md:w-auto relative overflow-hidden bg-slate-900 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all flex items-center justify-center gap-3 transform hover:-translate-y-1 group"
                         >
+                            {/* Shine Effect */}
+                            <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
+                            
                             <PenTool size={20} />
                             Accepter et Signer
                         </button>
@@ -444,7 +556,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             )}
 
-            {/* --- MODAL SIGNATURE (Gardé identique mais stylisé) --- */}
+            {/* --- MODAL SIGNATURE (Gardé identique) --- */}
             {isSigningModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
