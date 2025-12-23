@@ -77,6 +77,7 @@ export interface Database {
           total_amount: number
           payment_terms: Json | null
           valid_until: string | null
+          delivery_delay: string | null
           public_token: string
           created_at: string
           updated_at: string
@@ -93,6 +94,7 @@ export interface Database {
           total_amount?: number
           payment_terms?: Json | null
           valid_until?: string | null
+          delivery_delay?: string | null
           public_token?: string
           created_at?: string
           updated_at?: string
@@ -109,6 +111,7 @@ export interface Database {
           total_amount?: number
           payment_terms?: Json | null
           valid_until?: string | null
+          delivery_delay?: string | null
           public_token?: string
           created_at?: string
           updated_at?: string

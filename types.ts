@@ -211,6 +211,10 @@ export interface QuotePaymentTerms {
     type: '100_percent' | '50_50' | '30_70' | 'custom';
     deposit_percentage?: number;
     custom_label?: string;
+    tax_rate?: number;
+    billing_address?: string;
+    vat_number?: string;
+    audit_trail?: any;
 }
 
 export interface Quote {
@@ -227,6 +231,7 @@ export interface Quote {
     description: string;
     status: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid';
     valid_until: string;
+    delivery_delay?: string; // NOUVEAU CHAMP
     total_amount: number; // Total théorique One-Shot + 1 mois récurrent
     
     // Tracking

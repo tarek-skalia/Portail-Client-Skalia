@@ -74,7 +74,7 @@ const MobileBlocker: React.FC<{ onBypass: () => void }> = ({ onBypass }) => {
                 </div>
                 
                 <p className="mt-12 text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-                    © {new Date().getFullYear()} SKALIA AGENCY
+                    © {new Date().getFullYear()} SKALIA SRL
                 </p>
             </div>
         </div>
@@ -437,7 +437,7 @@ const App: React.FC = () => {
 
         // Mode Secours (Fallback si échec définitif)
         const isEmergencyAdmin = email === 'tarek@skalia.io' || email === 'zakaria@skalia.io';
-        const companyName = isEmergencyAdmin ? 'Skalia Agency' : 'Mode Secours';
+        const companyName = isEmergencyAdmin ? 'Skalia SRL' : 'Mode Secours';
         const role = isEmergencyAdmin ? 'admin' : 'client';
 
         setCurrentUser({ 

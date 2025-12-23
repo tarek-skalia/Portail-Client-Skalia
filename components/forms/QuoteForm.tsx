@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
-import { Plus, Trash2, Calculator, Save, User, FileText, Calendar, Lock, Users, UserPlus, RefreshCw, Layers, DollarSign, MapPin, Hash, Percent } from 'lucide-react';
+import { Plus, Trash2, Calculator, Save, User, FileText, Calendar, Lock, Users, UserPlus, RefreshCw, Layers, DollarSign, MapPin, Hash, Percent, Clock } from 'lucide-react';
 import { Lead } from '../../types';
 
 interface QuoteFormProps {
@@ -57,6 +57,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('draft');
   const [validUntil, setValidUntil] = useState('');
+  const [deliveryDelay, setDeliveryDelay] = useState(''); // NOUVEAU
   const [taxRate, setTaxRate] = useState<number>(0); // NEW (TVA)
   
   // Items
@@ -84,6 +85,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
           setTitle(initialData.title || initialData.company || 'Proposition Commerciale');
           setDescription(initialData.description || initialData.notes || '');
           setStatus(['draft', 'sent', 'signed', 'rejected'].includes(initialData.status) ? initialData.status : 'draft');
+          setDeliveryDelay(initialData.delivery_delay || '');
           
           if (initialData.valid_until) {
               setValidUntil(initialData.valid_until.split('T')[0]);
@@ -217,6 +219,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
               description,
               status: ['draft', 'sent', 'signed', 'rejected'].includes(status) ? status : 'draft',
               valid_until: validUntil || null,
+              delivery_delay: deliveryDelay || null, // SAVE DELAY
               total_amount: totalTTC, // On stocke le TTC global pour affichage rapide
               // On stocke les métadonnées de facturation dans le JSON payment_terms
               payment_terms: { 
@@ -371,7 +374,6 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
             )}
         </div>
 
-        {/* ... Identique ... */}
         <div className="grid grid-cols-2 gap-4">
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Titre du projet</label>
@@ -393,10 +395,21 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
             <textarea rows={2} value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 border rounded-lg outline-none" placeholder="Contexte du projet..." />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Date de validité</label>
                 <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} className="w-full px-3 py-2 border rounded-lg outline-none" />
+            </div>
+            {/* NEW: DELAI LIVRAISON */}
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12} /> Délai Livraison</label>
+                <input 
+                    type="text" 
+                    value={deliveryDelay} 
+                    onChange={e => setDeliveryDelay(e.target.value)} 
+                    className="w-full px-3 py-2 border rounded-lg outline-none text-sm"
+                    placeholder="Ex: 3 semaines"
+                />
             </div>
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Conditions Paiement</label>
