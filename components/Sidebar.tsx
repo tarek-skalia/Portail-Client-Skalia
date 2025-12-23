@@ -62,45 +62,45 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
         <div className={`absolute bottom-[-10%] right-[-10%] w-[250px] h-[250px] rounded-full blur-[60px] animate-float-delayed ${isClientTheme ? 'bg-indigo-400' : 'bg-blue-900'}`}></div>
       </div>
 
-      {/* Header with 3D Framed Logo */}
-      <div className="px-6 pt-8 pb-4 relative z-10 shrink-0">
+      {/* Header with 3D Framed Logo - Compact Mode */}
+      <div className="px-6 pt-6 pb-2 relative z-10 shrink-0">
         {isImpersonating && (
-            <div className="mb-4 animate-fade-in">
+            <div className="mb-3 animate-fade-in">
                 <button 
                     onClick={handleReturnToAgency}
-                    className="flex items-center justify-center gap-2 text-xs font-bold text-white uppercase tracking-wider bg-black/30 hover:bg-black/50 border border-white/10 px-3 py-3 rounded-xl w-full transition-all hover:scale-[1.02] shadow-lg group"
+                    className="flex items-center justify-center gap-2 text-[10px] font-bold text-white uppercase tracking-wider bg-black/30 hover:bg-black/50 border border-white/10 px-3 py-2 rounded-xl w-full transition-all hover:scale-[1.02] shadow-lg group"
                 >
-                    <CornerUpLeft size={14} className="group-hover:-translate-x-1 transition-transform" /> 
+                    <CornerUpLeft size={12} className="group-hover:-translate-x-1 transition-transform" /> 
                     Retour Vue Agence
                 </button>
             </div>
         )}
 
-        <div className="bg-gradient-to-br from-white/10 to-indigo-900/20 border border-white/10 rounded-2xl p-4 shadow-xl backdrop-blur-sm flex items-center justify-center relative overflow-hidden group hover:scale-[1.02] transition-transform duration-500">
+        <div className="bg-gradient-to-br from-white/10 to-indigo-900/20 border border-white/10 rounded-2xl p-3 shadow-xl backdrop-blur-sm flex items-center justify-center relative overflow-hidden group hover:scale-[1.02] transition-transform duration-500">
             {/* Glossy shine effect */}
             <div className="absolute top-0 left-0 w-full h-[40%] bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
             
             <Logo 
-              className="w-12 h-12 transition-transform duration-500 group-hover:rotate-3" 
+              className="w-10 h-10 transition-transform duration-500 group-hover:rotate-3" 
               classNameText="text-2xl drop-shadow-md tracking-wider" 
             />
         </div>
         
         {!isClientTheme && (
-            <div className="mt-3 flex justify-center">
-                <span className="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/50 text-[10px] font-bold uppercase tracking-widest text-indigo-300 flex items-center gap-2">
-                    <ShieldCheck size={12} /> Espace Administration
+            <div className="mt-2 flex justify-center">
+                <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/50 text-[9px] font-bold uppercase tracking-widest text-indigo-300 flex items-center gap-2">
+                    <ShieldCheck size={10} /> Espace Administration
                 </span>
             </div>
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-4 overflow-y-auto space-y-1 relative z-10 custom-scrollbar flex flex-col py-2">
+      {/* Navigation - Compact Mode */}
+      <nav className="flex-1 px-3 overflow-y-auto space-y-0.5 relative z-10 custom-scrollbar flex flex-col py-2">
         
         {/* TITRE DE SECTION */}
-        <div className="px-4 mb-2 mt-2">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 flex items-center gap-2">
+        <div className="px-3 mb-2 mt-1">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-white/40 flex items-center gap-2">
                 {isClientTheme ? (
                     <>
                         <User size={10} />
@@ -110,7 +110,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
             </p>
         </div>
         
-        <div className="space-y-1">
+        <div className="space-y-0.5">
             {menuToRender.map((item) => {
             const isActive = activePage === item.id;
             const activeBg = isClientTheme ? 'bg-white text-indigo-700' : 'bg-indigo-600 text-white border border-indigo-500';
@@ -120,7 +120,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
                 <button
                 key={item.id}
                 onClick={() => setActivePage(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group relative overflow-hidden
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 group relative overflow-hidden
                     ${
                     isActive
                         ? `${activeBg} ${activeShadow} translate-x-1 scale-[1.02]`
@@ -148,30 +148,30 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
         <div className="flex-grow"></div>
       </nav>
 
-      {/* Call to Action (Seulement pour les clients) */}
+      {/* Call to Action (Seulement pour les clients) - Compact */}
       {isClientTheme && (
-          <div className="px-4 mb-3 mt-2 relative z-10 shrink-0">
+          <div className="px-3 mb-2 mt-2 relative z-10 shrink-0">
              <button 
                 type="button"
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 border border-white/10 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2 group relative overflow-hidden hover:scale-[1.02] transition-transform duration-300 active:scale-[0.98]"
+                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 border border-white/10 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2 group relative overflow-hidden hover:scale-[1.02] transition-transform duration-300 active:scale-[0.98]"
                 data-iclosed-link="https://app.iclosed.io/e/tarekskalia/appel-decouverte"
                 data-embed-type="popup"
              >
-                <div className="p-1.5 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors border border-white/10">
-                    <Phone size={18} className="text-white transition-colors" />
+                <div className="p-1 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors border border-white/10">
+                    <Phone size={16} className="text-white transition-colors" />
                 </div>
-                <span className="text-white transition-colors relative z-10">Réservez un appel</span>
+                <span className="text-white transition-colors relative z-10 text-xs">Réservez un appel</span>
              </button>
           </div>
       )}
 
-      {/* Footer User Profile (Clickable to Settings) */}
+      {/* Footer User Profile (Clickable to Settings) - Compact */}
       <button 
         onClick={() => setActivePage('settings')}
-        className="p-4 m-4 mt-0 rounded-2xl bg-black/20 backdrop-blur-md border border-white/5 relative z-10 shadow-lg group hover:bg-black/30 transition-colors duration-300 shrink-0 text-left w-[calc(100%-2rem)]"
+        className="p-3 mx-3 mb-3 mt-0 rounded-2xl bg-black/20 backdrop-blur-md border border-white/5 relative z-10 shadow-lg group hover:bg-black/30 transition-colors duration-300 shrink-0 text-left w-[calc(100%-1.5rem)]"
       >
-        <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-white shadow-md border border-white/20 shrink-0 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center overflow-hidden">
+        <div className="flex items-center gap-3 mb-2">
+            <div className="w-9 h-9 rounded-full bg-white shadow-md border border-white/20 shrink-0 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center overflow-hidden">
                 {logoSrc && !imgError ? (
                     <img 
                         src={logoSrc} 
@@ -181,7 +181,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
                         loading="lazy"
                     />
                 ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center font-bold text-sm text-white">
+                    <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center font-bold text-xs text-white">
                         {currentClient.avatarInitials}
                     </div>
                 )}
@@ -189,11 +189,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
 
             <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-semibold truncate text-white group-hover:text-indigo-100 transition-colors">{currentClient.name}</p>
-                <p className="text-xs text-indigo-300 truncate">{currentClient.company}</p>
+                <p className="text-[10px] text-indigo-300 truncate">{currentClient.company}</p>
             </div>
             
             <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                <SettingsIcon size={16} />
+                <SettingsIcon size={14} />
             </div>
         </div>
         
@@ -201,10 +201,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
             <div 
                 role="button"
                 onClick={(e) => { e.stopPropagation(); onLogout(); }}
-                className="w-full py-1.5 hover:bg-red-500/20 text-indigo-200 hover:text-red-200 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-xs font-medium" 
+                className="w-full py-1 hover:bg-red-500/20 text-indigo-200 hover:text-red-200 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider" 
                 title="Déconnexion"
             >
-                <LogOut size={14} />
+                <LogOut size={12} />
                 <span>Déconnexion</span>
             </div>
         </div>

@@ -23,10 +23,10 @@ import { MenuItem, ChartDataPoint, Client, Automation, Ticket, Invoice, Expense,
 // Menu standard (Clients)
 export const MENU_ITEMS: MenuItem[] = [
   { id: 'dashboard', label: 'Tableau de Bord', icon: <LayoutDashboard size={20} /> },
-  { id: 'quotes', label: 'Devis', icon: <FileSignature size={20} /> }, // NOUVEAU
-  { id: 'automations', label: 'Automatisations', icon: <Zap size={20} /> },
   { id: 'projects', label: 'Pipeline des projets', icon: <Kanban size={20} /> },
+  { id: 'automations', label: 'Automatisations', icon: <Zap size={20} /> },
   { id: 'roadmap', label: 'Feuille de route', icon: <Map size={20} /> },
+  { id: 'quotes', label: 'Devis', icon: <FileSignature size={20} /> }, 
   { id: 'invoices', label: 'Factures', icon: <FileText size={20} /> },
   { id: 'expenses', label: 'Dépenses', icon: <CreditCard size={20} /> },
   { id: 'support', label: 'Support & Tickets', icon: <LifeBuoy size={20} /> },
