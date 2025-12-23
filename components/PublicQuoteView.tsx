@@ -5,7 +5,7 @@ import {
     Check, Download, AlertCircle, FileText, Calendar, DollarSign, PenTool, 
     CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
     Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit,
-    ArrowDown, ChevronDown, ChevronLeft, Scale, Clock
+    ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
@@ -52,6 +52,56 @@ const SKALIA_EXPERTISE = [
 // Helper pour formatage
 const formatCurrency = (val: number) => val.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+// --- SMART PARSER COMPONENT ---
+const RichDescription: React.FC<{ text: string }> = ({ text }) => {
+    if (!text) return <p className="text-slate-500 italic">Aucune description détaillée.</p>;
+
+    const lines = text.split('\n');
+    
+    return (
+        <div className="space-y-4">
+            {lines.map((line, i) => {
+                const trimmed = line.trim();
+                if (!trimmed) return <div key={i} className="h-2" />; // Spacer
+
+                // 1. Détection des Titres/Badges (ex: "OBJECTIFS :")
+                // Règle : Commence par majuscule, finit par deux-points, court.
+                const isBadge = /^[A-ZÀ-ÖØ-Þ0-9\s\W]+:$/.test(trimmed) && trimmed.length < 50;
+                
+                if (isBadge) {
+                    return (
+                        <div key={i} className="mt-6 mb-3">
+                            <span className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-xs font-bold uppercase tracking-wider shadow-sm">
+                                <Sparkles size={12} />
+                                {trimmed.replace(':', '')}
+                            </span>
+                        </div>
+                    );
+                }
+
+                // 2. Détection des Listes (commence par - )
+                if (trimmed.startsWith('-')) {
+                    return (
+                        <div key={i} className="flex items-start gap-3 pl-2">
+                            <div className="mt-1.5 min-w-[6px] h-[6px] rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]"></div>
+                            <p className="text-slate-600 leading-relaxed text-sm md:text-base">
+                                {trimmed.substring(1).trim()}
+                            </p>
+                        </div>
+                    );
+                }
+
+                // 3. Paragraphe standard
+                return (
+                    <p key={i} className="text-slate-600 leading-relaxed text-sm md:text-base text-justify">
+                        {trimmed}
+                    </p>
+                );
+            })}
+        </div>
+    );
+};
+
 interface QuoteItem {
     id: string;
     description: string;
@@ -68,7 +118,7 @@ interface QuoteData {
     total_amount: number;
     status: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid';
     valid_until: string;
-    delivery_delay?: string; // NOUVEAU
+    delivery_delay?: string;
     created_at: string;
     recipient_email?: string;
     recipient_name?: string;
@@ -600,21 +650,64 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </section>
 
-            <section className="py-20 bg-slate-50 relative">
-                <div className="max-w-4xl mx-auto px-6 relative z-10">
-                    <div className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100">
-                        <div className="flex items-center gap-4 mb-8">
-                            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                                <Target size={24} />
-                            </div>
-                            <h2 className="text-3xl font-bold text-slate-900">Le Projet</h2>
+            {/* --- SECTION PROJET REVISITÉE (SMART SPLIT) --- */}
+            <section className="py-24 bg-slate-50 relative overflow-hidden">
+                <div className="absolute inset-0 bg-white/50 skew-y-3 transform origin-bottom-left -z-0"></div>
+                
+                <div className="max-w-7xl mx-auto px-6 relative z-10">
+                    <div className="flex items-center gap-4 mb-12">
+                        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md border border-slate-100">
+                            <Target size={28} />
                         </div>
-                        <div className="prose prose-lg text-slate-600 leading-relaxed whitespace-pre-line">
-                            {quote.description || "Aucune description détaillée disponible pour ce projet."}
+                        <div>
+                            <h2 className="text-3xl font-bold text-slate-900">Le Projet</h2>
+                            <p className="text-slate-500">Cadrage de la mission et objectifs.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-12 items-start">
+                        {/* COLONNE GAUCHE (TEXTE STRUCTURÉ) - 3/5 */}
+                        <div className="lg:col-span-3">
+                            <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-xl shadow-slate-100 border border-slate-100/80">
+                                <RichDescription text={quote.description || "Aucune description détaillée disponible pour ce projet."} />
+                            </div>
+                        </div>
+
+                        {/* COLONNE DROITE (ILLUSTRATION TECH) - 2/5 */}
+                        <div className="lg:col-span-2 sticky top-24">
+                            <div className="relative aspect-[4/5] rounded-[2rem] overflow-hidden bg-slate-900 shadow-2xl border border-slate-800 group">
+                                {/* Abstract Background */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 to-slate-900"></div>
+                                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#6366f1 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                                
+                                {/* Animated Blobs */}
+                                <div className="absolute top-1/4 left-1/4 w-48 h-48 bg-purple-500/30 rounded-full blur-[60px] animate-float"></div>
+                                <div className="absolute bottom-1/3 right-1/4 w-64 h-64 bg-indigo-500/20 rounded-full blur-[80px] animate-float-delayed"></div>
+
+                                {/* Content Overlay */}
+                                <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-8">
+                                    <div className="w-20 h-20 bg-white/10 backdrop-blur-lg border border-white/10 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform duration-700">
+                                        <LayoutGrid size={32} className="text-indigo-300" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-white mb-2">Solution Sur Mesure</h3>
+                                    <p className="text-indigo-200/80 text-sm leading-relaxed max-w-xs">
+                                        Conçue spécifiquement pour répondre aux enjeux de {companyName}.
+                                    </p>
+                                    
+                                    <div className="mt-8 flex flex-col gap-3 w-full max-w-[200px]">
+                                        <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                                            <div className="h-full bg-indigo-500 w-[70%] animate-pulse"></div>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-indigo-300 font-mono">
+                                            <span>ANALYSIS</span>
+                                            <span>COMPLETE</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div className="absolute top-1/2 left-0 w-64 h-64 bg-indigo-100/50 rounded-full blur-[80px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
             </section>
 
             <section className="py-24 bg-[#0F0A1F] text-white relative overflow-hidden">
