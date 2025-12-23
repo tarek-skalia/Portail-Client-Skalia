@@ -245,7 +245,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         <div className="min-h-screen bg-white font-sans selection:bg-indigo-200 selection:text-indigo-900 overflow-x-hidden">
             
             {/* --- HERO SECTION IMMERSIVE (Style PDF Skalia + Tech) --- */}
-            <header className="relative bg-[#0F0A1F] text-white min-h-[90vh] flex flex-col justify-center overflow-hidden">
+            <header className="relative bg-[#0F0A1F] text-white min-h-[100vh] flex flex-col relative overflow-hidden">
                 
                 {/* Tech Background Grid & Glows */}
                 <div className="absolute inset-0 pointer-events-none">
@@ -258,10 +258,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[100px]"></div>
                 </div>
 
-                <div className="max-w-6xl mx-auto px-6 relative z-10 w-full flex flex-col h-full justify-center py-20">
+                <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10 w-full flex-1 flex flex-col justify-between py-12 md:py-16">
                     
-                    {/* Top Bar */}
-                    <div className="absolute top-8 left-6 right-6 flex justify-between items-start animate-fade-in">
+                    {/* Top Bar (Logo & Ref) */}
+                    <div className="flex justify-between items-start animate-fade-in">
                         <Logo className="w-12 h-12" classNameText="text-2xl" showText={true} />
                         <div className="text-right text-indigo-300/80 text-xs font-mono border border-white/10 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm">
                             <p>REF: {quote.id.slice(0,8).toUpperCase()}</p>
@@ -269,75 +269,68 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         </div>
                     </div>
 
-                    {/* Main Title Content */}
-                    <div className="max-w-4xl mt-12">
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold uppercase tracking-widest mb-8 animate-fade-in-up">
+                    {/* Main Title Content (Centered Vertically in available space) */}
+                    <div className="flex-1 flex flex-col justify-center max-w-5xl">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold uppercase tracking-widest mb-8 animate-fade-in-up w-fit">
                             <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
                             Proposition de Projet
                         </div>
                         
-                        <h1 className="text-5xl md:text-7xl font-bold leading-none tracking-tight mb-6 animate-fade-in-up delay-100">
+                        <h1 className="text-6xl md:text-8xl font-bold leading-none tracking-tight mb-8 animate-fade-in-up delay-100">
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-indigo-300">
                                 {quote.title}
                             </span>
                         </h1>
                         
                         <div className="flex items-center gap-4 animate-fade-in-up delay-200">
-                            <div className="h-px w-12 bg-indigo-500"></div>
-                            <p className="text-2xl md:text-3xl text-indigo-200 font-light">
+                            <div className="h-px w-16 bg-indigo-500"></div>
+                            <p className="text-2xl md:text-4xl text-indigo-200 font-light">
                                 Pour <span className="font-bold text-white">{companyName}</span>
                             </p>
                         </div>
                     </div>
 
-                    {/* Footer Contact Info (Hud Style) */}
-                    <div className="mt-20 md:absolute md:bottom-12 md:left-6 md:mt-0 animate-fade-in delay-300">
-                        <div className="flex flex-col md:flex-row gap-6 md:gap-12 text-sm text-indigo-200/70 border-t md:border-t-0 md:border-l border-white/10 pt-6 md:pt-0 md:pl-6">
+                    {/* Footer Contact Info (Hud Style - Always at bottom) */}
+                    <div className="border-t border-white/10 pt-8 animate-fade-in delay-300">
+                        <div className="flex flex-col md:flex-row gap-12 text-sm text-indigo-200/70">
                             
-                            <div className="space-y-1">
-                                <p className="font-bold text-white mb-2 uppercase tracking-wider text-xs">Agence</p>
-                                <div className="flex items-center gap-2"><MapPin size={14} /> Quai Banning 6, 4000 Liège</div>
-                                <div className="flex items-center gap-2"><Hash size={14} /> BE1023214594</div>
+                            <div className="space-y-2">
+                                <p className="font-bold text-white mb-1 uppercase tracking-wider text-xs flex items-center gap-2">
+                                    <MapPin size={12} className="text-indigo-400" /> Agence
+                                </p>
+                                <div className="pl-5">
+                                    <div className="flex items-center gap-2">Quai Banning 6, 4000 Liège</div>
+                                    <div className="flex items-center gap-2 mt-1 font-mono text-xs opacity-70">BE1023214594</div>
+                                </div>
                             </div>
 
-                            <div className="space-y-1">
-                                <p className="font-bold text-white mb-2 uppercase tracking-wider text-xs">Contact</p>
-                                <a href="tel:+32465580790" className="flex items-center gap-2 hover:text-white transition-colors"><Phone size={14} /> +32 465 58 07 90</a>
-                                <a href="mailto:contact@skalia.io" className="flex items-center gap-2 hover:text-white transition-colors"><Mail size={14} /> contact@skalia.io</a>
-                                <a href="https://skalia.io" target="_blank" className="flex items-center gap-2 hover:text-white transition-colors"><Globe size={14} /> skalia.io</a>
+                            <div className="space-y-2">
+                                <p className="font-bold text-white mb-1 uppercase tracking-wider text-xs flex items-center gap-2">
+                                    <Phone size={12} className="text-indigo-400" /> Contact
+                                </p>
+                                <div className="pl-5 flex flex-col gap-1">
+                                    <a href="tel:+32465580790" className="hover:text-white transition-colors">+32 465 58 07 90</a>
+                                    <a href="mailto:contact@skalia.io" className="hover:text-white transition-colors">contact@skalia.io</a>
+                                </div>
+                            </div>
+                            
+                            <div className="md:ml-auto flex items-end">
+                                <a href="https://skalia.io" target="_blank" className="text-white font-bold hover:text-indigo-300 transition-colors flex items-center gap-2">
+                                    <Globe size={16} /> skalia.io
+                                </a>
                             </div>
 
                         </div>
                     </div>
 
                     {/* Scroll Indicator */}
-                    <div className="hidden md:block absolute bottom-12 right-6 animate-bounce text-indigo-400 opacity-50">
+                    <div className="absolute bottom-12 right-6 animate-bounce text-indigo-400 opacity-50 hidden md:block">
                         <ArrowRight className="rotate-90" size={24} />
                     </div>
                 </div>
             </header>
 
-            {/* --- SECTION 2 : LE PROJET (Description Détaillée) --- */}
-            <section className="py-20 bg-slate-50 relative">
-                <div className="max-w-4xl mx-auto px-6 relative z-10">
-                    <div className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100">
-                        <div className="flex items-center gap-4 mb-8">
-                            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                                <Target size={24} />
-                            </div>
-                            <h2 className="text-3xl font-bold text-slate-900">Le Projet</h2>
-                        </div>
-                        
-                        <div className="prose prose-lg text-slate-600 leading-relaxed whitespace-pre-line">
-                            {quote.description || "Aucune description détaillée disponible pour ce projet."}
-                        </div>
-                    </div>
-                </div>
-                {/* Decor */}
-                <div className="absolute top-1/2 left-0 w-64 h-64 bg-indigo-100/50 rounded-full blur-[80px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
-            </section>
-
-            {/* --- SECTION 3 : SKALIA (Expertise & Team) --- */}
+            {/* --- SECTION 2 : SKALIA (Expertise & Team) - DÉPLACÉ ICI --- */}
             <section className="py-24 bg-white relative overflow-hidden">
                 <div className="max-w-6xl mx-auto px-6">
                     
@@ -403,6 +396,26 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     </div>
 
                 </div>
+            </section>
+
+            {/* --- SECTION 3 : LE PROJET (Description Détaillée) - DÉPLACÉ ICI --- */}
+            <section className="py-20 bg-slate-50 relative">
+                <div className="max-w-4xl mx-auto px-6 relative z-10">
+                    <div className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100">
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                                <Target size={24} />
+                            </div>
+                            <h2 className="text-3xl font-bold text-slate-900">Le Projet</h2>
+                        </div>
+                        
+                        <div className="prose prose-lg text-slate-600 leading-relaxed whitespace-pre-line">
+                            {quote.description || "Aucune description détaillée disponible pour ce projet."}
+                        </div>
+                    </div>
+                </div>
+                {/* Decor */}
+                <div className="absolute top-1/2 left-0 w-64 h-64 bg-indigo-100/50 rounded-full blur-[80px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
             </section>
 
             {/* --- SECTION METHODOLOGIE (Timeline Fixed) --- */}
