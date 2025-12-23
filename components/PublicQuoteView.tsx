@@ -98,6 +98,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const hasTrackedRef = useRef(false);
     
     // Auth State for "Magic Sign"
+    // Initialisé plus tard quand on a les données du devis
     const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -125,10 +126,17 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
             setQuote({ ...quoteData, items: itemsData || [] });
             
+            // LOGIQUE INTELLIGENTE D'EMAIL ET DE MODE
             const targetEmail = quoteData.profile?.email || quoteData.recipient_email || '';
             setEmail(targetEmail);
             
-            if (quoteData.profile_id) setAuthMode('login');
+            // Si profile_id existe -> C'est un client existant -> Force Login
+            // Sinon -> C'est un prospect -> Force Register
+            if (quoteData.profile_id) {
+                setAuthMode('login');
+            } else {
+                setAuthMode('register');
+            }
 
             if (!hasTrackedRef.current && quoteData) {
                 hasTrackedRef.current = true;
@@ -192,18 +200,26 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         try {
+            // 1. Capture IP pour preuve légale (Audit Trail)
+            let userIp = 'Unknown';
+            try {
+                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipRes.json();
+                userIp = ipData.ip;
+            } catch (e) { console.warn("IP fetch failed"); }
+
             let userId = quote?.profile_id;
 
+            // 2. Gestion Auth (Login ou Register forcé selon le contexte)
             if (authMode === 'login') {
                 const { data, error } = await tempClient.auth.signInWithPassword({ email, password });
-                if (error) throw error;
+                if (error) throw new Error("Mot de passe incorrect.");
                 userId = data.user.id;
             } else {
                 const { data, error } = await tempClient.auth.signUp({ email, password });
                 if (error) {
                     if (error.message.includes('already registered')) {
-                        setAuthMode('login');
-                        throw new Error("Un compte existe déjà. Connectez-vous.");
+                        throw new Error("Un compte existe déjà avec cet email. Veuillez contacter Skalia si vous avez oublié vos accès.");
                     }
                     throw error;
                 }
@@ -225,24 +241,44 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
             if (!userId) throw new Error("Erreur d'identification.");
 
+            // 3. Signature du Devis avec Audit Trail dans les métadonnées (payment_terms)
+            // On sauvegarde l'IP et la date exacte dans le champ JSON pour figer la preuve.
+            const auditTrail = {
+                signed_at: new Date().toISOString(),
+                signer_ip: userIp,
+                signer_email: email,
+                legal_version: 'v1.0-2025'
+            };
+
+            const currentTerms = quote?.payment_terms || {};
+            const updatedTerms = { ...currentTerms, audit_trail: auditTrail };
+
             const { error: signError } = await tempClient
                 .from('quotes')
-                .update({ status: 'signed', profile_id: userId, updated_at: new Date().toISOString() })
+                .update({ 
+                    status: 'signed', 
+                    profile_id: userId, 
+                    payment_terms: updatedTerms,
+                    updated_at: new Date().toISOString() 
+                })
                 .eq('id', quoteId);
 
             if (signError) throw signError;
 
+            // 4. Update CRM
             if (quote?.lead_id) {
                 try {
                     await tempClient.from('crm_leads').update({ status: 'won', updated_at: new Date().toISOString() }).eq('id', quote.lead_id);
                 } catch (e) {}
             }
 
+            // 5. Update Onboarding
             const { data: profile } = await tempClient.from('profiles').select('onboarding_step').eq('id', userId).single();
             if (profile && (!profile.onboarding_step || profile.onboarding_step < 1)) {
                 await tempClient.from('profiles').update({ onboarding_step: 1 }).eq('id', userId);
             }
 
+            // 6. Login final et reload
             await supabase.auth.signInWithPassword({ email, password });
             window.location.reload(); 
 
@@ -257,8 +293,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     if (error || !quote) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-red-400">{error}</div>;
 
     const companyName = quote.profile?.company_name || quote.recipient_company || 'votre entreprise';
+    const isExistingClient = !!quote.profile_id;
 
-    // --- VUE JURIDIQUE SÉPARÉE (CGV) ---
+    // --- VUE JURIDIQUE SÉPARÉE (CGV - CONTENU SKALIA) ---
     if (viewMode === 'legal') {
         return (
             <div className="min-h-screen bg-slate-50 font-sans">
@@ -279,35 +316,45 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 <div className="max-w-3xl mx-auto px-6 py-12">
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 md:p-16">
                         <h1 className="text-3xl font-bold text-slate-900 mb-2">Conditions Générales de Vente</h1>
-                        <p className="text-slate-500 mb-10 text-sm">Dernière mise à jour : 01 Janvier 2025</p>
+                        <p className="text-slate-500 mb-10 text-sm">SKALIA AGENCY SRL • BE1023.214.594 • Liège, Belgique</p>
 
                         <div className="prose prose-slate prose-sm max-w-none text-justify space-y-8">
                             <section>
-                                <h3 className="font-bold text-slate-900 text-lg mb-3">1. Objet</h3>
-                                <p>Les présentes conditions générales de vente (ci-après "CGV") régissent les relations contractuelles entre Skalia Agency (ci-après "le Prestataire") et toute personne physique ou morale (ci-après "le Client") souhaitant bénéficier des services d'automatisation et de développement proposés.</p>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">1. Objet et Champ d'Application</h3>
+                                <p>Les présentes Conditions Générales de Vente (CGV) régissent toutes les missions d'audit, de conseil, de développement et d'intégration de solutions d'automatisation (No-Code, Low-Code, IA) réalisées par SKALIA AGENCY SRL (ci-après "le Prestataire") pour le compte de ses clients professionnels (ci-après "le Client"). La signature du devis vaut acceptation sans réserve des présentes CGV.</p>
                             </section>
 
                             <section>
-                                <h3 className="font-bold text-slate-900 text-lg mb-3">2. Prestations</h3>
-                                <p>Le Prestataire s'engage à fournir les services décrits dans le devis validé par le Client. Ces services incluent principalement l'audit, le conseil, la mise en place d'automatisations (via Make, n8n, etc.) et le développement d'outils sur mesure.</p>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">2. Conditions Financières</h3>
+                                <p><strong>2.1 Prix :</strong> Les services sont facturés selon le devis validé. Les prix sont exprimés en euros et hors taxes (HT). La TVA applicable est celle en vigueur au jour de la facturation.</p>
+                                <p><strong>2.2 Modalités de paiement :</strong> Sauf mention contraire, un acompte est exigible à la signature pour démarrer la mission. Le solde est payable à la livraison ou selon l'échéancier défini. Les factures sont payables sous 15 jours.</p>
+                                <p><strong>2.3 Retards :</strong> Tout retard de paiement entraîne de plein droit l'application d'un intérêt de retard au taux légal en vigueur, ainsi qu'une indemnité forfaitaire de 40€ pour frais de recouvrement.</p>
                             </section>
 
                             <section>
-                                <h3 className="font-bold text-slate-900 text-lg mb-3">3. Propriété Intellectuelle</h3>
-                                <p>Jusqu'au paiement complet de la facture, les créations et développements restent la propriété exclusive de Skalia Agency. Après règlement intégral, le Prestataire cède au Client les droits d'exploitation sur les livrables spécifiques réalisés pour lui.</p>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">3. Propriété Intellectuelle</h3>
+                                <p>Le Prestataire conserve la propriété intellectuelle des méthodes, savoir-faire et codes développés jusqu'au paiement intégral du prix par le Client. Une fois le paiement complet effectué, le Prestataire cède au Client un droit d'usage non exclusif et transférable sur les livrables spécifiques (scénarios Make, n8n, code propriétaire).</p>
                             </section>
 
                             <section>
-                                <h3 className="font-bold text-slate-900 text-lg mb-3">4. Confidentialité</h3>
-                                <p>Les deux parties s'engagent à conserver confidentielles toutes les informations et documents techniques ou commerciaux échangés durant l'exécution du contrat.</p>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">4. Confidentialité et Données</h3>
+                                <p>Chaque partie s'engage à conserver la confidentialité la plus stricte sur les informations, documents, données techniques et accès API échangés durant la mission. Le Prestataire s'engage à ne pas exploiter les données du Client à d'autres fins que l'exécution de la mission.</p>
                             </section>
 
                             <section>
-                                <h3 className="font-bold text-slate-900 text-lg mb-3">5. Responsabilité</h3>
-                                <p>Skalia Agency est soumise à une obligation de moyens. La responsabilité du Prestataire ne saurait être engagée pour des dommages indirects ou liés à l'utilisation par le Client d'outils tiers (APIs, logiciels SaaS) dont les conditions d'utilisation changeraient.</p>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">5. Responsabilité et Garantie</h3>
+                                <p>SKALIA AGENCY est tenue à une obligation de moyens. La responsabilité du Prestataire ne pourra être engagée pour des dommages indirects, pertes d'exploitation ou bugs inhérents aux plateformes tierces utilisées (ex: panne de l'API OpenAI ou Stripe). La garantie sur les automatisations livrées est de 30 jours après la mise en production.</p>
                             </section>
-                            
-                            {/* ... Ajouter plus de texte si nécessaire ... */}
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">6. Résiliation</h3>
+                                <p>En cas de manquement grave d'une partie à ses obligations non réparé sous 15 jours après mise en demeure, le contrat pourra être résilié de plein droit. Les sommes déjà versées resteront acquises au Prestataire.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">7. Droit Applicable</h3>
+                                <p>Les présentes conditions sont soumises au droit belge. En cas de litige, seuls les tribunaux de l'arrondissement judiciaire de Liège seront compétents.</p>
+                            </section>
                         </div>
 
                         <div className="mt-16 pt-8 border-t border-slate-100 flex justify-center">
@@ -467,7 +514,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             </header>
 
             {/* --- SECTIONS CONTENT (Expertise, Projet, Méthodo, Prix) - Identiques V4 --- */}
-            {/* ... Le code des sections Expertise, Projet, Méthodo, Pricing est identique à V4 ... */}
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-3xl mx-auto mb-20">
@@ -688,17 +734,17 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             <div className="w-14 h-14 bg-white border border-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                                 <Lock size={24} className="text-indigo-600" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-900">Dernière étape</h3>
-                            <p className="text-sm text-slate-500 mt-2">Créez votre accès sécurisé pour valider le devis et accéder à votre espace projet.</p>
+                            <h3 className="text-xl font-bold text-slate-900">
+                                {isExistingClient ? "Dernière étape" : "Bienvenue chez Skalia"}
+                            </h3>
+                            <p className="text-sm text-slate-500 mt-2">
+                                {isExistingClient 
+                                    ? `Bon retour ${quote.recipient_name?.split(' ')[0] || 'parmi nous'}, connectez-vous pour valider.` 
+                                    : "Créez votre accès sécurisé pour valider le devis et accéder à votre espace."}
+                            </p>
                         </div>
 
                         <div className="p-8">
-                            {/* Toggle Login/Register */}
-                            <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-                                <button onClick={() => setAuthMode('register')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${authMode === 'register' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Nouveau Compte</button>
-                                <button onClick={() => setAuthMode('login')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${authMode === 'login' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>J'ai un compte</button>
-                            </div>
-
                             <form onSubmit={handleMagicSign} className="space-y-5">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Email professionnel</label>
@@ -735,7 +781,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 {authError && <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl flex items-center gap-2 border border-red-100"><AlertCircle size={14} /> {authError}</div>}
 
                                 <button type="submit" disabled={isProcessing} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-base transform active:scale-95 disabled:cursor-not-allowed">
-                                    {isProcessing ? <Loader2 className="animate-spin" /> : (authMode === 'register' ? 'Signer & Créer mon espace' : 'Connexion & Signer')}
+                                    {isProcessing ? <Loader2 className="animate-spin" /> : (isExistingClient ? 'Connexion & Signer' : 'Créer mon compte & Signer')}
                                 </button>
                             </form>
                             <button onClick={() => setIsSigningModalOpen(false)} className="w-full mt-6 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">Annuler et revenir</button>
