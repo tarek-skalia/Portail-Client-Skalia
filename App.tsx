@@ -343,7 +343,9 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') setIsPasswordRecoveryMode(true);
       if (event === 'SIGNED_IN') localStorage.removeItem('skalia_last_page');
-      if (event === 'TOKEN_REFRESH_REVOKED') {
+      
+      // FIX: Cast explicite car TOKEN_REFRESH_REVOKED peut ne pas être dans les types installés
+      if (event === ('TOKEN_REFRESH_REVOKED' as any)) {
           await supabase.auth.signOut();
           setIsAuthenticated(false);
           setCurrentUser(null);

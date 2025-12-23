@@ -26,6 +26,7 @@ interface QuoteData {
     total_amount: number;
     status: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid';
     valid_until: string;
+    created_at: string; // Ajout du champ manquant pour TS
     recipient_email?: string; // Prospect
     recipient_name?: string;
     recipient_company?: string;
@@ -91,16 +92,19 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             // On track seulement si ce n'est pas déjà fait dans cette session et si le devis existe
             if (!hasTrackedRef.current && quoteData) {
                 hasTrackedRef.current = true;
-                // On utilise RPC ou Update simple. Update simple ici.
-                // On incrémente view_count et on met à jour last_viewed_at
-                await supabase.rpc('increment_quote_view', { quote_id: quoteId }).catch(async () => {
-                    // Fallback si la RPC n'existe pas encore (pour la rétrocompatibilité)
+                
+                // Correction : supabase.rpc ne retourne pas une promesse qui rejette par défaut sur erreur DB,
+                // elle retourne { data, error }. On ne peut pas chainer .catch() directement sur le builder de cette façon.
+                const { error: rpcError } = await supabase.rpc('increment_quote_view', { quote_id: quoteId });
+                
+                if (rpcError) {
+                    // Fallback si la RPC n'existe pas encore
                     const newCount = (quoteData.view_count || 0) + 1;
                     await supabase.from('quotes').update({
                         view_count: newCount,
                         last_viewed_at: new Date().toISOString()
                     }).eq('id', quoteId);
-                });
+                }
             }
 
         } catch (err: any) {
