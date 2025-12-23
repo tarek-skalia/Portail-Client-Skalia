@@ -4,7 +4,8 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { 
     Check, Download, AlertCircle, FileText, Calendar, DollarSign, PenTool, 
     CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
-    Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit
+    Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit,
+    ArrowDown, ChevronDown
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
@@ -102,6 +103,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [authError, setAuthError] = useState('');
 
+    const projectSectionRef = useRef<HTMLElement>(null);
+
     useEffect(() => {
         fetchQuote();
     }, [quoteId]);
@@ -141,6 +144,12 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             setError("Impossible de charger la proposition.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const scrollToProject = () => {
+        if (projectSectionRef.current) {
+            projectSectionRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     };
 
@@ -269,24 +278,95 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         </div>
                     </div>
 
-                    {/* Main Title Content (Centered Vertically in available space) */}
-                    <div className="flex-1 flex flex-col justify-center max-w-5xl">
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold uppercase tracking-widest mb-8 animate-fade-in-up w-fit">
-                            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
-                            Proposition de Projet
-                        </div>
-                        
-                        <h1 className="text-6xl md:text-8xl font-bold leading-none tracking-tight mb-8 animate-fade-in-up delay-100">
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-indigo-300">
-                                {quote.title}
-                            </span>
-                        </h1>
-                        
-                        <div className="flex items-center gap-4 animate-fade-in-up delay-200">
-                            <div className="h-px w-16 bg-indigo-500"></div>
-                            <p className="text-2xl md:text-4xl text-indigo-200 font-light">
-                                Pour <span className="font-bold text-white">{companyName}</span>
-                            </p>
+                    {/* Main Content Area (Split Left/Right on Desktop) */}
+                    <div className="flex-1 flex items-center justify-center w-full">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 w-full max-w-6xl items-center">
+                            
+                            {/* Left: Text & CTA */}
+                            <div className="flex flex-col justify-center">
+                                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold uppercase tracking-widest mb-8 animate-fade-in-up w-fit">
+                                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                                    Proposition de Projet
+                                </div>
+                                
+                                <h1 className="text-5xl md:text-7xl font-bold leading-none tracking-tight mb-8 animate-fade-in-up delay-100">
+                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-indigo-300">
+                                        {quote.title}
+                                    </span>
+                                </h1>
+                                
+                                <div className="flex items-center gap-4 animate-fade-in-up delay-200 mb-10">
+                                    <div className="h-px w-16 bg-indigo-500"></div>
+                                    <p className="text-2xl md:text-3xl text-indigo-200 font-light">
+                                        Pour <span className="font-bold text-white">{companyName}</span>
+                                    </p>
+                                </div>
+
+                                <div className="animate-fade-in-up delay-300">
+                                    <button 
+                                        onClick={scrollToProject}
+                                        className="group flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-full text-white font-semibold transition-all backdrop-blur-sm hover:scale-105"
+                                    >
+                                        Découvrir la solution
+                                        <div className="w-8 h-8 rounded-full bg-white text-indigo-900 flex items-center justify-center group-hover:translate-y-1 transition-transform">
+                                            <ArrowDown size={16} />
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Right: Holographic Tech Card (Desktop Only) */}
+                            <div className="hidden lg:flex justify-end animate-fade-in-up delay-200 relative perspective-1000">
+                                <div className="relative w-80 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group">
+                                    {/* Reflection */}
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent rounded-3xl pointer-events-none"></div>
+                                    
+                                    {/* Card Header */}
+                                    <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 border border-white/5">
+                                                <Cpu size={20} />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider">Système</p>
+                                                <p className="text-sm font-bold text-white">Skalia Engine v2.0</p>
+                                            </div>
+                                        </div>
+                                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_#34d399]"></div>
+                                    </div>
+
+                                    {/* Stack Items */}
+                                    <div className="space-y-3">
+                                        {[
+                                            { icon: Globe, color: "text-blue-300", bg: "bg-blue-500/20", label: "Interface", val: "Portail Client Sécurisé" },
+                                            { icon: BrainCircuit, color: "text-purple-300", bg: "bg-purple-500/20", label: "Intelligence", val: "Agents IA Dédiés" },
+                                            { icon: ShieldCheck, color: "text-emerald-300", bg: "bg-emerald-500/20", label: "Sécurité", val: "Chiffrement de bout en bout" }
+                                        ].map((item, i) => (
+                                            <div key={i} className="bg-black/20 rounded-xl p-3 flex items-center gap-4 border border-white/5 group-hover:bg-black/30 transition-colors">
+                                                <div className={`p-2 ${item.bg} rounded-lg ${item.color}`}>
+                                                    <item.icon size={16} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] text-slate-400 uppercase font-bold">{item.label}</p>
+                                                    <p className="text-xs text-white font-medium">{item.val}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Bottom Status */}
+                                    <div className="mt-8 pt-4 border-t border-white/10">
+                                        <div className="w-full bg-white/10 rounded-full h-1 overflow-hidden mb-2">
+                                            <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-[85%] rounded-full animate-pulse"></div>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-indigo-200 font-mono">
+                                            <span>STATUS_CHECK</span>
+                                            <span>READY_TO_DEPLOY</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
@@ -322,16 +402,11 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
                         </div>
                     </div>
-
-                    {/* Scroll Indicator */}
-                    <div className="absolute bottom-12 right-6 animate-bounce text-indigo-400 opacity-50 hidden md:block">
-                        <ArrowRight className="rotate-90" size={24} />
-                    </div>
                 </div>
             </header>
 
-            {/* --- SECTION 2 : SKALIA (Expertise & Team) - DÉPLACÉ ICI --- */}
-            <section className="py-24 bg-white relative overflow-hidden">
+            {/* --- SECTION 2 : SKALIA (Expertise & Team) --- */}
+            <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
                     
                     <div className="text-center max-w-3xl mx-auto mb-20">
@@ -398,7 +473,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </section>
 
-            {/* --- SECTION 3 : LE PROJET (Description Détaillée) - DÉPLACÉ ICI --- */}
+            {/* --- SECTION 3 : LE PROJET (Description Détaillée) --- */}
             <section className="py-20 bg-slate-50 relative">
                 <div className="max-w-4xl mx-auto px-6 relative z-10">
                     <div className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100">
@@ -547,26 +622,35 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </section>
 
-            {/* --- STICKY FOOTER CTA --- */}
+            {/* --- FINAL ACTION SECTION (REPLACES STICKY FOOTER) --- */}
             {quote.status !== 'signed' && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-200 p-4 z-50 shadow-[0_-5px_30px_rgba(0,0,0,0.08)]">
-                    <div className="max-w-5xl mx-auto flex justify-between items-center">
-                        <div className="hidden md:block">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{quote.title}</p>
-                            <p className="font-bold text-slate-900">Pour {companyName}</p>
+                <section className="py-20 bg-slate-900 text-white relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-900 to-slate-900 pointer-events-none"></div>
+                    
+                    <div className="max-w-4xl mx-auto px-6 relative z-10 text-center">
+                        <h2 className="text-3xl md:text-4xl font-bold mb-6">Prêt à accélérer ?</h2>
+                        <p className="text-indigo-200 text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
+                            Validez cette proposition pour lancer le projet. Dès signature, vous accéderez instantanément à votre espace client Skalia pour suivre l'avancement.
+                        </p>
+                        
+                        <div className="flex justify-center">
+                            <button 
+                                onClick={handleOpenSignModal}
+                                className="group relative overflow-hidden bg-white text-indigo-900 px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_-15px_rgba(255,255,255,0.5)] transition-all transform hover:scale-105 active:scale-95 flex items-center gap-3"
+                            >
+                                <span className="relative z-10 flex items-center gap-3">
+                                    <PenTool size={24} />
+                                    Accepter et Signer le devis
+                                </span>
+                                <div className="absolute inset-0 bg-gradient-to-r from-indigo-50 to-white opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            </button>
                         </div>
-                        <button 
-                            onClick={handleOpenSignModal}
-                            className="w-full md:w-auto relative overflow-hidden bg-slate-900 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all flex items-center justify-center gap-3 transform hover:-translate-y-1 group"
-                        >
-                            {/* Shine Effect */}
-                            <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
-                            
-                            <PenTool size={20} />
-                            Accepter et Signer
-                        </button>
+                        
+                        <p className="mt-6 text-xs text-slate-500 font-medium">
+                            En signant, vous acceptez les conditions générales de vente de Skalia Agency.
+                        </p>
                     </div>
-                </div>
+                </section>
             )}
 
             {/* --- MODAL SIGNATURE (Gardé identique) --- */}
