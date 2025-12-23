@@ -216,6 +216,8 @@ export interface QuotePaymentTerms {
 export interface Quote {
     id: string;
     profile_id: string | null; // Nullable si prospect
+    lead_id?: string | null; // Lien optionnel vers CRM Lead
+    
     // Infos Prospect (si profile_id null)
     recipient_email?: string;
     recipient_name?: string;

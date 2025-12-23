@@ -47,7 +47,8 @@ const GlobalQuotes: React.FC = () => {
   };
 
   const handleCopyLink = (id: string) => {
-      const link = `${window.location.origin}/p/quote/${id}`;
+      // Nouvelle URL avec paramètre de requête pour éviter les erreurs 404 en preview
+      const link = `${window.location.origin}/?quote_id=${id}`;
       navigator.clipboard.writeText(link);
       toast.success("Lien copié", "Lien public du devis dans le presse-papier.");
   };
@@ -134,11 +135,11 @@ const GlobalQuotes: React.FC = () => {
                             </div>
                             <div className="text-right">
                                 <p className="font-bold text-slate-900">{quote.total_amount.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}</p>
-                                <p className="text-[10px] text-slate-400 uppercase">Total HT</p>
+                                <p className="text-[10px] text-slate-400 uppercase">Total TTC</p>
                             </div>
                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button onClick={() => handleCopyLink(quote.id)} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Copier lien public"><Copy size={16} /></button>
-                                <a href={`/p/quote/${quote.id}`} target="_blank" className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Voir"><ExternalLink size={16} /></a>
+                                <a href={`/?quote_id=${quote.id}`} target="_blank" className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Voir"><ExternalLink size={16} /></a>
                                 <button onClick={() => { setEditingQuote(quote); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Modifier"><Edit3 size={16} /></button>
                                 <button onClick={() => handleDelete(quote.id)} className="p-2 text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Supprimer"><Trash2 size={16} /></button>
                             </div>

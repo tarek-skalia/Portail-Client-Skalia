@@ -309,14 +309,23 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // --- 0. CHECK PUBLIC ROUTE (MANUAL ROUTING) ---
+    // On supporte le paramètre de requête ?quote_id= (plus robuste) ET le path /p/quote/ (legacy)
+    const searchParams = new URLSearchParams(window.location.search);
+    const queryQuoteId = searchParams.get('quote_id');
     const path = window.location.pathname;
-    if (path.startsWith('/p/quote/')) {
-        const quoteId = path.split('/p/quote/')[1];
-        if (quoteId) {
-            setPublicQuoteId(quoteId);
-            setIsLoadingAuth(false);
-            return; // STOP ICI, on ne vérifie pas l'auth
-        }
+
+    let targetQuoteId: string | null = null;
+
+    if (queryQuoteId) {
+        targetQuoteId = queryQuoteId;
+    } else if (path.startsWith('/p/quote/')) {
+        targetQuoteId = path.split('/p/quote/')[1];
+    }
+
+    if (targetQuoteId) {
+        setPublicQuoteId(targetQuoteId);
+        setIsLoadingAuth(false);
+        return; // STOP ICI, on ne vérifie pas l'auth
     }
 
     // 1. Initialisation de la session (Si pas de route publique)
@@ -407,18 +416,26 @@ const App: React.FC = () => {
         });
       }
       setIsAuthenticated(true);
+      // Succès total : on arrête le chargement ici
+      setIsLoadingAuth(false);
+
     } catch (error: any) {
-        console.error("Erreur critique fetchUserProfile:", JSON.stringify(error, null, 2));
+        console.error("Erreur fetchUserProfile:", error);
         
-        if (retryCount < 3 && (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError'))) {
+        // Détection plus large des erreurs réseaux
+        const isNetworkError = error?.message?.includes('Failed to fetch') || 
+                               error?.message?.includes('NetworkError') ||
+                               !navigator.onLine;
+
+        if (retryCount < 3 && isNetworkError) {
             console.log(`Tentative de reconnexion au serveur (${retryCount + 1}/3)...`);
             setTimeout(() => {
                 fetchUserProfile(userId, email, retryCount + 1);
             }, 1000 * (retryCount + 1)); 
-            return; 
+            return; // On retourne ici pour ne pas exécuter le code de fallback tout de suite
         }
 
-        // Mode Secours
+        // Mode Secours (Fallback si échec définitif)
         const isEmergencyAdmin = email === 'tarek@skalia.io' || email === 'zakaria@skalia.io';
         const companyName = isEmergencyAdmin ? 'Skalia Agency' : 'Mode Secours';
         const role = isEmergencyAdmin ? 'admin' : 'client';
@@ -431,12 +448,12 @@ const App: React.FC = () => {
             email: email, 
             role: role
         });
+        
+        console.warn("⚠️ Activation du mode secours (offline/erreur).");
         setIsAuthenticated(true);
-    } finally {
-        if (retryCount >= 3 || (!isLoadingAuth && retryCount === 0)) {
-             setIsLoadingAuth(false);
-        }
-    }
+        // On arrête le chargement car on a chargé le mode secours
+        setIsLoadingAuth(false);
+    } 
   };
 
   const handleLogout = async () => { 

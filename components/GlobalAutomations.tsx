@@ -352,18 +352,20 @@ const GlobalAutomations: React.FC = () => {
                         {/* BODY : SPARKLINE & STATS */}
                         <div className="flex items-end justify-between mt-4">
                             <div className="flex-1 mr-4 h-12 relative opacity-60 group-hover:opacity-100 transition-opacity">
-                                {/* SPARKLINE */}
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={auto.history}>
-                                        <Line 
-                                            type="monotone" 
-                                            dataKey="value" 
-                                            stroke={auto.status === 'error' ? '#ef4444' : auto.status === 'active' ? '#10b981' : '#94a3b8'} 
-                                            strokeWidth={2} 
-                                            dot={false} 
-                                        />
-                                    </LineChart>
-                                </ResponsiveContainer>
+                                {/* SPARKLINE SECURED */}
+                                {auto.history && auto.history.length > 0 && (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={auto.history}>
+                                            <Line 
+                                                type="monotone" 
+                                                dataKey="value" 
+                                                stroke={auto.status === 'error' ? '#ef4444' : auto.status === 'active' ? '#10b981' : '#94a3b8'} 
+                                                strokeWidth={2} 
+                                                dot={false} 
+                                            />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                )}
                             </div>
                             
                             <div className="text-right shrink-0">
