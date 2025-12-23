@@ -15,9 +15,13 @@ import GlobalProjects from './components/GlobalProjects';
 import GlobalFinance from './components/GlobalFinance';
 import GlobalAutomations from './components/GlobalAutomations';
 import GlobalExpenses from './components/GlobalExpenses';
+import GlobalQuotes from './components/GlobalQuotes';
 import CRMPage from './components/CRMPage'; 
-import TasksPage from './components/TasksPage'; // Import TasksPage
+import TasksPage from './components/TasksPage'; 
 import UserManagement from './components/UserManagement';
+import QuotesPage from './components/QuotesPage';
+import OnboardingPage from './components/OnboardingPage';
+import SettingsPage from './components/SettingsPage'; // NEW
 import LoginPage from './components/LoginPage';
 import UpdatePasswordPage from './components/UpdatePasswordPage';
 import BackgroundBlobs from './components/BackgroundBlobs'; 
@@ -29,6 +33,7 @@ import { MENU_ITEMS, ADMIN_MENU_ITEMS } from './constants';
 import { ChevronRight, Bell, Monitor, ArrowRight, Home, LayoutGrid } from 'lucide-react';
 import { Client } from './types';
 import { supabase } from './lib/supabase';
+import PublicQuoteView from './components/PublicQuoteView';
 
 // --- COMPOSANT : ÉCRAN DE BLOCAGE MOBILE ---
 const MobileBlocker: React.FC<{ onBypass: () => void }> = ({ onBypass }) => {
@@ -80,7 +85,9 @@ const MobileBlocker: React.FC<{ onBypass: () => void }> = ({ onBypass }) => {
 const AppContent: React.FC<{ 
     currentUser: Client;
     handleLogout: () => void;
-}> = ({ currentUser, handleLogout }) => {
+    userProfile: any; 
+    refreshProfile: () => void;
+}> = ({ currentUser, handleLogout, userProfile, refreshProfile }) => {
     
     const { targetUserId, clients, isAdmin } = useAdmin();
     
@@ -88,6 +95,10 @@ const AppContent: React.FC<{
     const effectiveUserId = targetUserId || currentUser.id;
     const targetClient = clients.find(c => c.id === effectiveUserId) || currentUser;
     const isViewingAsClient = isAdmin && targetClient.role !== 'admin';
+
+    // ONBOARDING CHECK
+    // Si c'est un client, et que son onboarding_step est défini et inférieur à 3 (Booking fait), on affiche l'onboarding
+    const isOnboarding = !isAdmin && userProfile?.onboarding_step !== null && (userProfile?.onboarding_step || 0) < 3;
 
     // Page par défaut différente selon le mode
     const [activePage, setActivePage] = useState<string>(() => {
@@ -197,6 +208,7 @@ const AppContent: React.FC<{
     };
 
     const getPageTitle = (id: string) => {
+        if (id === 'settings') return 'Mon Compte'; // NEW
         const cleanId = id.split(':')[0];
         const item = [...MENU_ITEMS, ...ADMIN_MENU_ITEMS].find(i => i.id === cleanId);
         return item?.label || 'Skalia';
@@ -209,13 +221,15 @@ const AppContent: React.FC<{
         if (!isViewingAsClient && isAdmin) {
             switch (activePage) {
                 case 'global_view': return <GlobalDashboard initialTicketId={autoOpenTicketId} />;
+                case 'global_quotes': return <GlobalQuotes />; 
                 case 'global_projects': return <GlobalProjects />;
-                case 'global_tasks': return <TasksPage />; // Nouvelle page Tâches
+                case 'global_tasks': return <TasksPage />;
                 case 'global_finance': return <GlobalFinance />;
                 case 'global_automations': return <GlobalAutomations />;
                 case 'global_expenses': return <GlobalExpenses />;
                 case 'crm': return <CRMPage />;
                 case 'users': return <UserManagement />;
+                case 'settings': return <SettingsPage currentUser={targetClient} onProfileUpdate={refreshProfile} />; // Allow admin to see their settings
                 default: return <GlobalDashboard />;
             }
         }
@@ -223,6 +237,7 @@ const AppContent: React.FC<{
         // ROUTAGE CLIENT
         switch (activePage) {
           case 'dashboard': return <Dashboard userId={userIdToUse} onNavigate={setActivePage} onNavigateToSupport={handleNavigateToSupport} />;
+          case 'quotes': return <QuotesPage userId={userIdToUse} />;
           case 'automations': return <AutomationsList userId={userIdToUse} onNavigateToSupport={handleNavigateToSupport} />;
           case 'projects': return <ProjectsPipeline userId={userIdToUse} projects={[]} highlightedProjectId={highlightedProjectId} onNavigateToSupport={handleNavigateToSupport} />;
           case 'roadmap': return <ProjectRoadmap userId={userIdToUse} onProjectClick={handleNavigateToProject} />;
@@ -230,12 +245,18 @@ const AppContent: React.FC<{
           case 'history': return <TicketsHistory userId={userIdToUse} initialTicketId={autoOpenTicketId} />;
           case 'invoices': return <InvoicesPage userId={userIdToUse} />;
           case 'expenses': return <ExpensesPage userId={userIdToUse} />;
+          case 'settings': return <SettingsPage currentUser={targetClient} onProfileUpdate={refreshProfile} />; // NEW
           default: return <GenericPage title={getPageTitle(activePage)} />;
         }
     };
 
     if (isSmallScreen && !bypassBlocker) {
         return <MobileBlocker onBypass={() => setBypassBlocker(true)} />;
+    }
+
+    // --- ONBOARDING INTERCEPT ---
+    if (isOnboarding) {
+        return <OnboardingPage currentUser={currentUser} onComplete={refreshProfile} />;
     }
 
     return (
@@ -279,11 +300,26 @@ const AppContent: React.FC<{
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<Client | null>(null);
+  const [fullUserProfile, setFullUserProfile] = useState<any>(null); // To store DB fields like onboarding_step
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
+  
+  // Public Route State
+  const [publicQuoteId, setPublicQuoteId] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Initialisation de la session
+    // --- 0. CHECK PUBLIC ROUTE (MANUAL ROUTING) ---
+    const path = window.location.pathname;
+    if (path.startsWith('/p/quote/')) {
+        const quoteId = path.split('/p/quote/')[1];
+        if (quoteId) {
+            setPublicQuoteId(quoteId);
+            setIsLoadingAuth(false);
+            return; // STOP ICI, on ne vérifie pas l'auth
+        }
+    }
+
+    // 1. Initialisation de la session (Si pas de route publique)
     const initSession = async () => {
         try {
             const { data: { session }, error } = await supabase.auth.getSession();
@@ -311,6 +347,7 @@ const App: React.FC = () => {
           await supabase.auth.signOut();
           setIsAuthenticated(false);
           setCurrentUser(null);
+          setFullUserProfile(null);
           setIsLoadingAuth(false);
           return;
       }
@@ -321,6 +358,7 @@ const App: React.FC = () => {
         }
       } else {
         setCurrentUser(null);
+        setFullUserProfile(null);
         setIsAuthenticated(false);
         setIsLoadingAuth(false);
         setIsPasswordRecoveryMode(false);
@@ -355,6 +393,7 @@ const App: React.FC = () => {
       if (error) throw error;
 
       if (data) {
+        setFullUserProfile(data); // Store DB profile for onboarding check
         setCurrentUser({
             id: data.id,
             name: data.full_name || 'Utilisateur',
@@ -367,23 +406,18 @@ const App: React.FC = () => {
       }
       setIsAuthenticated(true);
     } catch (error: any) {
-        // CORRECTION ERREUR [object Object] : Affichage propre de l'erreur dans la console
         console.error("Erreur critique fetchUserProfile:", JSON.stringify(error, null, 2));
         
-        // --- RETRY LOGIC (Pour les erreurs réseau "Failed to fetch") ---
         if (retryCount < 3 && (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError'))) {
             console.log(`Tentative de reconnexion au serveur (${retryCount + 1}/3)...`);
             setTimeout(() => {
                 fetchUserProfile(userId, email, retryCount + 1);
-            }, 1000 * (retryCount + 1)); // Backoff: 1s, 2s, 3s
-            return; // On sort de la fonction, le retry s'occupera du reste
+            }, 1000 * (retryCount + 1)); 
+            return; 
         }
 
-        // --- BYPASS ADMIN D'URGENCE ---
+        // Mode Secours
         const isEmergencyAdmin = email === 'tarek@skalia.io' || email === 'zakaria@skalia.io';
-
-        // Si l'utilisateur est admin, on ne met pas forcément "Mode Secours" pour éviter la panique,
-        // on assume que c'est une erreur RLS temporaire et on donne les droits Admin locaux.
         const companyName = isEmergencyAdmin ? 'Skalia Agency' : 'Mode Secours';
         const role = isEmergencyAdmin ? 'admin' : 'client';
 
@@ -393,11 +427,10 @@ const App: React.FC = () => {
             company: companyName, 
             avatarInitials: isEmergencyAdmin ? 'AD' : '!', 
             email: email, 
-            role: role // FORCE LE ROLE ADMIN ICI
+            role: role
         });
         setIsAuthenticated(true);
     } finally {
-        // Seulement si ce n'est pas un retry en cours
         if (retryCount >= 3 || (!isLoadingAuth && retryCount === 0)) {
              setIsLoadingAuth(false);
         }
@@ -410,15 +443,27 @@ const App: React.FC = () => {
   };
   const handlePasswordUpdated = () => setIsPasswordRecoveryMode(false);
 
+  // --- RENDER ---
+
+  // 1. Loading global
   if (isLoadingAuth) return <div className="h-screen w-full flex items-center justify-center bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  
+  // 2. Route Publique (Devis) - PRIORITAIRE
+  if (publicQuoteId) return <PublicQuoteView quoteId={publicQuoteId} />;
+
+  // 3. Password Recovery
   if (isPasswordRecoveryMode) return <UpdatePasswordPage onSuccess={handlePasswordUpdated} />;
   
+  // 4. Login (Si pas auth et pas de route publique)
   if (!isAuthenticated || !currentUser) return <LoginPage />;
 
+  // 5. Main App
   return (
       <AdminProvider currentUser={currentUser}>
           <AppContent 
               currentUser={currentUser} 
+              userProfile={fullUserProfile}
+              refreshProfile={() => fetchUserProfile(currentUser.id, currentUser.email)}
               handleLogout={handleLogout} 
           />
       </AdminProvider>

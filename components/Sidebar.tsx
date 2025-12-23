@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { MENU_ITEMS, ADMIN_MENU_ITEMS } from '../constants';
-import { LogOut, Phone, ShieldCheck, CornerUpLeft, User } from 'lucide-react';
+import { LogOut, Phone, ShieldCheck, CornerUpLeft, User, Settings as SettingsIcon } from 'lucide-react';
 import { Client } from '../types';
 import Logo from './Logo';
 import { useAdmin } from './AdminContext';
@@ -165,8 +165,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
           </div>
       )}
 
-      {/* Footer User Profile */}
-      <div className="p-4 m-4 mt-0 rounded-2xl bg-black/20 backdrop-blur-md border border-white/5 relative z-10 shadow-lg group hover:bg-black/30 transition-colors duration-300 shrink-0">
+      {/* Footer User Profile (Clickable to Settings) */}
+      <button 
+        onClick={() => setActivePage('settings')}
+        className="p-4 m-4 mt-0 rounded-2xl bg-black/20 backdrop-blur-md border border-white/5 relative z-10 shadow-lg group hover:bg-black/30 transition-colors duration-300 shrink-0 text-left w-[calc(100%-2rem)]"
+      >
         <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-full bg-white shadow-md border border-white/20 shrink-0 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center overflow-hidden">
                 {logoSrc && !imgError ? (
@@ -188,19 +191,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
                 <p className="text-sm font-semibold truncate text-white group-hover:text-indigo-100 transition-colors">{currentClient.name}</p>
                 <p className="text-xs text-indigo-300 truncate">{currentClient.company}</p>
             </div>
+            
+            <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                <SettingsIcon size={16} />
+            </div>
         </div>
         
         <div className="pt-2 border-t border-white/10 flex justify-center">
-            <button 
-                onClick={onLogout}
+            <div 
+                role="button"
+                onClick={(e) => { e.stopPropagation(); onLogout(); }}
                 className="w-full py-1.5 hover:bg-red-500/20 text-indigo-200 hover:text-red-200 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-xs font-medium" 
                 title="Déconnexion"
             >
                 <LogOut size={14} />
                 <span>Déconnexion</span>
-            </button>
+            </div>
         </div>
-      </div>
+      </button>
     </div>
   );
 };

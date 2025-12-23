@@ -177,7 +177,7 @@ export interface CRMField {
 export interface Lead {
   id: string;
   created_at: string;
-  updated_at?: string; // FIX: Ajout du champ manquant
+  updated_at?: string; 
   first_name: string;
   last_name: string;
   company: string;
@@ -197,4 +197,42 @@ export interface CRMActivity {
   content: string;
   created_at: string;
   created_by?: string;
+}
+
+// --- QUOTE TYPES (Updated for Magic Flow) ---
+export interface QuoteItemData {
+    description: string;
+    quantity: number;
+    unit_price: number;
+    billing_frequency: 'once' | 'monthly' | 'yearly'; // Nouveau : Fréquence
+}
+
+export interface QuotePaymentTerms {
+    type: '100_percent' | '50_50' | '30_70' | 'custom';
+    deposit_percentage?: number;
+    custom_label?: string;
+}
+
+export interface Quote {
+    id: string;
+    profile_id: string | null; // Nullable si prospect
+    // Infos Prospect (si profile_id null)
+    recipient_email?: string;
+    recipient_name?: string;
+    recipient_company?: string;
+    
+    title: string;
+    description: string;
+    status: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid';
+    valid_until: string;
+    total_amount: number; // Total théorique One-Shot + 1 mois récurrent
+    
+    // Tracking
+    view_count?: number;
+    last_viewed_at?: string;
+    
+    payment_terms?: QuotePaymentTerms; // Nouveau : Conditions
+    
+    items?: QuoteItemData[];
+    created_at: string;
 }

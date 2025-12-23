@@ -29,6 +29,10 @@ export interface Database {
           avatar_initials: string | null
           logo_url: string | null
           stripe_customer_id: string | null
+          onboarding_step: number | null
+          phone: string | null
+          address: string | null
+          vat_number: string | null
           updated_at: string | null
         }
         Insert: {
@@ -39,6 +43,10 @@ export interface Database {
           avatar_initials?: string | null
           logo_url?: string | null
           stripe_customer_id?: string | null
+          onboarding_step?: number | null
+          phone?: string | null
+          address?: string | null
+          vat_number?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -49,7 +57,89 @@ export interface Database {
           avatar_initials?: string | null
           logo_url?: string | null
           stripe_customer_id?: string | null
+          onboarding_step?: number | null
+          phone?: string | null
+          address?: string | null
+          vat_number?: string | null
           updated_at?: string | null
+        }
+      }
+      quotes: {
+        Row: {
+          id: string
+          profile_id: string | null
+          recipient_email: string | null
+          recipient_name: string | null
+          recipient_company: string | null
+          title: string
+          description: string | null
+          status: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid'
+          total_amount: number
+          payment_terms: Json | null
+          valid_until: string | null
+          public_token: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          profile_id?: string | null
+          recipient_email?: string | null
+          recipient_name?: string | null
+          recipient_company?: string | null
+          title: string
+          description?: string | null
+          status?: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid'
+          total_amount?: number
+          payment_terms?: Json | null
+          valid_until?: string | null
+          public_token?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          profile_id?: string | null
+          recipient_email?: string | null
+          recipient_name?: string | null
+          recipient_company?: string | null
+          title?: string
+          description?: string | null
+          status?: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid'
+          total_amount?: number
+          payment_terms?: Json | null
+          valid_until?: string | null
+          public_token?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      quote_items: {
+        Row: {
+          id: string
+          quote_id: string
+          description: string
+          quantity: number
+          unit_price: number
+          total: number
+          billing_frequency: 'once' | 'monthly' | 'yearly'
+        }
+        Insert: {
+          id?: string
+          quote_id: string
+          description: string
+          quantity?: number
+          unit_price?: number
+          billing_frequency?: 'once' | 'monthly' | 'yearly'
+          // total est généré automatiquement
+        }
+        Update: {
+          id?: string
+          quote_id?: string
+          description?: string
+          quantity?: number
+          unit_price?: number
+          billing_frequency?: 'once' | 'monthly' | 'yearly'
         }
       }
       projects: {
@@ -319,6 +409,72 @@ export interface Database {
           type?: 'info' | 'success' | 'warning' | 'error'
           link?: string | null
           is_read?: boolean
+          created_at?: string
+        }
+      }
+      // CRM
+      crm_leads: {
+        Row: {
+          id: string
+          status: string
+          value: number
+          company: string | null
+          first_name: string | null
+          last_name: string | null
+          email: string | null
+          phone: string | null
+          source: string | null
+          notes: string | null
+          custom_data: Json
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          status?: string
+          value?: number
+          company?: string | null
+          first_name?: string | null
+          last_name?: string | null
+          email?: string | null
+          phone?: string | null
+          source?: string | null
+          notes?: string | null
+          custom_data?: Json
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          status?: string
+          value?: number
+          company?: string | null
+          first_name?: string | null
+          last_name?: string | null
+          email?: string | null
+          phone?: string | null
+          source?: string | null
+          notes?: string | null
+          custom_data?: Json
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
+      crm_fields: {
+        Row: {
+          id: string
+          key: string
+          label: string
+          type: 'text' | 'number' | 'date' | 'select' | 'boolean'
+          options: string[] | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          label: string
+          type: 'text' | 'number' | 'date' | 'select' | 'boolean'
+          options?: string[] | null
           created_at?: string
         }
       }
