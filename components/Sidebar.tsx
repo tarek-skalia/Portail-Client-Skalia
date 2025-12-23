@@ -95,8 +95,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
         )}
       </div>
 
-      {/* Navigation - Compact Mode */}
-      <nav className="flex-1 px-3 overflow-y-auto space-y-0.5 relative z-10 custom-scrollbar flex flex-col py-2">
+      {/* Navigation - Espacement ajusté (space-y-1 et py-3) */}
+      <nav className="flex-1 px-3 overflow-y-auto space-y-1 relative z-10 custom-scrollbar flex flex-col py-3">
         
         {/* TITRE DE SECTION */}
         <div className="px-3 mb-2 mt-1">
@@ -110,7 +110,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
             </p>
         </div>
         
-        <div className="space-y-0.5">
+        <div className="space-y-1">
             {menuToRender.map((item) => {
             const isActive = activePage === item.id;
             const activeBg = isClientTheme ? 'bg-white text-indigo-700' : 'bg-indigo-600 text-white border border-indigo-500';
@@ -120,7 +120,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
                 <button
                 key={item.id}
                 onClick={() => setActivePage(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 group relative overflow-hidden
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group relative overflow-hidden
                     ${
                     isActive
                         ? `${activeBg} ${activeShadow} translate-x-1 scale-[1.02]`
@@ -153,7 +153,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
           <div className="px-3 mb-2 mt-2 relative z-10 shrink-0">
              <button 
                 type="button"
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 border border-white/10 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2 group relative overflow-hidden hover:scale-[1.02] transition-transform duration-300 active:scale-[0.98]"
+                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 border border-white/10 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2 group relative overflow-hidden hover:scale-[1.02] transition-transform duration-300 active:scale-[0.98]"
                 data-iclosed-link="https://app.iclosed.io/e/tarekskalia/appel-decouverte"
                 data-embed-type="popup"
              >
