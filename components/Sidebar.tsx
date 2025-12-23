@@ -192,7 +192,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, currentCli
                 <p className="text-[10px] text-indigo-300 truncate">{currentClient.company}</p>
             </div>
             
-            <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* ICONE REGLÉE : Toujours visible (opacity-70) et devient fully opaque au survol */}
+            <div className="text-indigo-400 opacity-70 group-hover:opacity-100 transition-opacity">
                 <SettingsIcon size={14} />
             </div>
         </div>

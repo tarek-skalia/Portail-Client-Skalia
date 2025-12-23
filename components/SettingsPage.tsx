@@ -87,12 +87,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
       setIsSaving(true);
 
       try {
-          // 1. Upload Avatar if changed (Not implemented fully in this snippet as it needs specific bucket setup, skipping for now or mocking)
-          // For now, we focus on text fields update. Real avatar upload would require storage bucket "avatars" public policy.
-          
+          // UPDATE : On inclut le téléphone
           const updates = {
               full_name: formData.full_name,
-              phone: formData.phone,
+              phone: formData.phone || null,
               updated_at: new Date().toISOString()
           };
 
@@ -103,7 +101,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
           if (onProfileUpdate) onProfileUpdate();
 
       } catch (err: any) {
-          toast.error("Erreur", err.message);
+          console.error(err);
+          toast.error("Erreur", "Impossible de mettre à jour le profil.");
       } finally {
           setIsSaving(false);
       }
@@ -114,11 +113,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
       setIsSaving(true);
 
       try {
+          // UPDATE : On inclut l'adresse et le numéro de TVA
           const updates = {
               company_name: formData.company_name,
               logo_url: formData.website, // Simplified logic: website url = logo source via logo.dev
-              address: formData.address,
-              vat_number: formData.vat_number,
+              address: formData.address || null,
+              vat_number: formData.vat_number || null,
               updated_at: new Date().toISOString()
           };
 
@@ -129,7 +129,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
           if (onProfileUpdate) onProfileUpdate();
 
       } catch (err: any) {
-          toast.error("Erreur", err.message);
+          console.error(err);
+          toast.error("Erreur", "Impossible de mettre à jour les infos entreprise.");
       } finally {
           setIsSaving(false);
       }
@@ -137,8 +138,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
       e.preventDefault();
+      
+      // Validation basique
+      if (!formData.current_password) {
+          toast.error("Erreur", "Veuillez entrer votre mot de passe actuel.");
+          return;
+      }
       if (formData.new_password !== formData.confirm_password) {
-          toast.error("Erreur", "Les mots de passe ne correspondent pas.");
+          toast.error("Erreur", "Les nouveaux mots de passe ne correspondent pas.");
           return;
       }
       if (formData.new_password.length < 6) {
@@ -148,10 +155,22 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
 
       setIsSaving(true);
       try {
+          // 1. VÉRIFICATION DE L'ANCIEN MOT DE PASSE
+          // On tente une connexion avec l'email actuel et l'ancien mot de passe fourni.
+          const { error: verifyError } = await supabase.auth.signInWithPassword({
+              email: formData.email, // L'email est chargé depuis le profil
+              password: formData.current_password
+          });
+
+          if (verifyError) {
+              throw new Error("Votre ancien mot de passe est incorrect.");
+          }
+
+          // 2. MISE À JOUR SI VÉRIFICATION OK
           const { error } = await supabase.auth.updateUser({ password: formData.new_password });
           if (error) throw error;
           
-          toast.success("Succès", "Mot de passe modifié.");
+          toast.success("Succès", "Mot de passe modifié avec succès.");
           setFormData(prev => ({ ...prev, current_password: '', new_password: '', confirm_password: '' }));
       } catch (err: any) {
           toast.error("Erreur", err.message);
@@ -358,6 +377,23 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 animate-fade-in">
                         <form onSubmit={handleUpdatePassword} className="space-y-6 max-w-md">
                             <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Ancien mot de passe</label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                    <input 
+                                        type="password" 
+                                        required
+                                        value={formData.current_password} 
+                                        onChange={e => setFormData({...formData, current_password: e.target.value})}
+                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
+                                        placeholder="Mot de passe actuel"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="h-px bg-slate-100 my-4"></div>
+
+                            <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nouveau mot de passe</label>
                                 <div className="relative">
                                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -366,7 +402,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
                                         value={formData.new_password} 
                                         onChange={e => setFormData({...formData, new_password: e.target.value})}
                                         className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                        placeholder="••••••••"
+                                        placeholder="Minimum 6 caractères"
                                     />
                                 </div>
                             </div>
@@ -379,7 +415,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
                                         value={formData.confirm_password} 
                                         onChange={e => setFormData({...formData, confirm_password: e.target.value})}
                                         className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                        placeholder="••••••••"
+                                        placeholder="Répétez le mot de passe"
                                     />
                                 </div>
                             </div>
