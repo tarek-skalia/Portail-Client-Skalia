@@ -5,7 +5,7 @@ import {
     Check, Download, AlertCircle, FileText, Calendar, DollarSign, PenTool, 
     CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
     Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit,
-    ArrowDown, ChevronDown
+    ArrowDown, ChevronDown, ChevronLeft, Scale
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
@@ -93,6 +93,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const [quote, setQuote] = useState<QuoteData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [viewMode, setViewMode] = useState<'quote' | 'legal'>('quote'); // Navigation interne
     const [isSigningModalOpen, setIsSigningModalOpen] = useState(false);
     const hasTrackedRef = useRef(false);
     
@@ -102,6 +103,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const [password, setPassword] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [authError, setAuthError] = useState('');
+    const [termsAccepted, setTermsAccepted] = useState(false); // Checkbox Legal
 
     const projectSectionRef = useRef<HTMLElement>(null);
 
@@ -178,6 +180,12 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
     const handleMagicSign = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (!termsAccepted) {
+            setAuthError("Vous devez accepter les Conditions Générales de Vente pour continuer.");
+            return;
+        }
+
         setIsProcessing(true);
         setAuthError('');
 
@@ -250,26 +258,89 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
     const companyName = quote.profile?.company_name || quote.recipient_company || 'votre entreprise';
 
+    // --- VUE JURIDIQUE SÉPARÉE (CGV) ---
+    if (viewMode === 'legal') {
+        return (
+            <div className="min-h-screen bg-slate-50 font-sans">
+                {/* Header Legal */}
+                <div className="bg-white border-b border-slate-200 sticky top-0 z-50">
+                    <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
+                        <Logo classNameText="text-slate-900" />
+                        <button 
+                            onClick={() => setViewMode('quote')}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors"
+                        >
+                            <ChevronLeft size={16} /> Retour à la proposition
+                        </button>
+                    </div>
+                </div>
+
+                {/* Content Legal */}
+                <div className="max-w-3xl mx-auto px-6 py-12">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 md:p-16">
+                        <h1 className="text-3xl font-bold text-slate-900 mb-2">Conditions Générales de Vente</h1>
+                        <p className="text-slate-500 mb-10 text-sm">Dernière mise à jour : 01 Janvier 2025</p>
+
+                        <div className="prose prose-slate prose-sm max-w-none text-justify space-y-8">
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-3">1. Objet</h3>
+                                <p>Les présentes conditions générales de vente (ci-après "CGV") régissent les relations contractuelles entre Skalia Agency (ci-après "le Prestataire") et toute personne physique ou morale (ci-après "le Client") souhaitant bénéficier des services d'automatisation et de développement proposés.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-3">2. Prestations</h3>
+                                <p>Le Prestataire s'engage à fournir les services décrits dans le devis validé par le Client. Ces services incluent principalement l'audit, le conseil, la mise en place d'automatisations (via Make, n8n, etc.) et le développement d'outils sur mesure.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-3">3. Propriété Intellectuelle</h3>
+                                <p>Jusqu'au paiement complet de la facture, les créations et développements restent la propriété exclusive de Skalia Agency. Après règlement intégral, le Prestataire cède au Client les droits d'exploitation sur les livrables spécifiques réalisés pour lui.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-3">4. Confidentialité</h3>
+                                <p>Les deux parties s'engagent à conserver confidentielles toutes les informations et documents techniques ou commerciaux échangés durant l'exécution du contrat.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-3">5. Responsabilité</h3>
+                                <p>Skalia Agency est soumise à une obligation de moyens. La responsabilité du Prestataire ne saurait être engagée pour des dommages indirects ou liés à l'utilisation par le Client d'outils tiers (APIs, logiciels SaaS) dont les conditions d'utilisation changeraient.</p>
+                            </section>
+                            
+                            {/* ... Ajouter plus de texte si nécessaire ... */}
+                        </div>
+
+                        <div className="mt-16 pt-8 border-t border-slate-100 flex justify-center">
+                            <button 
+                                onClick={() => setViewMode('quote')}
+                                className="px-8 py-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-600 transition-colors"
+                            >
+                                J'ai lu et je reviens au devis
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // --- VUE PRINCIPALE (DEVIS) ---
     return (
         <div className="min-h-screen bg-white font-sans selection:bg-indigo-200 selection:text-indigo-900 overflow-x-hidden">
             
-            {/* --- HERO SECTION IMMERSIVE (Style PDF Skalia + Tech) --- */}
+            {/* --- HERO SECTION IMMERSIVE --- */}
             <header className="relative bg-[#0F0A1F] text-white min-h-[100vh] flex flex-col relative overflow-hidden">
-                
                 {/* Tech Background Grid & Glows */}
                 <div className="absolute inset-0 pointer-events-none">
-                    {/* Grid Pattern */}
                     <div className="absolute inset-0 opacity-10" 
                          style={{ backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
                     </div>
-                    {/* Glowing Orbs */}
                     <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-purple-700/20 rounded-full blur-[120px] animate-pulse"></div>
                     <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[100px]"></div>
                 </div>
 
                 <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10 w-full flex-1 flex flex-col justify-between py-12 md:py-16">
-                    
-                    {/* Top Bar (Logo & Ref) */}
+                    {/* Top Bar */}
                     <div className="flex justify-between items-start animate-fade-in">
                         <Logo className="w-12 h-12" classNameText="text-2xl" showText={true} />
                         <div className="text-right text-indigo-300/80 text-xs font-mono border border-white/10 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm">
@@ -278,30 +349,26 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         </div>
                     </div>
 
-                    {/* Main Content Area (Split Left/Right on Desktop) */}
+                    {/* Main Content Area */}
                     <div className="flex-1 flex items-center justify-center w-full">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 w-full max-w-6xl items-center">
-                            
                             {/* Left: Text & CTA */}
                             <div className="flex flex-col justify-center">
                                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold uppercase tracking-widest mb-8 animate-fade-in-up w-fit">
                                     <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
                                     Proposition de Projet
                                 </div>
-                                
                                 <h1 className="text-5xl md:text-7xl font-bold leading-none tracking-tight mb-8 animate-fade-in-up delay-100">
                                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-indigo-300">
                                         {quote.title}
                                     </span>
                                 </h1>
-                                
                                 <div className="flex items-center gap-4 animate-fade-in-up delay-200 mb-10">
                                     <div className="h-px w-16 bg-indigo-500"></div>
                                     <p className="text-2xl md:text-3xl text-indigo-200 font-light">
                                         Pour <span className="font-bold text-white">{companyName}</span>
                                     </p>
                                 </div>
-
                                 <div className="animate-fade-in-up delay-300">
                                     <button 
                                         onClick={scrollToProject}
@@ -315,13 +382,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 </div>
                             </div>
 
-                            {/* Right: Holographic Tech Card (Desktop Only) */}
+                            {/* Right: Holographic Tech Card */}
                             <div className="hidden lg:flex justify-end animate-fade-in-up delay-200 relative perspective-1000">
                                 <div className="relative w-80 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group">
-                                    {/* Reflection */}
                                     <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent rounded-3xl pointer-events-none"></div>
-                                    
-                                    {/* Card Header */}
                                     <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 border border-white/5">
@@ -334,8 +398,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                         </div>
                                         <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_#34d399]"></div>
                                     </div>
-
-                                    {/* Stack Items */}
                                     <div className="space-y-3">
                                         {[
                                             { icon: Globe, color: "text-blue-300", bg: "bg-blue-500/20", label: "Interface", val: "Portail Client Sécurisé" },
@@ -353,8 +415,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                             </div>
                                         ))}
                                     </div>
-
-                                    {/* Bottom Status */}
                                     <div className="mt-8 pt-4 border-t border-white/10">
                                         <div className="w-full bg-white/10 rounded-full h-1 overflow-hidden mb-2">
                                             <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-[85%] rounded-full animate-pulse"></div>
@@ -366,14 +426,12 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
-                    {/* Footer Contact Info (Hud Style - Always at bottom) */}
+                    {/* Footer Contact Info */}
                     <div className="border-t border-white/10 pt-8 animate-fade-in delay-300">
                         <div className="flex flex-col md:flex-row gap-12 text-sm text-indigo-200/70">
-                            
                             <div className="space-y-2">
                                 <p className="font-bold text-white mb-1 uppercase tracking-wider text-xs flex items-center gap-2">
                                     <MapPin size={12} className="text-indigo-400" /> Agence
@@ -383,7 +441,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     <div className="flex items-center gap-2 mt-1 font-mono text-xs opacity-70">BE1023214594</div>
                                 </div>
                             </div>
-
                             <div className="space-y-2">
                                 <p className="font-bold text-white mb-1 uppercase tracking-wider text-xs flex items-center gap-2">
                                     <Phone size={12} className="text-indigo-400" /> Contact
@@ -393,22 +450,26 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     <a href="mailto:contact@skalia.io" className="hover:text-white transition-colors">contact@skalia.io</a>
                                 </div>
                             </div>
-                            
-                            <div className="md:ml-auto flex items-end">
+                            <div className="md:ml-auto flex items-end gap-6">
+                                <button 
+                                    onClick={() => setViewMode('legal')}
+                                    className="text-xs font-bold text-indigo-300 hover:text-white transition-colors flex items-center gap-2 border-b border-transparent hover:border-white pb-0.5"
+                                >
+                                    <Scale size={14} /> Conditions Générales
+                                </button>
                                 <a href="https://skalia.io" target="_blank" className="text-white font-bold hover:text-indigo-300 transition-colors flex items-center gap-2">
                                     <Globe size={16} /> skalia.io
                                 </a>
                             </div>
-
                         </div>
                     </div>
                 </div>
             </header>
 
-            {/* --- SECTION 2 : SKALIA (Expertise & Team) --- */}
+            {/* --- SECTIONS CONTENT (Expertise, Projet, Méthodo, Prix) - Identiques V4 --- */}
+            {/* ... Le code des sections Expertise, Projet, Méthodo, Pricing est identique à V4 ... */}
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
-                    
                     <div className="text-center max-w-3xl mx-auto mb-20">
                         <h2 className="text-4xl font-bold text-slate-900 mb-6">
                             L'expertise <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Skalia</span>.
@@ -417,8 +478,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner en clarté en automatisant leurs processus avec l’intelligence artificielle. Notre approche pragmatique transforme la complexité en solutions simples.
                         </p>
                     </div>
-
-                    {/* Savoir-Faire Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
                         {SKALIA_EXPERTISE.map((exp, i) => (
                             <div key={i} className="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-indigo-100 hover:shadow-lg transition-all group">
@@ -432,10 +491,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             </div>
                         ))}
                     </div>
-
-                    {/* Team & Values Split */}
                     <div className="flex flex-col md:flex-row gap-16 items-center">
-                        {/* Values */}
                         <div className="flex-1 space-y-6">
                             <h3 className="text-2xl font-bold text-slate-900 mb-6">Nos Valeurs</h3>
                             {[
@@ -454,8 +510,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 </div>
                             ))}
                         </div>
-
-                        {/* Team Photos */}
                         <div className="flex gap-6">
                             {AGENCY_TEAM.map((member, i) => (
                                 <div key={i} className="group relative w-40 md:w-48 aspect-[3/4] rounded-2xl overflow-hidden shadow-xl border-4 border-white">
@@ -469,11 +523,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             ))}
                         </div>
                     </div>
-
                 </div>
             </section>
 
-            {/* --- SECTION 3 : LE PROJET (Description Détaillée) --- */}
             <section className="py-20 bg-slate-50 relative">
                 <div className="max-w-4xl mx-auto px-6 relative z-10">
                     <div className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100">
@@ -483,40 +535,29 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             </div>
                             <h2 className="text-3xl font-bold text-slate-900">Le Projet</h2>
                         </div>
-                        
                         <div className="prose prose-lg text-slate-600 leading-relaxed whitespace-pre-line">
                             {quote.description || "Aucune description détaillée disponible pour ce projet."}
                         </div>
                     </div>
                 </div>
-                {/* Decor */}
                 <div className="absolute top-1/2 left-0 w-64 h-64 bg-indigo-100/50 rounded-full blur-[80px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
             </section>
 
-            {/* --- SECTION METHODOLOGIE (Timeline Fixed) --- */}
             <section className="py-24 bg-[#0F0A1F] text-white relative overflow-hidden">
                 <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#4f46e5 1px, transparent 1px)', backgroundSize: '30px 30px'}}></div>
-                
                 <div className="max-w-6xl mx-auto px-6 relative z-10">
                     <h2 className="text-3xl md:text-4xl font-bold mb-20 text-center">Notre méthode en 4 étapes</h2>
-                    
                     <div className="relative">
-                        {/* THE CONNECTING LINE (Absolute centered) */}
-                        {/* Desktop: Horizontal */}
                         <div className="hidden md:block absolute top-8 left-0 right-0 h-0.5 bg-indigo-900/50 z-0">
                             <div className="h-full bg-indigo-500 w-full origin-left transform scale-x-100 transition-transform duration-1000"></div>
                         </div>
-                        {/* Mobile: Vertical */}
                         <div className="md:hidden absolute left-8 top-0 bottom-0 w-0.5 bg-indigo-900/50 z-0"></div>
-
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
                             {METHODOLOGY_STEPS.map((step, i) => (
                                 <div key={i} className="relative z-10 flex md:block items-start gap-6 group">
-                                    {/* Circle Number */}
                                     <div className="w-16 h-16 rounded-2xl bg-[#1a152e] border border-indigo-500/30 flex items-center justify-center text-2xl font-bold text-indigo-400 shrink-0 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all shadow-[0_0_20px_rgba(79,70,229,0.15)] group-hover:shadow-[0_0_30px_rgba(79,70,229,0.4)]">
                                         {step.num}
                                     </div>
-                                    
                                     <div className="mt-2 md:mt-8">
                                         <h3 className="text-xl font-bold mb-2 text-white">{step.title}</h3>
                                         <p className="text-slate-400 text-sm leading-relaxed">
@@ -530,7 +571,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </section>
 
-            {/* --- SECTION PRICING (Tech Cards) --- */}
             <section className="py-24 bg-slate-50">
                 <div className="max-w-5xl mx-auto px-6">
                     <div className="text-center mb-16">
@@ -539,10 +579,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             Une tarification claire et transparente.
                         </p>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                        
-                        {/* CARD 1: SETUP */}
                         <div className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
                                 <Layers size={140} />
@@ -552,7 +589,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 <span className="text-5xl font-extrabold text-slate-900">{formatCurrency(oneShotTotal)}</span>
                                 <span className="text-xl text-slate-400 font-medium">HT</span>
                             </div>
-                            
                             <ul className="space-y-4 mb-8 relative z-10">
                                 {oneShotItems.map((item, idx) => (
                                     <li key={idx} className="flex items-start gap-3 text-slate-700">
@@ -563,23 +599,18 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 {oneShotItems.length === 0 && <li className="text-slate-400 italic text-sm">Aucun frais d'installation</li>}
                             </ul>
                         </div>
-
-                        {/* CARD 2: RECURRING (Dark Mode) */}
                         <div className="bg-[#0F0A1F] rounded-[2rem] p-10 shadow-2xl shadow-indigo-900/20 border border-indigo-500/20 relative overflow-hidden text-white transform md:-translate-y-4 group">
                             <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/20 to-transparent pointer-events-none"></div>
                             <div className="absolute top-0 right-0 p-6 opacity-10">
                                 <RefreshCw size={140} />
                             </div>
-                            
                             <div className="inline-block px-3 py-1 bg-indigo-500 rounded-full text-[10px] font-bold uppercase tracking-wide mb-6">
                                 Mensualité
                             </div>
-                            
                             <div className="flex items-baseline gap-2 mb-8">
                                 <span className="text-5xl font-extrabold text-white">{formatCurrency(recurringTotal)}</span>
                                 <span className="text-xl text-indigo-300 font-medium">/mois</span>
                             </div>
-                            
                             <ul className="space-y-4 mb-8 relative z-10">
                                 {recurringItems.length > 0 ? recurringItems.map((item, idx) => (
                                     <li key={idx} className="flex items-start gap-3 text-indigo-50">
@@ -600,10 +631,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 )}
                             </ul>
                         </div>
-
                     </div>
-
-                    {/* TOTAL RECAP */}
                     <div className="mt-12 bg-white rounded-2xl p-8 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
                         <div className="text-center md:text-left">
                             <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Conditions de démarrage</p>
@@ -618,11 +646,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             </p>
                         </div>
                     </div>
-
                 </div>
             </section>
 
-            {/* --- FINAL ACTION SECTION (REPLACES STICKY FOOTER) --- */}
+            {/* --- FINAL ACTION SECTION --- */}
             {quote.status !== 'signed' && (
                 <section className="py-20 bg-slate-900 text-white relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-900 to-slate-900 pointer-events-none"></div>
@@ -653,7 +680,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </section>
             )}
 
-            {/* --- MODAL SIGNATURE (Gardé identique) --- */}
+            {/* --- MODAL SIGNATURE --- */}
             {isSigningModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
@@ -688,9 +715,26 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     </div>
                                 </div>
 
+                                {/* CHECKBOX LEGAL - OBLIGATOIRE */}
+                                <div className="flex items-start gap-3 mt-4 mb-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                    <div className="relative flex items-center h-5">
+                                        <input 
+                                            type="checkbox" 
+                                            id="terms" 
+                                            required
+                                            checked={termsAccepted}
+                                            onChange={(e) => setTermsAccepted(e.target.checked)}
+                                            className="w-5 h-5 border-2 border-slate-300 rounded focus:ring-indigo-500 text-indigo-600 cursor-pointer"
+                                        />
+                                    </div>
+                                    <label htmlFor="terms" className="text-xs text-slate-600 leading-snug cursor-pointer select-none">
+                                        J'accepte les <button type="button" onClick={() => setViewMode('legal')} className="text-indigo-600 font-bold underline hover:text-indigo-800">Conditions Générales de Vente</button> et je reconnais que ma signature électronique a la même valeur juridique qu'une signature manuscrite.
+                                    </label>
+                                </div>
+
                                 {authError && <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl flex items-center gap-2 border border-red-100"><AlertCircle size={14} /> {authError}</div>}
 
-                                <button type="submit" disabled={isProcessing} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-base transform active:scale-95">
+                                <button type="submit" disabled={isProcessing} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-base transform active:scale-95 disabled:cursor-not-allowed">
                                     {isProcessing ? <Loader2 className="animate-spin" /> : (authMode === 'register' ? 'Signer & Créer mon espace' : 'Connexion & Signer')}
                                 </button>
                             </form>
