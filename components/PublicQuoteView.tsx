@@ -65,8 +65,8 @@ const RichDescription: React.FC<{ text: string }> = ({ text }) => {
                 if (!trimmed) return <div key={i} className="h-2" />; // Spacer
 
                 // 1. Détection des Titres/Badges (ex: "OBJECTIFS :")
-                // Règle : Commence par majuscule, finit par deux-points, court.
-                const isBadge = /^[A-ZÀ-ÖØ-Þ0-9\s\W]+:$/.test(trimmed) && trimmed.length < 50;
+                // Règle : Commence par majuscule, finit par deux-points, longuer < 120 chars.
+                const isBadge = /^[A-ZÀ-ÖØ-Þ0-9\s\W]+:$/.test(trimmed) && trimmed.length < 120;
                 
                 if (isBadge) {
                     return (
@@ -846,7 +846,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             >
                                 <span className="relative z-10 flex items-center gap-3">
                                     <PenTool size={24} />
-                                    Accepter et Signer le devis
+                                    Accepter et Signer l'offre
                                 </span>
                                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-50 to-white opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             </button>
@@ -873,7 +873,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             <p className="text-sm text-slate-500 mt-2 leading-relaxed">
                                 {isExistingClient 
                                     ? `Bon retour ${quote.recipient_name?.split(' ')[0] || 'parmi nous'}, connectez-vous pour valider.` 
-                                    : "Cette étape est double : elle signe électroniquement le devis et crée votre accès client sécurisé."}
+                                    : "Cette étape est double : elle signe électroniquement l'offre et crée votre accès client sécurisé."}
                             </p>
                         </div>
 
@@ -910,14 +910,14 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                         />
                                     </div>
                                     <label htmlFor="terms" className="text-xs text-slate-600 leading-snug cursor-pointer select-none">
-                                        J'accepte les <button type="button" onClick={() => setViewMode('legal')} className="text-indigo-600 font-bold underline hover:text-indigo-800">Conditions Générales de Vente</button> et je reconnais que la création de mon compte vaut signature électronique du devis.
+                                        J'accepte les <button type="button" onClick={() => setViewMode('legal')} className="text-indigo-600 font-bold underline hover:text-indigo-800">Conditions Générales de Vente</button> et je reconnais que la création de mon compte vaut signature électronique de l'offre.
                                     </label>
                                 </div>
 
                                 {authError && <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl flex items-center gap-2 border border-red-100"><AlertCircle size={14} /> {authError}</div>}
 
                                 <button type="submit" disabled={isProcessing} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-base transform active:scale-95 disabled:cursor-not-allowed">
-                                    {isProcessing ? <Loader2 className="animate-spin" /> : (isExistingClient ? 'Connexion & Signer' : 'Créer mon compte & Signer')}
+                                    {isProcessing ? <Loader2 className="animate-spin" /> : (isExistingClient ? 'Connexion & Signer l\'offre' : 'Créer mon compte & Signer l\'offre')}
                                 </button>
                             </form>
                             <button onClick={() => setIsSigningModalOpen(false)} className="w-full mt-6 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">Annuler et revenir</button>
