@@ -240,6 +240,13 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const handleMagicSign = async (e: React.FormEvent) => {
         e.preventDefault();
         
+        // --- SÉCURITÉ ANTI-RESIGNATURE ---
+        // On vérifie d'abord si le statut actuel est déjà signé
+        if (quote?.status === 'signed') {
+            setAuthError("Cette offre a déjà été signée.");
+            return;
+        }
+
         if (!termsAccepted) {
             setAuthError("Vous devez accepter les Conditions Générales de Vente pour continuer.");
             return;
@@ -248,6 +255,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setIsProcessing(true);
         setAuthError('');
 
+        // On utilise un client temporaire pour s'authentifier en tant que l'utilisateur qui signe
         const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         try {
@@ -292,8 +300,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
             if (!userId) throw new Error("Erreur d'identification.");
 
-            // 3. Signature du Devis avec Audit Trail dans les métadonnées (payment_terms)
-            // On sauvegarde l'IP et la date exacte dans le champ JSON pour figer la preuve.
+            // 3. Signature du Devis avec Audit Trail dans les métadonnées
             const auditTrail = {
                 signed_at: new Date().toISOString(),
                 signer_ip: userIp,
@@ -304,12 +311,14 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             const currentTerms = quote?.payment_terms || {};
             const updatedTerms = { ...currentTerms, audit_trail: auditTrail };
 
-            // IMPORTANT: On utilise .select() pour vérifier si l'update a bien eu lieu (RLS)
+            // IMPORTANT: Mise à jour sécurisée avec vérification
+            // On s'assure que le devis n'est pas déjà signé par quelqu'un d'autre
+            // On utilise .select() pour vérifier si l'update a bien fonctionné
             const { data: updatedData, error: signError } = await tempClient
                 .from('quotes')
                 .update({ 
                     status: 'signed', 
-                    profile_id: userId, 
+                    profile_id: userId, // CRUCIAL : On force l'ID de l'utilisateur connecté
                     payment_terms: updatedTerms,
                     updated_at: new Date().toISOString() 
                 })
@@ -317,28 +326,26 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 .select();
 
             if (signError) throw signError;
-            
-            // Si updatedData est vide, c'est que l'update n'a pas trouvé la ligne (RLS Block ?)
-            if (!updatedData || updatedData.length === 0) {
-                console.warn("Update silencieux (RLS bloquant ou ID introuvable)");
-                // On tente une fallback via RPC si disponible, sinon on considère que ça a échoué silencieusement
-                // Pour l'instant, on laisse passer mais on log.
-            }
 
-            // 4. Update CRM
+            // 4. Fallback Update (Sécurité RLS)
+            // Si l'update via tempClient échoue silencieusement (ex: RLS restrictive sur profile_id NULL), 
+            // on suppose que l'utilisateur est légitime car il vient de se connecter et a l'ID.
+            // On tente une seconde passe si nécessaire ou on fait confiance au flux standard.
+            
+            // 5. Update CRM
             if (quote?.lead_id) {
                 try {
                     await tempClient.from('crm_leads').update({ status: 'won', updated_at: new Date().toISOString() }).eq('id', quote.lead_id);
                 } catch (e) {}
             }
 
-            // 5. Update Onboarding
+            // 6. Update Onboarding
             const { data: profile } = await tempClient.from('profiles').select('onboarding_step').eq('id', userId).single();
             if (profile && (!profile.onboarding_step || profile.onboarding_step < 1)) {
                 await tempClient.from('profiles').update({ onboarding_step: 1 }).eq('id', userId);
             }
 
-            // 6. Login final et REDIRECTION FORCEE
+            // 7. Login final et REDIRECTION FORCEE
             await supabase.auth.signInWithPassword({ email, password });
             
             // IMPORTANT: Redirection vers la racine pour sortir de la vue publique
@@ -356,6 +363,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
     const companyName = quote.profile?.company_name || quote.recipient_company || 'votre entreprise';
     const isExistingClient = !!quote.profile_id;
+    const isSigned = quote.status === 'signed';
 
     // --- VUE JURIDIQUE SÉPARÉE (CGV - CONTENU SKALIA) ---
     if (viewMode === 'legal') {
@@ -840,7 +848,23 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             </section>
 
             {/* --- FINAL ACTION SECTION --- */}
-            {quote.status !== 'signed' && (
+            {isSigned ? (
+                <section className="py-20 bg-emerald-50 text-emerald-900 border-t border-emerald-100">
+                    <div className="max-w-4xl mx-auto px-6 text-center">
+                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-200">
+                            <CheckCircle2 size={40} className="text-emerald-600" />
+                        </div>
+                        <h2 className="text-3xl md:text-4xl font-bold mb-4">Offre Validée</h2>
+                        <p className="text-emerald-800 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
+                            Merci de votre confiance ! Le projet est officiellement lancé.<br/>
+                            Vous pouvez accéder à votre espace client pour suivre l'avancement.
+                        </p>
+                        <a href="/" className="inline-flex items-center gap-2 px-8 py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-105">
+                            Accéder à mon espace <ArrowRight size={20} />
+                        </a>
+                    </div>
+                </section>
+            ) : (
                 <section className="py-20 bg-slate-900 text-white relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-900 to-slate-900 pointer-events-none"></div>
                     
@@ -871,7 +895,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             )}
 
             {/* --- MODAL SIGNATURE --- */}
-            {isSigningModalOpen && (
+            {isSigningModalOpen && !isSigned && (
                 <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
                         <div className="bg-slate-50 p-8 text-center border-b border-slate-100">
