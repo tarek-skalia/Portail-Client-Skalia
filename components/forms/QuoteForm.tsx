@@ -49,8 +49,6 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
   const [prospectName, setProspectName] = useState('');
   const [prospectEmail, setProspectEmail] = useState('');
   const [prospectCompany, setProspectCompany] = useState('');
-  const [prospectAddress, setProspectAddress] = useState(''); // NEW
-  const [prospectVat, setProspectVat] = useState(''); // NEW
   
   // Quote Fields
   const [title, setTitle] = useState('');
@@ -128,8 +126,6 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
           if (initialData.payment_terms) {
               setPaymentTermsType(initialData.payment_terms.type || '100_percent');
               setTaxRate(initialData.payment_terms.tax_rate || 0);
-              setProspectAddress(initialData.payment_terms.billing_address || '');
-              setProspectVat(initialData.payment_terms.vat_number || '');
           }
 
       } else {
@@ -225,8 +221,6 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
               payment_terms: { 
                   type: paymentTermsType,
                   tax_rate: taxRate,
-                  billing_address: prospectAddress, // Stocké ici pour le prospect
-                  vat_number: prospectVat // Stocké ici pour le prospect
               },
               updated_at: new Date().toISOString()
           };
@@ -325,7 +319,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
                 </div>
             )}
 
-            {/* MODE: PROSPECT (AVEC ADRESSE & TVA) */}
+            {/* MODE: PROSPECT */}
             {clientMode === 'prospect' && (
                 <div className="space-y-4 animate-fade-in">
                     <div>
@@ -357,18 +351,6 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Société</label>
                         <input type="text" value={prospectCompany} onChange={e => setProspectCompany(e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Entreprise SAS" />
-                    </div>
-                    
-                    {/* CHAMPS SUPPLÉMENTAIRES POUR FACTURATION */}
-                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
-                        <div className="col-span-2">
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><MapPin size={12} /> Adresse Facturation</label>
-                            <input type="text" value={prospectAddress} onChange={e => setProspectAddress(e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm" placeholder="10 rue de la Paix, 75000 Paris" />
-                        </div>
-                        <div className="col-span-2">
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Hash size={12} /> N° TVA Intracommunautaire</label>
-                            <input type="text" value={prospectVat} onChange={e => setProspectVat(e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-mono" placeholder="FR 12 345678900" />
-                        </div>
                     </div>
                 </div>
             )}

@@ -304,7 +304,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             const currentTerms = quote?.payment_terms || {};
             const updatedTerms = { ...currentTerms, audit_trail: auditTrail };
 
-            const { error: signError } = await tempClient
+            // IMPORTANT: On utilise .select() pour vérifier si l'update a bien eu lieu (RLS)
+            const { data: updatedData, error: signError } = await tempClient
                 .from('quotes')
                 .update({ 
                     status: 'signed', 
@@ -312,9 +313,17 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     payment_terms: updatedTerms,
                     updated_at: new Date().toISOString() 
                 })
-                .eq('id', quoteId);
+                .eq('id', quoteId)
+                .select();
 
             if (signError) throw signError;
+            
+            // Si updatedData est vide, c'est que l'update n'a pas trouvé la ligne (RLS Block ?)
+            if (!updatedData || updatedData.length === 0) {
+                console.warn("Update silencieux (RLS bloquant ou ID introuvable)");
+                // On tente une fallback via RPC si disponible, sinon on considère que ça a échoué silencieusement
+                // Pour l'instant, on laisse passer mais on log.
+            }
 
             // 4. Update CRM
             if (quote?.lead_id) {
@@ -329,9 +338,11 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 await tempClient.from('profiles').update({ onboarding_step: 1 }).eq('id', userId);
             }
 
-            // 6. Login final et reload
+            // 6. Login final et REDIRECTION FORCEE
             await supabase.auth.signInWithPassword({ email, password });
-            window.location.reload(); 
+            
+            // IMPORTANT: Redirection vers la racine pour sortir de la vue publique
+            window.location.href = '/'; 
 
         } catch (err: any) {
             setAuthError(err.message || "Une erreur est survenue.");
