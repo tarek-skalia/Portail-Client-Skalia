@@ -129,6 +129,14 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
 
           // 2. Déclenchement Webhook N8N pour création Facture
           if (pendingQuote) {
+              // Calcul des dates
+              const issueDateObj = new Date();
+              const issueDateStr = issueDateObj.toISOString().split('T')[0];
+              
+              const dueDateObj = new Date(issueDateObj);
+              dueDateObj.setDate(dueDateObj.getDate() + 7); // Ajout de 7 jours
+              const dueDateStr = dueDateObj.toISOString().split('T')[0];
+
               const n8nPayload = {
                   client: {
                       email: currentUser.email,
@@ -141,10 +149,9 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                   },
                   invoice: {
                       projectName: pendingQuote.title,
-                      issueDate: new Date().toISOString().split('T')[0],
-                      // Date d'échéance = aujourd'hui (facture d'acompte immédiate) ou +X jours selon les termes
-                      dueDate: new Date().toISOString().split('T')[0],
-                      amount: pendingQuote.total_amount, // Montant TOTAL du devis ou Acompte ? On envoie tout, n8n gère.
+                      issueDate: issueDateStr,
+                      dueDate: dueDateStr, // J+7
+                      amount: pendingQuote.total_amount, 
                       quote_id: pendingQuote.id,
                       currency: 'eur',
                       tax_rate: pendingQuote.payment_terms?.tax_rate || 0
@@ -154,10 +161,10 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
 
               console.log("Sending to N8N:", n8nPayload);
 
-              // Appel non-bloquant (fire and forget ou await si on veut confirmer)
+              // Appel non-bloquant
               await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
                   method: 'POST',
-                  mode: 'no-cors', // Mode no-cors pour éviter les erreurs CORS simples si le serveur ne répond pas parfaitement
+                  mode: 'no-cors', 
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(n8nPayload)
               });
