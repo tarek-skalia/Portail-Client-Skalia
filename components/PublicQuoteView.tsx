@@ -241,7 +241,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         e.preventDefault();
         
         // --- SÉCURITÉ ANTI-RESIGNATURE ---
-        if (quote?.status === 'signed' || quote?.status === 'accepted') {
+        // 'paid' est considéré comme un état final/signé valide dans l'interface TS
+        if (quote?.status === 'signed' || quote?.status === 'paid') {
             setAuthError("Cette offre a déjà été signée.");
             return;
         }
@@ -255,6 +256,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setAuthError('');
 
         // On utilise un client temporaire pour s'authentifier
+        // Cela permet de ne pas perturber la session globale si on est déjà connecté (rare ici)
+        // et de garantir une session fraîche pour les opérations RLS
         const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         try {
@@ -276,6 +279,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 userId = data.user.id;
                 session = data.session;
             } else {
+                // Création du compte
                 const { data, error } = await tempClient.auth.signUp({ email, password });
                 if (error) {
                     if (error.message.includes('already registered')) {
@@ -289,7 +293,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     session = data.session;
                     
                     // On tente de créer le profil immédiatement
-                    // On utilise tempClient si on a une session, sinon on espère que supabase anon fonctionne (dépend RLS)
+                    // On utilise tempClient si on a une session pour passer les règles RLS
                     const profileClient = session ? tempClient : supabase;
                     
                     await profileClient.from('profiles').upsert({
@@ -332,11 +336,12 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             const updatedTerms = { ...currentTerms, audit_trail: auditTrail };
 
             // On utilise tempClient qui est maintenant authentifié
+            // On met le statut à 'signed' comme demandé
             const { data: updatedData, error: signError } = await tempClient
                 .from('quotes')
                 .update({ 
                     status: 'signed', 
-                    profile_id: userId, // LIEN CRITIQUE
+                    profile_id: userId, // LIEN CRITIQUE : Associe le devis au compte créé
                     payment_terms: updatedTerms,
                     updated_at: new Date().toISOString() 
                 })
@@ -347,7 +352,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             
             // Vérification que l'update a bien eu lieu (RLS check)
             if (!updatedData || updatedData.length === 0) {
-                throw new Error("Erreur de droits : Impossible de mettre à jour le devis. Contactez l'administrateur.");
+                throw new Error("Erreur de droits : Impossible de mettre à jour le devis. Veuillez contacter le support.");
             }
 
             // 4. Update CRM (Optionnel, best effort)
@@ -385,14 +390,14 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
     const companyName = quote.profile?.company_name || quote.recipient_company || 'votre entreprise';
     const isExistingClient = !!quote.profile_id;
-    // Vérification stricte du statut pour l'affichage
-    const isSignedOrAccepted = quote.status === 'signed' || quote.status === 'accepted' || quote.status === 'paid';
+    // Vérification stricte du statut pour l'affichage avec types valides uniquement
+    const isSignedOrAccepted = quote.status === 'signed' || quote.status === 'paid';
 
     // --- VUE JURIDIQUE SÉPARÉE (CGV) ---
     if (viewMode === 'legal') {
         return (
             <div className="min-h-screen bg-slate-50 font-sans">
-                {/* ... (Code CGV inchangé) ... */}
+                {/* Header Legal */}
                 <div className="bg-white border-b border-slate-200 sticky top-0 z-50">
                     <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
                         <Logo classNameText="text-slate-900" />
@@ -409,10 +414,73 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 md:p-16">
                         <h1 className="text-3xl font-bold text-slate-900 mb-2">Conditions Générales de Vente</h1>
                         <p className="text-slate-500 mb-10 text-sm">SKALIA SRL • BE1023.214.594 • Liège, Belgique</p>
+
                         <div className="prose prose-slate prose-sm max-w-none text-justify space-y-8">
-                            <p>Les présentes Conditions Générales régissent l’ensemble des relations entre la SRL Skalia...</p>
-                            {/* ... (Contenu abrégé pour clarté, remettre le texte complet si nécessaire) ... */}
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Préambule</h3>
+                                <p>Les présentes Conditions Générales régissent l’ensemble des relations entre la SRL Skalia (ci-dessous dénommée « le prestataire ») et ses clients, à moins qu’un autre accord écrit stipule expressément qu’il y est dérogé.</p>
+                                <p>La personne physique ou morale qui accepte l’offre par écrit (y compris par email) est considérée comme « le client » et se porte garante du paiement de la facture.</p>
+                                <p>Les engagements verbaux n’engagent le prestataire qu’après confirmation écrite et dûment signée.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Objet du contrat</h3>
+                                <p>Le prestataire est chargé par le client de réaliser un projet défini dans l’offre commerciale annexée.</p>
+                                <p>L’offre de prix formulée par le prestataire fait partie intégrante du contrat et peut contenir certaines dérogations et limitations aux présentes conditions.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Collaboration entre les parties</h3>
+                                <p>Le client veillera à fournir tous les éléments et informations nécessaires à la bonne exécution du projet.</p>
+                                <p>Il collaborera avec le prestataire en vue d’assurer le bon déroulement des travaux, notamment en y allouant les moyens et le personnel nécessaire. À défaut, les délais et échéances pourront être adaptés à due concurrence.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Délais de création</h3>
+                                <p>Le projet est réalisé dans les délais indiqués dans l’offre commerciale, sous réserve de la bonne collaboration du client et de la transmission des éléments nécessaires.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Prix et paiement</h3>
+                                <p>Les modalités de paiement sont précisées dans l’offre commerciale et peuvent prendre l’une des formes suivantes :</p>
+                                <ul className="list-disc pl-5 space-y-1 mt-2 mb-2">
+                                    <li>Frais de réalisation forfaitaires à la signature, complétés par des mensualités couvrant le support, les mises à jour et le suivi du projet ;</li>
+                                    <li>Frais de réalisation forfaitaires à la signature uniquement ;</li>
+                                    <li>Frais mensuels fixes sur la durée indiquée dans l’offre.</li>
+                                </ul>
+                                <p>Les factures sont payables dans un délai de sept (7) jours calendrier.</p>
+                                <p>En cas de non-paiement, le prestataire se réserve le droit de suspendre ses prestations jusqu’à réception du règlement.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Propriété intellectuelle</h3>
+                                <p>Le prestataire reste propriétaire du savoir-faire, workflows, outils et méthodes développés dans le cadre du projet.</p>
+                                <p>Le client dispose d’un droit d’utilisation des livrables remis, mais ne peut ni les revendre ni les sous-louer.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Confidentialité</h3>
+                                <p>Chacune des parties s’engage à considérer comme confidentielles les informations, documents, systèmes, logiciels et savoir-faire échangés pendant et après l’exécution du contrat.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Responsabilités et limitations</h3>
+                                <p>La responsabilité du prestataire est limitée, toutes causes confondues, au montant total des honoraires perçus au titre du présent contrat.</p>
+                                <p>Le prestataire ne pourra être tenu responsable des dommages indirects tels que perte de chiffre d’affaires, perte de chance ou perte de données.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Interruption liée à des outils tiers</h3>
+                                <p>Le prestataire ne pourra être tenu responsable des interruptions ou défaillances liées à des outils tiers intégrés dans la solution. Dans ce cas, le prestataire s’engage à mettre en œuvre tous les moyens possibles pour contourner, remplacer ou rétablir le bon fonctionnement du projet.</p>
+                            </section>
+
+                            <section>
+                                <h3 className="font-bold text-slate-900 text-lg mb-2">Litiges et droit applicable</h3>
+                                <p>En cas de difficultés ou de différend entre les parties à l’occasion de l’interprétation ou de l’exécution du présent contrat, celles-ci conviennent de rechercher une solution amiable.</p>
+                                <p>Si aucune solution ne peut être trouvée, les tribunaux de l’arrondissement de Liège seront compétents et appliqueront exclusivement le droit matériel belge.</p>
+                            </section>
                         </div>
+
                         <div className="mt-16 pt-8 border-t border-slate-100 flex justify-center">
                             <button onClick={() => setViewMode('quote')} className="px-8 py-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-600 transition-colors">
                                 J'ai lu et je reviens au devis
@@ -499,7 +567,32 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                         </div>
                                         <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_#34d399]"></div>
                                     </div>
-                                    {/* ... */}
+                                    <div className="space-y-3">
+                                        {[
+                                            { icon: Globe, color: "text-blue-300", bg: "bg-blue-500/20", label: "Interface", val: "Portail Client Sécurisé" },
+                                            { icon: BrainCircuit, color: "text-purple-300", bg: "bg-purple-500/20", label: "Intelligence", val: "Agents IA Dédiés" },
+                                            { icon: ShieldCheck, color: "text-emerald-300", bg: "bg-emerald-500/20", label: "Sécurité", val: "Chiffrement de bout en bout" }
+                                        ].map((item, i) => (
+                                            <div key={i} className="bg-black/20 rounded-xl p-3 flex items-center gap-4 border border-white/5 group-hover:bg-black/30 transition-colors">
+                                                <div className={`p-2 ${item.bg} rounded-lg ${item.color}`}>
+                                                    <item.icon size={16} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] text-slate-400 uppercase font-bold">{item.label}</p>
+                                                    <p className="text-xs text-white font-medium">{item.val}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="mt-8 pt-4 border-t border-white/10">
+                                        <div className="w-full bg-white/10 rounded-full h-1 overflow-hidden mb-2">
+                                            <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-[85%] rounded-full animate-pulse"></div>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-indigo-200 font-mono">
+                                            <span>STATUS_CHECK</span>
+                                            <span>READY_TO_DEPLOY</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -518,11 +611,22 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     <div className="flex items-center gap-2 mt-1 font-mono text-xs opacity-70">BE1023214594</div>
                                 </div>
                             </div>
-                            {/* ... */}
+                            <div className="space-y-2">
+                                <p className="font-bold text-white mb-1 uppercase tracking-wider text-xs flex items-center gap-2">
+                                    <Phone size={12} className="text-indigo-400" /> Contact
+                                </p>
+                                <div className="pl-5 flex flex-col gap-1">
+                                    <a href="tel:+32465580790" className="hover:text-white transition-colors">+32 465 58 07 90</a>
+                                    <a href="mailto:contact@skalia.io" className="hover:text-white transition-colors">contact@skalia.io</a>
+                                </div>
+                            </div>
                             <div className="md:ml-auto flex items-end gap-6">
                                 <button onClick={() => setViewMode('legal')} className="text-xs font-bold text-indigo-300 hover:text-white transition-colors flex items-center gap-2 border-b border-transparent hover:border-white pb-0.5">
                                     <Scale size={14} /> Conditions Générales
                                 </button>
+                                <a href="https://skalia.io" target="_blank" className="text-white font-bold hover:text-indigo-300 transition-colors flex items-center gap-2">
+                                    <Globe size={16} /> skalia.io
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -537,7 +641,47 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         <h2 className="text-4xl font-bold text-slate-900 mb-6">L'expertise <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Skalia</span>.</h2>
                         <p className="text-lg text-slate-600 leading-relaxed">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives...</p>
                     </div>
-                    {/* ... */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+                        {SKALIA_EXPERTISE.map((exp, i) => (
+                            <div key={i} className="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-indigo-100 hover:shadow-lg transition-all group">
+                                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm mb-6 group-hover:scale-110 transition-transform duration-300">
+                                    {exp.icon}
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-900 mb-3">{exp.title}</h3>
+                                <p className="text-slate-500 leading-relaxed text-sm">{exp.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex flex-col md:flex-row gap-16 items-center">
+                        <div className="flex-1 space-y-6">
+                            <h3 className="text-2xl font-bold text-slate-900 mb-6">Nos Valeurs</h3>
+                            {[
+                                { title: "Réactivité", desc: "Des solutions déployées rapidement." },
+                                { title: "Transparence", desc: "Pas de coûts cachés, code documenté." },
+                                { title: "Innovation", desc: "Les dernières technologies IA." }
+                            ].map((val, i) => (
+                                <div key={i} className="flex items-center gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm shrink-0">{i+1}</div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">{val.title}</h4>
+                                        <p className="text-sm text-slate-500">{val.desc}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex gap-6">
+                            {AGENCY_TEAM.map((member, i) => (
+                                <div key={i} className="group relative w-40 md:w-48 aspect-[3/4] rounded-2xl overflow-hidden shadow-xl border-4 border-white">
+                                    <img src={member.img} alt={member.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90"></div>
+                                    <div className="absolute bottom-0 left-0 w-full p-4 text-white">
+                                        <p className="font-bold text-sm">{member.name}</p>
+                                        <p className="text-[10px] text-indigo-300 font-medium uppercase tracking-wider">{member.role}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -555,13 +699,53 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 <RichDescription text={quote.description || "Aucune description détaillée."} />
                             </div>
                         </div>
-                        {/* ... */}
+                        <div className="lg:col-span-2 sticky top-24">
+                            <div className="relative aspect-[4/5] rounded-[2rem] overflow-hidden bg-slate-900 shadow-2xl border border-slate-800 group">
+                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 to-slate-900"></div>
+                                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#6366f1 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                                <div className="absolute top-1/4 left-1/4 w-48 h-48 bg-purple-500/30 rounded-full blur-[60px] animate-float"></div>
+                                <div className="absolute bottom-1/3 right-1/4 w-64 h-64 bg-indigo-500/20 rounded-full blur-[80px] animate-float-delayed"></div>
+                                <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-8">
+                                    <div className="w-20 h-20 bg-white/10 backdrop-blur-lg border border-white/10 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform duration-700">
+                                        <LayoutGrid size={32} className="text-indigo-300" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-white mb-2">Solution Sur Mesure</h3>
+                                    <p className="text-indigo-200/80 text-sm leading-relaxed max-w-xs">Conçue spécifiquement pour répondre aux enjeux de {companyName}.</p>
+                                    <div className="mt-8 flex flex-col gap-3 w-full max-w-[200px]">
+                                        <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                                            <div className="h-full bg-indigo-500 w-[70%] animate-pulse"></div>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-indigo-300 font-mono"><span>ANALYSIS</span><span>COMPLETE</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
 
             <section className="py-24 bg-[#0F0A1F] text-white relative overflow-hidden">
-                {/* ... (Section Méthodologie) ... */}
+                <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#4f46e5 1px, transparent 1px)', backgroundSize: '30px 30px'}}></div>
+                <div className="max-w-6xl mx-auto px-6 relative z-10">
+                    <h2 className="text-3xl md:text-4xl font-bold mb-20 text-center">Notre méthode en 4 étapes</h2>
+                    <div className="relative">
+                        <div className="hidden md:block absolute top-8 left-0 right-0 h-0.5 bg-indigo-900/50 z-0">
+                            <div className="h-full bg-indigo-500 w-full origin-left transform scale-x-100 transition-transform duration-1000"></div>
+                        </div>
+                        <div className="md:hidden absolute left-8 top-0 bottom-0 w-0.5 bg-indigo-900/50 z-0"></div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
+                            {METHODOLOGY_STEPS.map((step, i) => (
+                                <div key={i} className="relative z-10 flex md:block items-start gap-6 group">
+                                    <div className="w-16 h-16 rounded-2xl bg-[#1a152e] border border-indigo-500/30 flex items-center justify-center text-2xl font-bold text-indigo-400 shrink-0 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all shadow-[0_0_20px_rgba(79,70,229,0.15)] group-hover:shadow-[0_0_30px_rgba(79,70,229,0.4)]">{step.num}</div>
+                                    <div className="mt-2 md:mt-8">
+                                        <h3 className="text-xl font-bold mb-2 text-white">{step.title}</h3>
+                                        <p className="text-slate-400 text-sm leading-relaxed">{step.desc}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section className="py-24 bg-slate-50">
@@ -571,6 +755,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                         {/* One Shot & Recurring Cards */}
                         <div className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><Layers size={140} /></div>
                             <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-4">Initialisation</h3>
                             <div className="flex items-baseline gap-2 mb-8">
                                 <span className="text-5xl font-extrabold text-slate-900">{formatCurrency(oneShotTotal)}</span>
@@ -583,11 +768,48 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                         <span className="text-sm font-medium">{item.description}</span>
                                     </li>
                                 ))}
+                                {oneShotItems.length === 0 && <li className="text-slate-400 italic text-sm">Aucun frais d'installation</li>}
                             </ul>
                         </div>
-                        {/* ... */}
+                        <div className="bg-[#0F0A1F] rounded-[2rem] p-10 shadow-2xl shadow-indigo-900/20 border border-indigo-500/20 relative overflow-hidden text-white transform md:-translate-y-4 group">
+                            <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/20 to-transparent pointer-events-none"></div>
+                            <div className="absolute top-0 right-0 p-6 opacity-10"><RefreshCw size={140} /></div>
+                            <div className="inline-block px-3 py-1 bg-indigo-500 rounded-full text-[10px] font-bold uppercase tracking-wide mb-6">Mensualité</div>
+                            <div className="flex items-baseline gap-2 mb-8">
+                                <span className="text-5xl font-extrabold text-white">{formatCurrency(recurringTotal)}</span>
+                                <span className="text-xl text-indigo-300 font-medium">/mois</span>
+                            </div>
+                            <ul className="space-y-4 mb-8 relative z-10">
+                                {recurringItems.length > 0 ? recurringItems.map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-3 text-indigo-50">
+                                        <div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div>
+                                        <span className="text-sm font-medium">{item.description}</span>
+                                    </li>
+                                )) : (
+                                    <>
+                                        <li className="flex items-start gap-3 text-indigo-50"><div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div><span className="text-sm font-medium">Hébergement serveurs & Base de données</span></li>
+                                        <li className="flex items-start gap-3 text-indigo-50"><div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div><span className="text-sm font-medium">Support technique prioritaire</span></li>
+                                    </>
+                                )}
+                            </ul>
+                        </div>
                     </div>
-                    {/* ... (Conditions) ... */}
+                    <div className="mt-12 bg-white rounded-2xl p-8 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
+                        <div className="text-center md:text-left">
+                            <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Conditions de démarrage</p>
+                            <p className="text-base text-slate-800">{termsType === '100_percent' ? '100% à la commande' : termsType === '50_50' ? 'Acompte 50% à la commande' : 'Acompte 30% à la commande'}</p>
+                        </div>
+                        {quote.delivery_delay && (
+                            <div className="text-center">
+                                <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Délai estimé</p>
+                                <p className="text-base text-slate-800 flex items-center justify-center gap-2"><Clock size={16} className="text-indigo-500" />{quote.delivery_delay}</p>
+                            </div>
+                        )}
+                        <div className="text-center md:text-right">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total à régler aujourd'hui (TTC)</p>
+                            <p className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">{formatCurrency(totalDueNowTTC)}</p>
+                        </div>
+                    </div>
                 </div>
             </section>
 
