@@ -10,7 +10,6 @@ import {
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
 
-// ... (Garder les constantes AGENCY_TEAM, METHODOLOGY_STEPS, SKALIA_EXPERTISE inchangées) ...
 const AGENCY_TEAM = [
     {
         name: 'Zakaria Jellouli',
@@ -35,17 +34,17 @@ const SKALIA_EXPERTISE = [
     {
         title: "Automatisation & Intégration",
         desc: "Conception de systèmes complets qui connectent vos outils et optimisent vos processus de bout en bout.",
-        icon: <Zap size={20} />
+        icon: <Zap size={24} />
     },
     {
         title: "Agents IA sur mesure",
         desc: "Développement d’agents intelligents capables de traiter vos tâches complexes comme de vrais collaborateurs.",
-        icon: <BrainCircuit size={20} />
+        icon: <BrainCircuit size={24} />
     },
     {
         title: "Formation en entreprise",
         desc: "Transmission des savoir-faire pour assurer l’adoption et l’utilisation optimale des solutions.",
-        icon: <Users size={20} />
+        icon: <Users size={24} />
     }
 ];
 
@@ -99,7 +98,6 @@ const RichDescription: React.FC<{ text: string }> = ({ text }) => {
     );
 };
 
-// ... (Interfaces inchangées) ...
 interface QuoteItem {
     id: string;
     description: string;
@@ -332,23 +330,20 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             if (signError) throw signError;
 
             // 2. CRÉATION IMMÉDIATE DE L'ABONNEMENT (PENDING)
-            // On récupère les items récurrents depuis l'état local (pas besoin de refetch)
             if (recurringItems.length > 0) {
                 const subscriptionsPayload = recurringItems.map((item: any) => ({
-                    user_id: userId, // On utilise l'ID confirmé de l'utilisateur
+                    user_id: userId,
                     service_name: item.description,
                     amount: item.unit_price * item.quantity,
                     currency: 'EUR',
                     billing_cycle: item.billing_frequency,
-                    status: 'pending', // Important : En attente d'activation manuelle par l'admin
+                    status: 'pending',
                     created_at: new Date().toISOString()
                 }));
 
-                // On utilise tempClient pour insérer car l'utilisateur est authentifié avec
                 const { error: subError } = await tempClient.from('client_subscriptions').insert(subscriptionsPayload);
                 if (subError) {
                     console.error("Erreur création abonnement automatique:", subError);
-                    // On ne bloque pas le flux pour ça, mais on loggue
                 }
             }
 
@@ -387,9 +382,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const isExistingClient = !!quote.profile_id;
     const isSignedOrAccepted = quote.status === 'signed' || quote.status === 'paid';
 
-    // ... (Le reste du rendu : Vue Legal et Vue Devis reste identique, je ne remets pas tout pour économiser l'espace si pas modifié) ...
-    // Je renvoie tout le composant pour être sûr.
-
     if (viewMode === 'legal') {
         return (
             <div className="min-h-screen bg-slate-50 font-sans">
@@ -411,10 +403,16 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         <h1 className="text-3xl font-bold text-slate-900 mb-2">Conditions Générales de Vente</h1>
                         <p className="text-slate-500 mb-10 text-sm">SKALIA SRL • BE1023.214.594 • Liège, Belgique</p>
                         
-                        {/* Contenu CGV (simplifié pour la démo) */}
                         <div className="prose prose-slate prose-sm max-w-none text-justify space-y-8">
                             <p>Les présentes Conditions Générales régissent l’ensemble des relations entre la SRL Skalia et ses clients.</p>
-                            {/* ... (Reste du texte CGV identique au fichier original) ... */}
+                            <h3>1. Objet</h3>
+                            <p>Skalia fournit des services d'automatisation, d'intégration et de conseil technologique.</p>
+                            <h3>2. Devis et Commandes</h3>
+                            <p>La signature du devis vaut acceptation sans réserve des présentes conditions.</p>
+                            <h3>3. Paiement</h3>
+                            <p>Sauf mention contraire, les factures sont payables à réception.</p>
+                            <h3>4. Confidentialité</h3>
+                            <p>Skalia s'engage à traiter toutes les données clients avec la plus stricte confidentialité.</p>
                         </div>
 
                         <div className="mt-16 pt-8 border-t border-slate-100 flex justify-center">
@@ -494,7 +492,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                         </div>
                                         <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_#34d399]"></div>
                                     </div>
-                                    {/* ... content ... */}
                                     <div className="mt-8 pt-4 border-t border-white/10">
                                         <div className="w-full bg-white/10 rounded-full h-1 overflow-hidden mb-2">
                                             <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-[85%] rounded-full animate-pulse"></div>
@@ -511,17 +508,29 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </header>
 
-            {/* SECTIONS EXPERTISE & PROJET & METHODOLOGIE (Code identique à l'original, non répété pour concision) */}
+            {/* SECTION EXPERTISE */}
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-3xl mx-auto mb-20">
                         <h2 className="text-4xl font-bold text-slate-900 mb-6">L'expertise <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Skalia</span>.</h2>
-                        <p className="text-lg text-slate-600 leading-relaxed">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives...</p>
+                        <p className="text-lg text-slate-600 leading-relaxed">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et à scaler grâce à l'intelligence artificielle.</p>
                     </div>
-                    {/* ... (Grille Expertise) ... */}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {SKALIA_EXPERTISE.map((item, i) => (
+                            <div key={i} className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:border-indigo-200 transition-colors group">
+                                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm mb-6 group-hover:scale-110 transition-transform">
+                                    {item.icon}
+                                </div>
+                                <h3 className="font-bold text-slate-900 mb-3">{item.title}</h3>
+                                <p className="text-slate-500 text-sm leading-relaxed">{item.desc}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </section>
 
+            {/* SECTION PROJET */}
             <section className="py-24 bg-slate-50 relative overflow-hidden">
                 <div className="max-w-7xl mx-auto px-6 relative z-10">
                     <div className="flex items-center gap-4 mb-12">
@@ -534,19 +543,57 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 <RichDescription text={quote.description || "Aucune description détaillée."} />
                             </div>
                         </div>
-                        {/* ... (Colonne droite projet) ... */}
+                        
+                        <div className="lg:col-span-2 space-y-8">
+                            <div className="bg-white rounded-3xl p-8 shadow-lg border border-slate-100">
+                                <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                    <Clock size={20} className="text-indigo-500" /> Planning
+                                </h3>
+                                <div className="space-y-6 relative">
+                                    <div className="absolute left-3.5 top-2 bottom-2 w-0.5 bg-slate-100"></div>
+                                    {METHODOLOGY_STEPS.map((step, i) => (
+                                        <div key={i} className="flex gap-4 relative">
+                                            <div className="w-7 h-7 rounded-full bg-white border-2 border-indigo-500 shrink-0 z-10 flex items-center justify-center text-[10px] font-bold text-indigo-700">
+                                                {step.num}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-800 text-sm">{step.title}</h4>
+                                                <p className="text-xs text-slate-500 mt-1">{step.desc}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-[#0F0A1F] rounded-3xl p-8 shadow-lg text-white relative overflow-hidden">
+                                <div className="relative z-10">
+                                    <h3 className="font-bold mb-4 flex items-center gap-2"><Users size={20} className="text-indigo-400" /> Vos Interlocuteurs</h3>
+                                    <div className="space-y-4">
+                                        {AGENCY_TEAM.map((member, i) => (
+                                            <div key={i} className="flex items-center gap-3">
+                                                <img src={member.img} className="w-10 h-10 rounded-full border border-white/20 object-cover" />
+                                                <div>
+                                                    <p className="text-sm font-bold">{member.name}</p>
+                                                    <p className="text-xs text-indigo-300">{member.role}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
 
             {/* SECTION PRIX */}
-            <section className="py-24 bg-slate-50">
+            <section className="py-24 bg-white">
                 <div className="max-w-5xl mx-auto px-6">
                     <div className="text-center mb-16"><h2 className="text-3xl font-bold text-slate-900 mb-4">Proposition Financière</h2></div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                         
                         {/* One Shot */}
-                        <div className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                        <div className="bg-slate-50 rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
                             <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-4">Mise en place (One-Shot)</h3>
                             <div className="flex items-baseline gap-2 mb-8">
                                 <span className="text-5xl font-extrabold text-slate-900">{formatCurrency(oneShotTotal)}</span>
@@ -585,7 +632,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         </div>
                     </div>
 
-                    <div className="mt-12 bg-white rounded-2xl p-8 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
+                    <div className="mt-12 bg-slate-50 rounded-2xl p-8 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
                         <div className="text-center md:text-left">
                             <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Conditions de démarrage</p>
                             <p className="text-base text-slate-800">{termsType === '100_percent' ? '100% à la commande' : termsType === '50_50' ? 'Acompte 50% à la commande' : 'Acompte 30% à la commande'}</p>

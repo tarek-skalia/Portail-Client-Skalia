@@ -19,7 +19,7 @@ const QuotesPage: React.FC<QuotesPageProps> = ({ userId }) => {
   }, [userId]);
 
   const fetchQuotes = async () => {
-      // FIX: On doit sélectionner quote_items pour calculer le prix correct
+      // On récupère quote_items pour pouvoir calculer le split des prix
       const { data, error } = await supabase
         .from('quotes')
         .select('*, quote_items(*)')
@@ -45,10 +45,16 @@ const QuotesPage: React.FC<QuotesPageProps> = ({ userId }) => {
   // Helper pour calculer le montant Initial vs Récurrent
   const getQuoteAmounts = (quote: any) => {
       const items = quote.quote_items || [];
-      const taxRate = quote.payment_terms?.tax_rate || 0;
+      const taxRate = (quote.payment_terms && quote.payment_terms.tax_rate) ? Number(quote.payment_terms.tax_rate) : 0;
 
+      // Si pas d'items, fallback sur total_amount
+      if (items.length === 0) {
+          return { oneShotTTC: quote.total_amount || 0, recurringTotalHT: 0 };
+      }
+
+      // Séparation stricte
       const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
-      const recurringItems = items.filter((i: any) => i.billing_frequency !== 'once');
+      const recurringItems = items.filter((i: any) => i.billing_frequency === 'monthly' || i.billing_frequency === 'yearly');
 
       const oneShotTotalHT = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
       const recurringTotalHT = recurringItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
@@ -95,7 +101,7 @@ const QuotesPage: React.FC<QuotesPageProps> = ({ userId }) => {
                                     <p className="text-xl font-black text-slate-900">{oneShotTTC.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}</p>
                                     
                                     {recurringTotalHT > 0 && (
-                                        <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-indigo-600">
+                                        <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 w-fit">
                                             <RefreshCw size={10} />
                                             <span>+{recurringTotalHT.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}/mois</span>
                                         </div>

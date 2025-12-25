@@ -62,15 +62,6 @@ const GlobalQuotes: React.FC = () => {
       }
   };
 
-  const getTimeAgo = (dateStr?: string) => {
-      if (!dateStr) return '';
-      const diff = Math.floor((new Date().getTime() - new Date(dateStr).getTime()) / 60000);
-      if (diff < 1) return 'À l\'instant';
-      if (diff < 60) return `${diff} min`;
-      if (diff < 1440) return `${Math.floor(diff/60)} h`;
-      return `${Math.floor(diff/1440)} j`;
-  };
-
   const filteredQuotes = quotes.filter(q => {
       const clientName = q.profiles?.company_name || q.profiles?.full_name || '';
       const matchesSearch = q.title.toLowerCase().includes(searchTerm.toLowerCase()) || clientName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -81,10 +72,16 @@ const GlobalQuotes: React.FC = () => {
   // Helper pour calculer les montants séparés
   const getQuoteAmounts = (quote: any) => {
       const items = quote.quote_items || [];
-      const taxRate = quote.payment_terms?.tax_rate || 0;
+      const taxRate = (quote.payment_terms && quote.payment_terms.tax_rate) ? Number(quote.payment_terms.tax_rate) : 0;
 
+      // Si pas d'items, fallback sur total_amount (vieux devis)
+      if (items.length === 0) {
+          return { oneShotTTC: quote.total_amount || 0, recurringTotalHT: 0 };
+      }
+
+      // Séparation stricte basée sur billing_frequency
       const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
-      const recurringItems = items.filter((i: any) => i.billing_frequency !== 'once');
+      const recurringItems = items.filter((i: any) => i.billing_frequency === 'monthly' || i.billing_frequency === 'yearly');
 
       const oneShotTotalHT = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
       const recurringTotalHT = recurringItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
@@ -151,15 +148,16 @@ const GlobalQuotes: React.FC = () => {
                                     <p className="text-xs text-slate-500">{quote.profiles?.company_name || quote.profiles?.full_name || quote.recipient_company || quote.recipient_name} • Créé le {new Date(quote.created_at).toLocaleDateString()}</p>
                                 </div>
                                 
-                                {/* PRICE DISPLAY FIX */}
                                 <div className="text-right flex flex-col items-end">
+                                    {/* Montant One-Shot Principal */}
                                     <p className="font-bold text-slate-900">{oneShotTTC.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}</p>
                                     <p className="text-[10px] text-slate-400 uppercase">Initial TTC</p>
                                     
+                                    {/* Montant Récurrent séparé */}
                                     {recurringTotalHT > 0 && (
-                                        <div className="flex items-center gap-1 mt-1 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px] font-bold text-indigo-600">
+                                        <div className="flex items-center gap-1 mt-1 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px] font-bold text-indigo-600 border border-indigo-100">
                                             <RefreshCw size={8} />
-                                            +{recurringTotalHT.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}/mois
+                                            <span>+{recurringTotalHT.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}/mois</span>
                                         </div>
                                     )}
                                 </div>
