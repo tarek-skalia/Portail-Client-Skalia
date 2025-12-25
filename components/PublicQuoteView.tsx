@@ -224,16 +224,16 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const prospectAddress = quote?.payment_terms?.billing_address || '';
     const prospectVat = quote?.payment_terms?.vat_number || '';
 
-    const oneShotTotalTTC = oneShotTotal * (1 + taxRate / 100);
-    const recurringTotalTTC = recurringTotal * (1 + taxRate / 100);
-
+    // NOTE: On ne calcule PAS le récurrent dans le total à payer maintenant
+    // Le client paye uniquement le Setup (One-Shot).
+    
     let depositAmountHT = oneShotTotal;
     const termsType = quote?.payment_terms?.type || '100_percent';
     if (termsType === '50_50') depositAmountHT = oneShotTotal * 0.5;
     if (termsType === '30_70') depositAmountHT = oneShotTotal * 0.3;
 
-    const depositAmountTTC = depositAmountHT * (1 + taxRate / 100);
-    const totalDueNowTTC = depositAmountTTC + recurringTotalTTC; // Acompte + 1er mois
+    // Total à payer immédiatement = Acompte du Setup + TVA
+    const totalDueNowTTC = depositAmountHT * (1 + taxRate / 100);
 
     const handleOpenSignModal = () => setIsSigningModalOpen(true);
 
@@ -753,10 +753,11 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 <div className="max-w-5xl mx-auto px-6">
                     <div className="text-center mb-16"><h2 className="text-3xl font-bold text-slate-900 mb-4">Proposition Financière</h2></div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                        {/* One Shot & Recurring Cards */}
+                        
+                        {/* One Shot (Visible) */}
                         <div className="bg-white rounded-[2rem] p-10 shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><Layers size={140} /></div>
-                            <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-4">Initialisation</h3>
+                            <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-4">Mise en place (One-Shot)</h3>
                             <div className="flex items-baseline gap-2 mb-8">
                                 <span className="text-5xl font-extrabold text-slate-900">{formatCurrency(oneShotTotal)}</span>
                                 <span className="text-xl text-slate-400 font-medium">HT</span>
@@ -771,14 +772,18 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 {oneShotItems.length === 0 && <li className="text-slate-400 italic text-sm">Aucun frais d'installation</li>}
                             </ul>
                         </div>
+
+                        {/* Recurring (Future) */}
                         <div className="bg-[#0F0A1F] rounded-[2rem] p-10 shadow-2xl shadow-indigo-900/20 border border-indigo-500/20 relative overflow-hidden text-white transform md:-translate-y-4 group">
                             <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/20 to-transparent pointer-events-none"></div>
                             <div className="absolute top-0 right-0 p-6 opacity-10"><RefreshCw size={140} /></div>
-                            <div className="inline-block px-3 py-1 bg-indigo-500 rounded-full text-[10px] font-bold uppercase tracking-wide mb-6">Mensualité</div>
-                            <div className="flex items-baseline gap-2 mb-8">
+                            <div className="inline-block px-3 py-1 bg-indigo-500 rounded-full text-[10px] font-bold uppercase tracking-wide mb-6">Abonnement Récurrent</div>
+                            <div className="flex items-baseline gap-2 mb-2">
                                 <span className="text-5xl font-extrabold text-white">{formatCurrency(recurringTotal)}</span>
                                 <span className="text-xl text-indigo-300 font-medium">/mois</span>
                             </div>
+                            <p className="text-xs text-indigo-300 mb-6 italic">Démarre uniquement à la livraison du projet.</p>
+                            
                             <ul className="space-y-4 mb-8 relative z-10">
                                 {recurringItems.length > 0 ? recurringItems.map((item, idx) => (
                                     <li key={idx} className="flex items-start gap-3 text-indigo-50">
@@ -787,13 +792,13 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     </li>
                                 )) : (
                                     <>
-                                        <li className="flex items-start gap-3 text-indigo-50"><div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div><span className="text-sm font-medium">Hébergement serveurs & Base de données</span></li>
-                                        <li className="flex items-start gap-3 text-indigo-50"><div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div><span className="text-sm font-medium">Support technique prioritaire</span></li>
+                                        <li className="flex items-start gap-3 text-indigo-50"><div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div><span className="text-sm font-medium">Pas d'abonnement récurrent prévu</span></li>
                                     </>
                                 )}
                             </ul>
                         </div>
                     </div>
+
                     <div className="mt-12 bg-white rounded-2xl p-8 border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
                         <div className="text-center md:text-left">
                             <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Conditions de démarrage</p>
@@ -806,8 +811,11 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             </div>
                         )}
                         <div className="text-center md:text-right">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total à régler aujourd'hui (TTC)</p>
-                            <p className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">{formatCurrency(totalDueNowTTC)}</p>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total à régler maintenant (TTC)</p>
+                            <p className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                                {formatCurrency(totalDueNowTTC)}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-1">*Hors abonnement (débutera plus tard)</p>
                         </div>
                     </div>
                 </div>

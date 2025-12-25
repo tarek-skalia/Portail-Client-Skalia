@@ -127,47 +127,80 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
 
           if (error) throw error;
 
-          // 2. Déclenchement Webhook N8N pour création Facture
+          // 2. Traitement Financier (Facture One-Shot + Abonnement Pending)
           if (pendingQuote) {
-              // Calcul des dates
-              const issueDateObj = new Date();
-              const issueDateStr = issueDateObj.toISOString().split('T')[0];
               
-              const dueDateObj = new Date(issueDateObj);
-              dueDateObj.setDate(dueDateObj.getDate() + 7); // Ajout de 7 jours
-              const dueDateStr = dueDateObj.toISOString().split('T')[0];
+              // Séparation des items : "Une fois" (Facture) vs "Mensuel/Annuel" (Abonnement futur)
+              const invoiceItems = pendingQuote.quote_items.filter((i: any) => i.billing_frequency === 'once');
+              const recurringItems = pendingQuote.quote_items.filter((i: any) => i.billing_frequency !== 'once');
 
-              const n8nPayload = {
-                  client: {
-                      email: currentUser.email,
-                      name: currentUser.name,
-                      company: billingInfo.companyName,
-                      supabase_user_id: currentUser.id,
-                      address: billingInfo.address,
-                      vat_number: billingInfo.vatNumber,
-                      phone: billingInfo.phone
-                  },
-                  invoice: {
-                      projectName: pendingQuote.title,
-                      issueDate: issueDateStr,
-                      dueDate: dueDateStr, // J+7
-                      amount: pendingQuote.total_amount, 
-                      quote_id: pendingQuote.id,
-                      currency: 'eur',
-                      tax_rate: pendingQuote.payment_terms?.tax_rate || 0
-                  },
-                  items: pendingQuote.quote_items || []
-              };
+              // A. Calcul montant facture immédiate (Setup)
+              // NOTE: On ne facture QUE les items "Once". Si l'acompte est partiel, la facture sera partielle, 
+              // mais pour simplifier ici, on envoie le total des items "Once".
+              const invoiceAmount = invoiceItems.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
+              const taxRate = pendingQuote.payment_terms?.tax_rate || 0;
+              const totalWithTax = invoiceAmount * (1 + taxRate / 100);
 
-              console.log("Sending to N8N:", n8nPayload);
+              // B. Envoi Webhook N8N (Uniquement pour le One-Shot)
+              // On envoie seulement si y'a quelque chose à facturer maintenant
+              if (invoiceItems.length > 0) {
+                  const issueDateObj = new Date();
+                  const issueDateStr = issueDateObj.toISOString().split('T')[0];
+                  
+                  const dueDateObj = new Date(issueDateObj);
+                  dueDateObj.setDate(dueDateObj.getDate() + 7); // Ajout de 7 jours
+                  const dueDateStr = dueDateObj.toISOString().split('T')[0];
 
-              // Appel non-bloquant
-              await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
-                  method: 'POST',
-                  mode: 'no-cors', 
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(n8nPayload)
-              });
+                  const n8nPayload = {
+                      client: {
+                          email: currentUser.email,
+                          name: currentUser.name,
+                          company: billingInfo.companyName,
+                          supabase_user_id: currentUser.id,
+                          address: billingInfo.address,
+                          vat_number: billingInfo.vatNumber,
+                          phone: billingInfo.phone
+                      },
+                      invoice: {
+                          projectName: pendingQuote.title, // Titre du projet
+                          issueDate: issueDateStr,
+                          dueDate: dueDateStr, // J+7
+                          amount: totalWithTax, 
+                          quote_id: pendingQuote.id,
+                          currency: 'eur',
+                          tax_rate: taxRate,
+                          status: 'pending'
+                      },
+                      items: invoiceItems // Seulement les items one-shot
+                  };
+
+                  console.log("Sending Invoice to N8N:", n8nPayload);
+
+                  // Appel non-bloquant pour la facture
+                  fetch(N8N_CREATE_INVOICE_WEBHOOK, {
+                      method: 'POST',
+                      mode: 'no-cors', 
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(n8nPayload)
+                  });
+              }
+
+              // C. Sauvegarde des Abonnements en base (Pending)
+              // Ils seront activés manuellement par l'admin plus tard via l'onglet Finance
+              if (recurringItems.length > 0) {
+                  const subscriptionsPayload = recurringItems.map((item: any) => ({
+                      user_id: currentUser.id,
+                      service_name: item.description,
+                      amount: item.unit_price * item.quantity,
+                      currency: 'EUR',
+                      billing_cycle: item.billing_frequency, // 'monthly' ou 'yearly'
+                      status: 'pending', // Important: En attente d'activation manuelle
+                      created_at: new Date().toISOString()
+                  }));
+
+                  const { error: subError } = await supabase.from('client_subscriptions').insert(subscriptionsPayload);
+                  if (subError) console.error("Erreur sauvegarde abonnement:", subError);
+              }
           }
 
           toast.success("Dossier validé", "Vos informations sont enregistrées et la facture est en cours de génération.");
@@ -423,7 +456,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                                         {isSubmitting ? <Loader2 className="animate-spin" /> : 'Valider et Accéder au Portail'}
                                     </button>
                                     <p className="text-[10px] text-center text-slate-400 mt-3 flex items-center justify-center gap-1">
-                                        <Info size={12} /> La facture sera générée et envoyée automatiquement.
+                                        <Info size={12} /> La facture sera générée et l'abonnement en attente d'activation.
                                     </p>
                                 </div>
                             </form>

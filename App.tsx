@@ -412,7 +412,8 @@ const App: React.FC = () => {
             avatarInitials: data.avatar_initials || 'U',
             email: email,
             logoUrl: data.logo_url || undefined,
-            role: data.role
+            role: data.role,
+            stripeCustomerId: data.stripe_customer_id // Correction: Ajout du mapping
         });
       }
       setIsAuthenticated(true);
@@ -420,11 +421,13 @@ const App: React.FC = () => {
       setIsLoadingAuth(false);
 
     } catch (error: any) {
-        console.error("Erreur fetchUserProfile:", error);
+        // Fix: Improved error logging to prevent [object Object] output
+        const errorMsg = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+        console.error("Erreur fetchUserProfile:", errorMsg);
         
         // Détection plus large des erreurs réseaux
-        const isNetworkError = error?.message?.includes('Failed to fetch') || 
-                               error?.message?.includes('NetworkError') ||
+        const isNetworkError = errorMsg.includes('Failed to fetch') || 
+                               errorMsg.includes('NetworkError') ||
                                !navigator.onLine;
 
         if (retryCount < 3 && isNetworkError) {

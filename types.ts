@@ -152,6 +152,20 @@ export interface Expense {
   logoUrl?: string;
 }
 
+export interface ClientSubscription {
+  id: string;
+  clientId: string;
+  serviceName: string;
+  amount: number;
+  currency: string;
+  billingCycle: 'monthly' | 'yearly';
+  status: 'pending' | 'active' | 'cancelled' | 'paused';
+  startDate?: string;
+  nextBillingDate?: string;
+  stripeSubscriptionId?: string;
+  createdAt: string;
+}
+
 export interface Notification {
   id: string;
   userId: string;

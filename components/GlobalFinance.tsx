@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Invoice } from '../types';
+import { Invoice, ClientSubscription } from '../types';
 import { useAdmin } from './AdminContext';
-import { DollarSign, TrendingUp, AlertTriangle, Search, Filter, Plus, Edit3, Trash2, Users } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertTriangle, Search, Filter, Plus, Edit3, Trash2, Users, RefreshCw, PlayCircle, PauseCircle, StopCircle, CheckCircle2, Clock } from 'lucide-react';
 import Skeleton from './Skeleton';
 import InvoiceSlideOver from './InvoiceSlideOver';
 import Modal from './ui/Modal';
@@ -13,15 +13,32 @@ import { useToast } from './ToastProvider';
 const GlobalFinance: React.FC = () => {
   const { clients } = useAdmin();
   const toast = useToast();
+  
+  // TABS STATE
+  const [activeTab, setActiveTab] = useState<'invoices' | 'subscriptions'>('invoices');
+
+  // INVOICES STATE
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   
+  // SUBSCRIPTIONS STATE
+  const [subscriptions, setSubscriptions] = useState<ClientSubscription[]>([]);
+  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
+  const [editingSub, setEditingSub] = useState<ClientSubscription | null>(null);
+  const [subFormData, setSubFormData] = useState({
+      clientId: '',
+      serviceName: '',
+      amount: 0,
+      billingCycle: 'monthly',
+      status: 'pending'
+  });
+
   // CLIENT FILTER
   const [selectedClientId, setSelectedClientId] = useState<string>('all');
 
-  // SlideOver & Modal
+  // SlideOver & Modal (Invoices)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,16 +47,21 @@ const GlobalFinance: React.FC = () => {
   // Deletion
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteType, setDeleteType] = useState<'invoice' | 'subscription'>('invoice');
 
   useEffect(() => {
       fetchGlobalInvoices();
+      fetchSubscriptions();
       
       const channel = supabase.channel('global_finance_realtime')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => fetchGlobalInvoices())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'client_subscriptions' }, () => fetchSubscriptions())
         .subscribe();
 
       return () => { supabase.removeChannel(channel); };
   }, []);
+
+  // --- FETCHERS ---
 
   const fetchGlobalInvoices = async () => {
       try {
@@ -74,37 +96,151 @@ const GlobalFinance: React.FC = () => {
       }
   };
 
+  const fetchSubscriptions = async () => {
+      try {
+          const { data, error } = await supabase
+            .from('client_subscriptions')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          const mapped: ClientSubscription[] = (data || []).map((sub: any) => ({
+              id: sub.id,
+              clientId: sub.user_id,
+              serviceName: sub.service_name,
+              amount: sub.amount,
+              currency: sub.currency,
+              billingCycle: sub.billing_cycle,
+              status: sub.status,
+              startDate: sub.start_date,
+              nextBillingDate: sub.next_billing_date,
+              stripeSubscriptionId: sub.stripe_subscription_id,
+              createdAt: sub.created_at
+          }));
+
+          setSubscriptions(mapped);
+      } catch (e) {
+          console.error("Subscription fetch error:", e);
+      }
+  };
+
   const getClientName = (clientId: string) => {
       const client = clients.find(c => c.id === clientId);
       return client ? client.company : 'Client Inconnu';
   };
 
-  const handleEdit = (e: React.MouseEvent, invoice: Invoice) => {
+  // --- INVOICE ACTIONS ---
+
+  const handleEditInvoice = (e: React.MouseEvent, invoice: Invoice) => {
       e.stopPropagation();
       setEditingInvoice(invoice);
       setIsModalOpen(true);
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
+  const handleDeleteInvoice = (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
+      setDeleteType('invoice');
+      setDeleteId(id);
+  };
+
+  // --- SUBSCRIPTION ACTIONS ---
+
+  const handleCreateSub = () => {
+      setEditingSub(null);
+      setSubFormData({
+          clientId: selectedClientId !== 'all' ? selectedClientId : '',
+          serviceName: '',
+          amount: 0,
+          billingCycle: 'monthly',
+          status: 'pending'
+      });
+      setIsSubModalOpen(true);
+  };
+
+  const handleEditSub = (sub: ClientSubscription) => {
+      setEditingSub(sub);
+      setSubFormData({
+          clientId: sub.clientId,
+          serviceName: sub.serviceName,
+          amount: sub.amount,
+          billingCycle: sub.billingCycle,
+          status: sub.status
+      });
+      setIsSubModalOpen(true);
+  };
+
+  const handleSubmitSub = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsLoading(true); // Small local loading
+      try {
+          const payload = {
+              user_id: subFormData.clientId,
+              service_name: subFormData.serviceName,
+              amount: subFormData.amount,
+              billing_cycle: subFormData.billingCycle,
+              status: subFormData.status,
+              currency: 'EUR'
+          };
+
+          if (editingSub) {
+              const { error } = await supabase.from('client_subscriptions').update(payload).eq('id', editingSub.id);
+              if (error) throw error;
+              toast.success("Mis à jour", "Abonnement modifié.");
+          } else {
+              const { error } = await supabase.from('client_subscriptions').insert({ ...payload, created_at: new Date().toISOString() });
+              if (error) throw error;
+              toast.success("Créé", "Abonnement ajouté.");
+          }
+          setIsSubModalOpen(false);
+          fetchSubscriptions();
+      } catch (e: any) {
+          toast.error("Erreur", e.message);
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  const handleActivateSub = async (sub: ClientSubscription) => {
+      if (!window.confirm("Activer cet abonnement ? Cela signifie que la facturation commence.")) return;
+      
+      const { error } = await supabase.from('client_subscriptions').update({
+          status: 'active',
+          start_date: new Date().toISOString()
+      }).eq('id', sub.id);
+
+      if (error) toast.error("Erreur", "Impossible d'activer.");
+      else {
+          toast.success("Activé", "L'abonnement est maintenant actif.");
+          // TODO: Ici on pourrait appeler un Webhook N8N pour créer l'abonnement Stripe réellement
+      }
+  };
+
+  const handleDeleteSub = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      setDeleteType('subscription');
       setDeleteId(id);
   };
 
   const executeDelete = async () => {
       if (!deleteId) return;
       setIsDeleting(true);
-      const { error } = await supabase.from('invoices').delete().eq('id', deleteId);
+      
+      const table = deleteType === 'invoice' ? 'invoices' : 'client_subscriptions';
+      const { error } = await supabase.from(table).delete().eq('id', deleteId);
+      
       if (error) {
-          toast.error("Erreur", "Impossible de supprimer la facture.");
+          toast.error("Erreur", "Impossible de supprimer.");
       } else {
-          toast.success("Supprimé", "Facture supprimée.");
-          fetchGlobalInvoices();
+          toast.success("Supprimé", "Élément supprimé.");
+          if (deleteType === 'invoice') fetchGlobalInvoices();
+          else fetchSubscriptions();
       }
       setIsDeleting(false);
       setDeleteId(null);
   };
 
-  // --- FILTRAGE & CALCULS ---
+  // --- FILTERED DATA ---
   const filteredInvoices = invoices.filter(inv => {
       const matchesClient = selectedClientId === 'all' || inv.clientId === selectedClientId;
       const matchesSearch = inv.number.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -113,22 +249,25 @@ const GlobalFinance: React.FC = () => {
       return matchesClient && matchesSearch && matchesStatus;
   });
 
-  // KPI calculés sur la sélection
-  const invoicesToCalc = selectedClientId === 'all' ? invoices : invoices.filter(i => i.clientId === selectedClientId);
-  
-  let paid = 0;
-  let pending = 0;
-  let overdue = 0;
-
-  invoicesToCalc.forEach(inv => {
-      if (inv.status === 'paid') paid += inv.amount;
-      else if (inv.status === 'overdue') overdue += inv.amount;
-      else pending += inv.amount;
+  const filteredSubscriptions = subscriptions.filter(sub => {
+      const matchesClient = selectedClientId === 'all' || sub.clientId === selectedClientId;
+      const matchesSearch = sub.serviceName.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesClient && matchesSearch;
   });
 
-  const totalRevenue = paid;
-  const pendingRevenue = pending;
-  const overdueRevenue = overdue;
+  // KPI calculés sur la sélection
+  let totalRevenue = 0;
+  let mrr = 0;
+
+  invoices.forEach(inv => {
+      if (inv.status === 'paid') totalRevenue += inv.amount;
+  });
+
+  subscriptions.forEach(sub => {
+      if (sub.status === 'active') {
+          mrr += sub.billingCycle === 'monthly' ? sub.amount : sub.amount / 12;
+      }
+  });
 
   if (isLoading) return <div className="p-8"><Skeleton className="h-96 w-full rounded-2xl" /></div>;
 
@@ -139,7 +278,7 @@ const GlobalFinance: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
             <div>
                 <h1 className="text-3xl font-extrabold text-slate-900">Finance & Trésorerie</h1>
-                <p className="text-slate-500 mt-1">Suivi global de la facturation agence.</p>
+                <p className="text-slate-500 mt-1">Suivi global de la facturation et des revenus récurrents.</p>
             </div>
             
             {/* CLIENT FILTER */}
@@ -173,149 +312,254 @@ const GlobalFinance: React.FC = () => {
                 <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                     <DollarSign size={24} />
                 </div>
-                {/* Tooltip */}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Montant total des factures marquées comme "Payée".
-                </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-amber-100 shadow-sm flex items-center justify-between group relative cursor-help">
+            <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm flex items-center justify-between group relative cursor-help">
                 <div>
-                    <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-1">En attente</p>
+                    <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">MRR (Récurrent)</p>
                     <p className="text-3xl font-extrabold text-slate-900">
-                        {pendingRevenue.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                        {mrr.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
                     </p>
                 </div>
-                <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-                    <TrendingUp size={24} />
-                </div>
-                {/* Tooltip */}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Factures émises mais non encore réglées (échéance à venir).
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <RefreshCw size={24} />
                 </div>
             </div>
 
-            <div className={`p-6 rounded-2xl border shadow-sm flex items-center justify-between group relative cursor-help ${overdueRevenue > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+            <div className={`p-6 rounded-2xl border shadow-sm flex items-center justify-between group relative cursor-help bg-white border-slate-200`}>
                 <div>
-                    <p className={`text-xs font-bold uppercase tracking-wide mb-1 ${overdueRevenue > 0 ? 'text-red-600' : 'text-slate-400'}`}>Retards</p>
-                    <p className={`text-3xl font-extrabold ${overdueRevenue > 0 ? 'text-red-700' : 'text-slate-900'}`}>
-                        {overdueRevenue.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                    <p className={`text-xs font-bold uppercase tracking-wide mb-1 text-slate-400`}>Abonnements Actifs</p>
+                    <p className={`text-3xl font-extrabold text-slate-900`}>
+                        {subscriptions.filter(s => s.status === 'active').length}
                     </p>
                 </div>
-                <div className={`p-3 rounded-xl ${overdueRevenue > 0 ? 'bg-white text-red-600' : 'bg-slate-50 text-slate-400'}`}>
-                    <AlertTriangle size={24} />
-                </div>
-                {/* Tooltip */}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Montant cumulé des factures dont la date d'échéance est dépassée.
+                <div className={`p-3 rounded-xl bg-slate-50 text-slate-400`}>
+                    <TrendingUp size={24} />
                 </div>
             </div>
         </div>
 
-        <div className="flex gap-4 items-center justify-end">
-             <button 
-                onClick={() => { setEditingInvoice(null); setIsModalOpen(true); }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-95"
+        {/* --- TABS --- */}
+        <div className="flex gap-6 border-b border-slate-200">
+            <button 
+                onClick={() => setActiveTab('invoices')}
+                className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'invoices' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
             >
-                <Plus size={18} /> Créer Facture
+                Factures
+                {activeTab === 'invoices' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
+            </button>
+            <button 
+                onClick={() => setActiveTab('subscriptions')}
+                className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'subscriptions' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+                Abonnements
+                {activeTab === 'subscriptions' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
             </button>
         </div>
 
-        {/* DATA TABLE */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            {/* Toolbar Table */}
-            <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex gap-2">
-                    {['all', 'paid', 'pending', 'overdue'].map(s => (
-                        <button
-                            key={s}
-                            onClick={() => setFilterStatus(s)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
-                                filterStatus === s 
-                                ? 'bg-slate-800 text-white' 
-                                : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                            }`}
-                        >
-                            {s === 'all' ? 'Toutes' : s === 'paid' ? 'Payées' : s === 'pending' ? 'En attente' : 'Retard'}
-                        </button>
-                    ))}
-                </div>
-                <div className="relative w-full md:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                        type="text" 
-                        placeholder="Rechercher..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                    />
-                </div>
-            </div>
-
-            {/* Table Header */}
-            <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50/50 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                <div className="col-span-2">Numéro</div>
-                <div className="col-span-2">Client</div>
-                <div className="col-span-3">Projet</div>
-                <div className="col-span-2 text-right">Montant</div>
-                <div className="col-span-1 text-center">Statut</div>
-                <div className="col-span-2 text-right">Actions</div>
-            </div>
-
-            {/* Table Body */}
-            <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto custom-scrollbar">
-                {filteredInvoices.map(inv => (
-                    <div 
-                        key={inv.id} 
-                        onClick={() => { setSelectedInvoice(inv); setIsSlideOverOpen(true); }}
-                        className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors cursor-pointer items-center group relative"
-                    >
-                        <div className="col-span-2 font-mono text-xs font-bold text-slate-600 group-hover:text-indigo-600">
-                            {inv.number}
-                        </div>
-                        <div className="col-span-2 font-bold text-slate-800 truncate text-sm">
-                            {getClientName(inv.clientId)}
-                        </div>
-                        <div className="col-span-3 text-sm text-slate-500 truncate">
-                            {inv.projectName}
-                        </div>
-                        <div className="col-span-2 text-right font-bold text-slate-900">
-                            {inv.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                        </div>
-                        <div className="col-span-1 flex justify-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide border whitespace-nowrap ${
-                                inv.status === 'paid' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                inv.status === 'overdue' ? 'bg-red-50 text-red-600 border-red-100' :
-                                'bg-amber-50 text-amber-600 border-amber-100'
-                            }`}>
-                                {inv.status === 'paid' ? 'Payée' : inv.status === 'overdue' ? 'Retard' : 'Attente'}
-                            </span>
-                        </div>
-                        <div className="col-span-2 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                                onClick={(e) => handleEdit(e, inv)}
-                                className="p-1.5 bg-white border border-slate-200 text-indigo-600 rounded-lg hover:bg-indigo-50"
-                                title="Modifier"
+        {/* --- INVOICES VIEW --- */}
+        {activeTab === 'invoices' && (
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-fade-in">
+                {/* Toolbar Table */}
+                <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex gap-2">
+                        {['all', 'paid', 'pending', 'overdue'].map(s => (
+                            <button
+                                key={s}
+                                onClick={() => setFilterStatus(s)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+                                    filterStatus === s 
+                                    ? 'bg-slate-800 text-white' 
+                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                }`}
                             >
-                                <Edit3 size={14} />
+                                {s === 'all' ? 'Toutes' : s === 'paid' ? 'Payées' : s === 'pending' ? 'En attente' : 'Retard'}
                             </button>
-                            <button 
-                                onClick={(e) => handleDelete(e, inv.id)}
-                                className="p-1.5 bg-white border border-slate-200 text-red-600 rounded-lg hover:bg-red-50"
-                                title="Supprimer"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
+                        ))}
                     </div>
-                ))}
-                {filteredInvoices.length === 0 && (
-                    <div className="p-12 text-center text-slate-400 italic">Aucune facture trouvée.</div>
-                )}
+                    <div className="flex gap-3">
+                        <div className="relative w-full md:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input 
+                                type="text" 
+                                placeholder="Rechercher..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                            />
+                        </div>
+                        <button 
+                            onClick={() => { setEditingInvoice(null); setIsModalOpen(true); }}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95 text-sm whitespace-nowrap"
+                        >
+                            <Plus size={16} /> Créer
+                        </button>
+                    </div>
+                </div>
+
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50/50 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    <div className="col-span-2">Numéro</div>
+                    <div className="col-span-2">Client</div>
+                    <div className="col-span-3">Projet</div>
+                    <div className="col-span-2 text-right">Montant</div>
+                    <div className="col-span-1 text-center">Statut</div>
+                    <div className="col-span-2 text-right">Actions</div>
+                </div>
+
+                {/* Table Body */}
+                <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto custom-scrollbar">
+                    {filteredInvoices.map(inv => (
+                        <div 
+                            key={inv.id} 
+                            onClick={() => { setSelectedInvoice(inv); setIsSlideOverOpen(true); }}
+                            className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors cursor-pointer items-center group relative"
+                        >
+                            <div className="col-span-2 font-mono text-xs font-bold text-slate-600 group-hover:text-indigo-600">
+                                {inv.number}
+                            </div>
+                            <div className="col-span-2 font-bold text-slate-800 truncate text-sm">
+                                {getClientName(inv.clientId)}
+                            </div>
+                            <div className="col-span-3 text-sm text-slate-500 truncate">
+                                {inv.projectName}
+                            </div>
+                            <div className="col-span-2 text-right font-bold text-slate-900">
+                                {inv.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                            </div>
+                            <div className="col-span-1 flex justify-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide border whitespace-nowrap ${
+                                    inv.status === 'paid' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                    inv.status === 'overdue' ? 'bg-red-50 text-red-600 border-red-100' :
+                                    'bg-amber-50 text-amber-600 border-amber-100'
+                                }`}>
+                                    {inv.status === 'paid' ? 'Payée' : inv.status === 'overdue' ? 'Retard' : 'Attente'}
+                                </span>
+                            </div>
+                            <div className="col-span-2 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                    onClick={(e) => handleEditInvoice(e, inv)}
+                                    className="p-1.5 bg-white border border-slate-200 text-indigo-600 rounded-lg hover:bg-indigo-50"
+                                    title="Modifier"
+                                >
+                                    <Edit3 size={14} />
+                                </button>
+                                <button 
+                                    onClick={(e) => handleDeleteInvoice(e, inv.id)}
+                                    className="p-1.5 bg-white border border-slate-200 text-red-600 rounded-lg hover:bg-red-50"
+                                    title="Supprimer"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {filteredInvoices.length === 0 && (
+                        <div className="p-12 text-center text-slate-400 italic">Aucune facture trouvée.</div>
+                    )}
+                </div>
             </div>
-        </div>
+        )}
+
+        {/* --- SUBSCRIPTIONS VIEW --- */}
+        {activeTab === 'subscriptions' && (
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-fade-in">
+                
+                {/* Toolbar */}
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                    <div className="relative w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input 
+                            type="text" 
+                            placeholder="Rechercher abonnement..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        />
+                    </div>
+                    <button 
+                        onClick={handleCreateSub}
+                        className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition-all whitespace-nowrap text-sm"
+                    >
+                        <Plus size={16} /> Nouvel Abonnement
+                    </button>
+                </div>
+
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50/50 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    <div className="col-span-3">Service</div>
+                    <div className="col-span-3">Client</div>
+                    <div className="col-span-2 text-right">Montant</div>
+                    <div className="col-span-2 text-center">Statut</div>
+                    <div className="col-span-2 text-right">Actions</div>
+                </div>
+
+                {/* Table Body */}
+                <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto custom-scrollbar">
+                    {filteredSubscriptions.map(sub => (
+                        <div 
+                            key={sub.id} 
+                            className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors items-center group"
+                        >
+                            <div className="col-span-3 font-bold text-slate-800 truncate text-sm">
+                                {sub.serviceName}
+                                <div className="text-[10px] text-slate-400 font-normal uppercase flex items-center gap-1 mt-0.5">
+                                    <RefreshCw size={10} /> {sub.billingCycle}
+                                </div>
+                            </div>
+                            <div className="col-span-3 text-sm text-slate-600">
+                                {getClientName(sub.clientId)}
+                            </div>
+                            <div className="col-span-2 text-right font-bold text-indigo-600">
+                                {sub.amount.toLocaleString('fr-FR', { style: 'currency', currency: sub.currency })}
+                            </div>
+                            <div className="col-span-2 flex justify-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide border whitespace-nowrap flex items-center gap-1 ${
+                                    sub.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                    sub.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                    'bg-slate-100 text-slate-500 border-slate-200'
+                                }`}>
+                                    {sub.status === 'active' ? <CheckCircle2 size={10} /> : sub.status === 'pending' ? <Clock size={10} /> : <StopCircle size={10} />}
+                                    {sub.status}
+                                </span>
+                            </div>
+                            <div className="col-span-2 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {sub.status === 'pending' && (
+                                    <button 
+                                        onClick={() => handleActivateSub(sub)}
+                                        className="p-1.5 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-100"
+                                        title="Activer la facturation"
+                                    >
+                                        <PlayCircle size={14} />
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => handleEditSub(sub)}
+                                    className="p-1.5 bg-white border border-slate-200 text-indigo-600 rounded-lg hover:bg-indigo-50"
+                                    title="Modifier"
+                                >
+                                    <Edit3 size={14} />
+                                </button>
+                                <button 
+                                    onClick={(e) => handleDeleteSub(e, sub.id)}
+                                    className="p-1.5 bg-white border border-slate-200 text-red-600 rounded-lg hover:bg-red-50"
+                                    title="Supprimer"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {filteredSubscriptions.length === 0 && (
+                        <div className="p-12 text-center text-slate-400 italic">Aucun abonnement trouvé.</div>
+                    )}
+                </div>
+            </div>
+        )}
+
     </div>
 
+    {/* INVOICE MODALS */}
     <InvoiceSlideOver 
         isOpen={isSlideOverOpen}
         onClose={() => setIsSlideOverOpen(false)}
@@ -333,11 +577,81 @@ const GlobalFinance: React.FC = () => {
         />
     </Modal>
 
-    <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Supprimer la facture ?" maxWidth="max-w-md">
+    {/* SUBSCRIPTION MODAL */}
+    <Modal isOpen={isSubModalOpen} onClose={() => setIsSubModalOpen(false)} title={editingSub ? "Modifier Abonnement" : "Nouvel Abonnement"}>
+        <form onSubmit={handleSubmitSub} className="space-y-6 pt-2">
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Client</label>
+                <select 
+                    value={subFormData.clientId} 
+                    onChange={e => setSubFormData({...subFormData, clientId: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg bg-white outline-none"
+                    disabled={!!editingSub} // On évite de changer le client en édition pour simplifier
+                >
+                    <option value="">Choisir un client...</option>
+                    {clients.filter(c => c.role !== 'admin').map(client => (
+                        <option key={client.id} value={client.id}>{client.company}</option>
+                    ))}
+                </select>
+            </div>
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nom du service</label>
+                <input 
+                    type="text" 
+                    value={subFormData.serviceName}
+                    onChange={e => setSubFormData({...subFormData, serviceName: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ex: Maintenance Mensuelle"
+                />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Montant (€)</label>
+                    <input 
+                        type="number" 
+                        value={subFormData.amount}
+                        onChange={e => setSubFormData({...subFormData, amount: parseFloat(e.target.value)})}
+                        className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cycle</label>
+                    <select 
+                        value={subFormData.billingCycle}
+                        onChange={e => setSubFormData({...subFormData, billingCycle: e.target.value as any})}
+                        className="w-full px-3 py-2 border rounded-lg bg-white outline-none"
+                    >
+                        <option value="monthly">Mensuel</option>
+                        <option value="yearly">Annuel</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Statut</label>
+                <select 
+                    value={subFormData.status}
+                    onChange={e => setSubFormData({...subFormData, status: e.target.value as any})}
+                    className="w-full px-3 py-2 border rounded-lg bg-white outline-none"
+                >
+                    <option value="pending">En attente (Pending)</option>
+                    <option value="active">Actif</option>
+                    <option value="paused">En pause</option>
+                    <option value="cancelled">Arrêté</option>
+                </select>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setIsSubModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg">Annuler</button>
+                <button type="submit" className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md">Sauvegarder</button>
+            </div>
+        </form>
+    </Modal>
+
+    {/* DELETE MODAL */}
+    <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Supprimer ?" maxWidth="max-w-md">
         <div className="text-center p-4">
             <AlertTriangle size={32} className="text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-slate-900 mb-2">Êtes-vous sûr ?</h3>
-            <p className="text-slate-500 text-sm mb-6">Cela supprimera définitivement cette facture de l'historique.</p>
+            <p className="text-slate-500 text-sm mb-6">Cela supprimera définitivement cet élément.</p>
             <div className="flex gap-3 justify-center">
                 <button 
                     onClick={() => setDeleteId(null)}
