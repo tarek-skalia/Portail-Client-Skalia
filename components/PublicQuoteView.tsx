@@ -642,7 +642,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             <p className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
                                 {formatCurrency(totalDueNowTTC)}
                             </p>
-                            <p className="text-[10px] text-slate-400 mt-1">*Hors abonnement (débutera plus tard)</p>
+                            {/* AFFICHAGE CONDITIONNEL ICI */}
+                            {recurringTotal > 0 && (
+                                <p className="text-[10px] text-slate-400 mt-1">*Hors abonnement (débutera plus tard)</p>
+                            )}
                         </div>
                     </div>
                 </div>

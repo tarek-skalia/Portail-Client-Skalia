@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Invoice, ClientSubscription } from '../types';
 import { useAdmin } from './AdminContext';
-import { DollarSign, TrendingUp, AlertTriangle, Search, Filter, Plus, Edit3, Trash2, Users, RefreshCw, PlayCircle, PauseCircle, StopCircle, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertTriangle, Search, Filter, Plus, Edit3, Trash2, Users, RefreshCw, PlayCircle, PauseCircle, StopCircle, CheckCircle2, Clock, Loader2, Wallet } from 'lucide-react';
 import Skeleton from './Skeleton';
 import InvoiceSlideOver from './InvoiceSlideOver';
 import Modal from './ui/Modal';
@@ -323,10 +323,12 @@ const GlobalFinance: React.FC = () => {
 
   // KPI calculés sur la sélection
   let totalRevenue = 0;
+  let totalPending = 0;
   let mrr = 0;
 
   invoices.forEach(inv => {
       if (inv.status === 'paid') totalRevenue += inv.amount;
+      if (inv.status === 'pending' || inv.status === 'overdue') totalPending += inv.amount;
   });
 
   subscriptions.forEach(sub => {
@@ -366,41 +368,74 @@ const GlobalFinance: React.FC = () => {
             </div>
         </div>
 
-        {/* KPI CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-2xl border border-emerald-100 shadow-sm flex items-center justify-between group relative cursor-help">
+        {/* KPI CARDS (4 COLONNES) */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            
+            {/* Total Encaissé */}
+            <div className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-sm flex items-center justify-between group relative cursor-help">
                 <div>
                     <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1">Total Encaissé</p>
-                    <p className="text-3xl font-extrabold text-slate-900">
+                    <p className="text-2xl font-extrabold text-slate-900">
                         {totalRevenue.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
                     </p>
                 </div>
                 <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-                    <DollarSign size={24} />
+                    <DollarSign size={20} />
+                </div>
+                {/* Tooltip */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                    Somme de toutes les factures marquées comme "Payées".
                 </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm flex items-center justify-between group relative cursor-help">
+            {/* Montant en Attente (Restauré) */}
+            <div className={`p-5 rounded-2xl border shadow-sm flex items-center justify-between group relative cursor-help transition-colors ${totalPending > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
+                <div>
+                    <p className={`text-xs font-bold uppercase tracking-wide mb-1 ${totalPending > 0 ? 'text-amber-700' : 'text-slate-400'}`}>En Attente</p>
+                    <p className={`text-2xl font-extrabold ${totalPending > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
+                        {totalPending.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                    </p>
+                </div>
+                <div className={`p-3 rounded-xl ${totalPending > 0 ? 'bg-white text-amber-600' : 'bg-slate-50 text-slate-400'}`}>
+                    <Wallet size={20} />
+                </div>
+                {/* Tooltip */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                    Total des factures émises mais non encore réglées (y compris retards).
+                </div>
+            </div>
+
+            {/* MRR */}
+            <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm flex items-center justify-between group relative cursor-help">
                 <div>
                     <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">MRR (Récurrent)</p>
-                    <p className="text-3xl font-extrabold text-slate-900">
+                    <p className="text-2xl font-extrabold text-slate-900">
                         {mrr.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
                     </p>
                 </div>
                 <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-                    <RefreshCw size={24} />
+                    <RefreshCw size={20} />
+                </div>
+                {/* Tooltip */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                    Revenu Récurrent Mensuel. Somme lissée de tous les abonnements actifs.
                 </div>
             </div>
 
-            <div className={`p-6 rounded-2xl border shadow-sm flex items-center justify-between group relative cursor-help bg-white border-slate-200`}>
+            {/* Abonnements Actifs */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between group relative cursor-help">
                 <div>
-                    <p className={`text-xs font-bold uppercase tracking-wide mb-1 text-slate-400`}>Abonnements Actifs</p>
-                    <p className={`text-3xl font-extrabold text-slate-900`}>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Abonnements</p>
+                    <p className="text-2xl font-extrabold text-slate-900">
                         {subscriptions.filter(s => s.status === 'active').length}
                     </p>
                 </div>
-                <div className={`p-3 rounded-xl bg-slate-50 text-slate-400`}>
-                    <TrendingUp size={24} />
+                <div className="p-3 rounded-xl bg-slate-50 text-slate-400">
+                    <TrendingUp size={20} />
+                </div>
+                {/* Tooltip */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
+                    Nombre total d'abonnements actuellement actifs.
                 </div>
             </div>
         </div>
