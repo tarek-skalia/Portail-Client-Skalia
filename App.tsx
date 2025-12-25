@@ -97,8 +97,11 @@ const AppContent: React.FC<{
     const isViewingAsClient = isAdmin && targetClient.role !== 'admin';
 
     // ONBOARDING CHECK
-    // Si c'est un client, et que son onboarding_step est défini et inférieur à 3 (Booking fait), on affiche l'onboarding
-    const isOnboarding = !isAdmin && userProfile?.onboarding_step !== null && (userProfile?.onboarding_step || 0) < 3;
+    // Si c'est un client, on vérifie qu'il a terminé l'étape 4 (Billing).
+    // Tant que onboarding_step < 4, on force l'affichage de l'onboarding.
+    // On gère le cas null (nouveau compte) comme 0.
+    const currentStep = userProfile?.onboarding_step ?? 0;
+    const isOnboarding = !isAdmin && currentStep < 4;
 
     // Page par défaut différente selon le mode
     const [activePage, setActivePage] = useState<string>(() => {
@@ -468,7 +471,7 @@ const App: React.FC = () => {
   // --- RENDER ---
 
   // 1. Loading global
-  if (isLoadingAuth) return <div className="h-screen w-full flex items-center justify-center bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  if (isLoadingAuth) return <div className="h-screen w-full flex items-center justify-center bg-slate-950"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>;
   
   // 2. Route Publique (Devis) - PRIORITAIRE
   if (publicQuoteId) return <PublicQuoteView quoteId={publicQuoteId} />;
