@@ -239,10 +239,75 @@ const UserManagement: React.FC = () => {
   const handleCreate = () => { setEditingUser(null); setIsModalOpen(true); };
   
   const handleDelete = async (id: string) => {
-      if (window.confirm("Supprimer cet utilisateur ? Cette action masque le client du dashboard mais conserve le compte de connexion (Auth).")) {
+      // 1. Avertissement Solennel
+      if (!window.confirm("ATTENTION : Vous êtes sur le point de supprimer ce client.\n\nCette action effacera TOUTES les données associées :\n- Projets & Tâches\n- Factures & Devis\n- Tickets de support\n- Automatisations & Logs\n\nL'utilisateur Auth (email/mdp) ne sera PAS supprimé, uniquement son profil et ses données métier.\n\nVoulez-vous continuer ?")) {
+          return;
+      }
+
+      setIsLoading(true);
+      toast.info("Nettoyage en cours...", "Suppression des données associées...");
+
+      try {
+          // 2. CASCADE MANUELLE (Ordre important pour éviter les erreurs FK)
+          
+          // Notifications
+          await supabase.from('notifications').delete().eq('user_id', id);
+
+          // Tickets & Messages
+          const { data: userTickets } = await supabase.from('tickets').select('id').eq('user_id', id);
+          if (userTickets && userTickets.length > 0) {
+              const ticketIds = userTickets.map(t => t.id);
+              await supabase.from('ticket_messages').delete().in('ticket_id', ticketIds);
+              await supabase.from('tickets').delete().in('id', ticketIds);
+          }
+          await supabase.from('ticket_messages').delete().eq('sender_id', id);
+
+          // Projets & Tâches
+          const { data: userProjects } = await supabase.from('projects').select('id').eq('user_id', id);
+          if (userProjects && userProjects.length > 0) {
+              const projectIds = userProjects.map(p => p.id);
+              await supabase.from('project_tasks').delete().in('project_id', projectIds);
+              await supabase.from('projects').delete().in('id', projectIds);
+          }
+
+          // Automatisations & Logs
+          const { data: userAutos } = await supabase.from('automations').select('id').eq('user_id', id);
+          if (userAutos && userAutos.length > 0) {
+              const autoIds = userAutos.map(a => a.id);
+              await supabase.from('automation_logs').delete().in('automation_id', autoIds);
+              await supabase.from('automations').delete().in('id', autoIds);
+          }
+
+          // Devis & Items
+          const { data: userQuotes } = await supabase.from('quotes').select('id').eq('profile_id', id);
+          if (userQuotes && userQuotes.length > 0) {
+              const quoteIds = userQuotes.map(q => q.id);
+              await supabase.from('quote_items').delete().in('quote_id', quoteIds);
+              await supabase.from('quotes').delete().in('id', quoteIds);
+          }
+
+          // Finances
+          await supabase.from('invoices').delete().eq('user_id', id);
+          await supabase.from('expenses').delete().eq('user_id', id);
+          await supabase.from('client_subscriptions').delete().eq('user_id', id);
+
+          // 3. Suppression du Profil (Enfin possible car plus de liaisons)
           const { error } = await supabase.from('profiles').delete().eq('id', id);
-          if (error) toast.error("Erreur", "Impossible de supprimer.");
-          else { toast.success("Supprimé", "Utilisateur retiré."); fetchUsers(); }
+          
+          if (error) throw error;
+
+          toast.success("Client supprimé", "Toutes les données ont été effacées avec succès.");
+          fetchUsers();
+
+      } catch (err: any) {
+          console.error("Erreur suppression client:", err);
+          let msg = "Impossible de supprimer le profil.";
+          if (err.message?.includes('foreign key')) {
+              msg = "Erreur de dépendance (Foreign Key). Des données sont encore liées.";
+          }
+          toast.error("Erreur Critique", msg);
+      } finally {
+          setIsLoading(false);
       }
   };
 
