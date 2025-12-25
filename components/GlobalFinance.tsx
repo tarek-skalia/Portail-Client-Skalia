@@ -3,12 +3,15 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Invoice, ClientSubscription } from '../types';
 import { useAdmin } from './AdminContext';
-import { DollarSign, TrendingUp, AlertTriangle, Search, Filter, Plus, Edit3, Trash2, Users, RefreshCw, PlayCircle, PauseCircle, StopCircle, CheckCircle2, Clock } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertTriangle, Search, Filter, Plus, Edit3, Trash2, Users, RefreshCw, PlayCircle, PauseCircle, StopCircle, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import Skeleton from './Skeleton';
 import InvoiceSlideOver from './InvoiceSlideOver';
 import Modal from './ui/Modal';
 import InvoiceForm from './forms/InvoiceForm';
 import { useToast } from './ToastProvider';
+
+// URL unique pour le Switch N8N
+const N8N_FINANCE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook/de8b8392-51b4-4a45-875e-f11c9b6a0f6e";
 
 const GlobalFinance: React.FC = () => {
   const { clients } = useAdmin();
@@ -34,6 +37,9 @@ const GlobalFinance: React.FC = () => {
       billingCycle: 'monthly',
       status: 'pending'
   });
+  
+  // Processing State pour les actions asynchrones (Activation N8N)
+  const [processingSubId, setProcessingSubId] = useState<string | null>(null);
 
   // CLIENT FILTER
   const [selectedClientId, setSelectedClientId] = useState<string>('all');
@@ -172,7 +178,7 @@ const GlobalFinance: React.FC = () => {
 
   const handleSubmitSub = async (e: React.FormEvent) => {
       e.preventDefault();
-      setIsLoading(true); // Small local loading
+      setIsLoading(true); 
       try {
           const payload = {
               user_id: subFormData.clientId,
@@ -201,18 +207,78 @@ const GlobalFinance: React.FC = () => {
       }
   };
 
+  // --- ACTIVATION AVEC N8N ---
   const handleActivateSub = async (sub: ClientSubscription) => {
-      if (!window.confirm("Activer cet abonnement ? Cela signifie que la facturation commence.")) return;
+      if (!window.confirm(`Confirmer l'activation de l'abonnement "${sub.serviceName}" ?\nCela déclenchera la création dans Stripe.`)) return;
       
-      const { error } = await supabase.from('client_subscriptions').update({
-          status: 'active',
-          start_date: new Date().toISOString()
-      }).eq('id', sub.id);
+      setProcessingSubId(sub.id);
 
-      if (error) toast.error("Erreur", "Impossible d'activer.");
-      else {
-          toast.success("Activé", "L'abonnement est maintenant actif.");
-          // TODO: Ici on pourrait appeler un Webhook N8N pour créer l'abonnement Stripe réellement
+      try {
+          // 1. Récupérer les infos clients pour Stripe
+          const { data: profile } = await supabase.from('profiles').select('email, full_name, stripe_customer_id').eq('id', sub.clientId).single();
+          
+          if (!profile) throw new Error("Profil client introuvable.");
+
+          // 2. Appel Webhook N8N (Branche 'start_subscription')
+          const payload = {
+              action: 'start_subscription', // LA CLÉ DU SWITCH
+              subscription_id: sub.id, // ID Supabase pour update futur
+              client: {
+                  email: profile.email,
+                  name: profile.full_name,
+                  stripe_customer_id: profile.stripe_customer_id,
+                  supabase_user_id: sub.clientId
+              },
+              service: {
+                  name: sub.serviceName,
+                  amount: sub.amount,
+                  interval: sub.billingCycle === 'monthly' ? 'month' : 'year',
+                  currency: 'eur'
+              }
+          };
+
+          console.log("Sending to N8N:", payload);
+
+          await fetch(N8N_FINANCE_WEBHOOK, {
+              method: 'POST',
+              mode: 'no-cors', // Important pour éviter CORS error si N8N n'est pas config
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+
+          // 3. Mise à jour Optimiste (En attendant que N8N update le stripe_subscription_id)
+          const { error } = await supabase.from('client_subscriptions').update({
+              status: 'active',
+              start_date: new Date().toISOString()
+          }).eq('id', sub.id);
+
+          if (error) throw error;
+
+          toast.success("Activation lancée", "La demande est partie chez Stripe.");
+          fetchSubscriptions();
+
+      } catch (err: any) {
+          console.error(err);
+          toast.error("Erreur", "Echec de l'activation : " + err.message);
+      } finally {
+          setProcessingSubId(null);
+      }
+  };
+
+  const handleDeactivateSub = async (sub: ClientSubscription) => {
+      if (!window.confirm("Arrêter cet abonnement immédiatement ?")) return;
+      
+      setProcessingSubId(sub.id);
+      try {
+          // Appel N8N pour cancel Stripe (Optionnel, ou juste update local)
+          // Pour l'instant on fait simple : update local
+          await supabase.from('client_subscriptions').update({ status: 'cancelled' }).eq('id', sub.id);
+          toast.info("Arrêté", "Abonnement annulé.");
+          fetchSubscriptions();
+      } catch (e) {
+          toast.error("Erreur", "Impossible d'arrêter.");
+      } finally {
+          setProcessingSubId(null);
       }
   };
 
@@ -496,60 +562,77 @@ const GlobalFinance: React.FC = () => {
 
                 {/* Table Body */}
                 <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto custom-scrollbar">
-                    {filteredSubscriptions.map(sub => (
-                        <div 
-                            key={sub.id} 
-                            className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors items-center group"
-                        >
-                            <div className="col-span-3 font-bold text-slate-800 truncate text-sm">
-                                {sub.serviceName}
-                                <div className="text-[10px] text-slate-400 font-normal uppercase flex items-center gap-1 mt-0.5">
-                                    <RefreshCw size={10} /> {sub.billingCycle}
+                    {filteredSubscriptions.map(sub => {
+                        const isProcessing = processingSubId === sub.id;
+                        
+                        return (
+                            <div 
+                                key={sub.id} 
+                                className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors items-center group"
+                            >
+                                <div className="col-span-3 font-bold text-slate-800 truncate text-sm">
+                                    {sub.serviceName}
+                                    <div className="text-[10px] text-slate-400 font-normal uppercase flex items-center gap-1 mt-0.5">
+                                        <RefreshCw size={10} /> {sub.billingCycle}
+                                    </div>
+                                </div>
+                                <div className="col-span-3 text-sm text-slate-600">
+                                    {getClientName(sub.clientId)}
+                                </div>
+                                <div className="col-span-2 text-right font-bold text-indigo-600">
+                                    {sub.amount.toLocaleString('fr-FR', { style: 'currency', currency: sub.currency })}
+                                </div>
+                                <div className="col-span-2 flex justify-center">
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide border whitespace-nowrap flex items-center gap-1 ${
+                                        sub.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                        sub.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                        'bg-slate-100 text-slate-500 border-slate-200'
+                                    }`}>
+                                        {isProcessing ? <Loader2 size={10} className="animate-spin" /> : 
+                                         sub.status === 'active' ? <CheckCircle2 size={10} /> : sub.status === 'pending' ? <Clock size={10} /> : <StopCircle size={10} />
+                                        }
+                                        {sub.status}
+                                    </span>
+                                </div>
+                                <div className="col-span-2 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {sub.status === 'pending' && (
+                                        <button 
+                                            onClick={() => handleActivateSub(sub)}
+                                            className="p-1.5 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-100"
+                                            title="Activer la facturation"
+                                            disabled={isProcessing}
+                                        >
+                                            <PlayCircle size={14} />
+                                        </button>
+                                    )}
+                                    {sub.status === 'active' && (
+                                        <button 
+                                            onClick={() => handleDeactivateSub(sub)}
+                                            className="p-1.5 bg-amber-50 border border-amber-200 text-amber-600 rounded-lg hover:bg-amber-100"
+                                            title="Suspendre/Arrêter"
+                                            disabled={isProcessing}
+                                        >
+                                            <PauseCircle size={14} />
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => handleEditSub(sub)}
+                                        className="p-1.5 bg-white border border-slate-200 text-indigo-600 rounded-lg hover:bg-indigo-50"
+                                        title="Modifier"
+                                    >
+                                        <Edit3 size={14} />
+                                    </button>
+                                    <button 
+                                        onClick={(e) => handleDeleteSub(e, sub.id)}
+                                        className="p-1.5 bg-white border border-slate-200 text-red-600 rounded-lg hover:bg-red-50"
+                                        title="Supprimer"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
                                 </div>
                             </div>
-                            <div className="col-span-3 text-sm text-slate-600">
-                                {getClientName(sub.clientId)}
-                            </div>
-                            <div className="col-span-2 text-right font-bold text-indigo-600">
-                                {sub.amount.toLocaleString('fr-FR', { style: 'currency', currency: sub.currency })}
-                            </div>
-                            <div className="col-span-2 flex justify-center">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide border whitespace-nowrap flex items-center gap-1 ${
-                                    sub.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                    sub.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                    'bg-slate-100 text-slate-500 border-slate-200'
-                                }`}>
-                                    {sub.status === 'active' ? <CheckCircle2 size={10} /> : sub.status === 'pending' ? <Clock size={10} /> : <StopCircle size={10} />}
-                                    {sub.status}
-                                </span>
-                            </div>
-                            <div className="col-span-2 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {sub.status === 'pending' && (
-                                    <button 
-                                        onClick={() => handleActivateSub(sub)}
-                                        className="p-1.5 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-100"
-                                        title="Activer la facturation"
-                                    >
-                                        <PlayCircle size={14} />
-                                    </button>
-                                )}
-                                <button 
-                                    onClick={() => handleEditSub(sub)}
-                                    className="p-1.5 bg-white border border-slate-200 text-indigo-600 rounded-lg hover:bg-indigo-50"
-                                    title="Modifier"
-                                >
-                                    <Edit3 size={14} />
-                                </button>
-                                <button 
-                                    onClick={(e) => handleDeleteSub(e, sub.id)}
-                                    className="p-1.5 bg-white border border-slate-200 text-red-600 rounded-lg hover:bg-red-50"
-                                    title="Supprimer"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                     {filteredSubscriptions.length === 0 && (
                         <div className="p-12 text-center text-slate-400 italic">Aucun abonnement trouvé.</div>
                     )}
@@ -586,7 +669,7 @@ const GlobalFinance: React.FC = () => {
                     value={subFormData.clientId} 
                     onChange={e => setSubFormData({...subFormData, clientId: e.target.value})}
                     className="w-full px-3 py-2 border rounded-lg bg-white outline-none"
-                    disabled={!!editingSub} // On évite de changer le client en édition pour simplifier
+                    disabled={!!editingSub}
                 >
                     <option value="">Choisir un client...</option>
                     {clients.filter(c => c.role !== 'admin').map(client => (

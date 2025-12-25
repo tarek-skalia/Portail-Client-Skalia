@@ -296,12 +296,16 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             if (!userId) throw new Error("Erreur d'identification technique.");
 
             if (!session) {
+                // TENTATIVE DE LOGIN FORCÉ SI SIGNUP A ÉCHOUÉ MAIS COMPTE EXISTE
                 const { data: loginData, error: loginError } = await tempClient.auth.signInWithPassword({ email, password });
                 if (loginError) {
                     throw new Error("Veuillez confirmer votre email avant de signer.");
                 }
                 session = loginData.session;
             }
+
+            // A CE STADE, tempClient EST AUTHENTIFIÉ
+            // IL PEUT DONC ÉCRIRE DANS LA TABLE SUBSCRIPTION SI LA POLICY EST CORRECTE
 
             // 1. Signature du Devis
             const auditTrail = {
