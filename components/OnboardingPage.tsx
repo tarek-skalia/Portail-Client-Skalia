@@ -154,10 +154,15 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
 
       // 2. Sauvegarde silencieuse en arrière-plan
       try {
-          await supabase.from('profiles').update({ onboarding_step: nextStepId }).eq('id', currentUser.id);
+          // CORRECTION : On sauvegarde l'étape PRÉCÉDENTE comme complétée.
+          // Si on va vers l'étape 4, on sauvegarde 3 (Etape 3 finie).
+          // Si on va vers l'étape 5 (fictive), on sauvegarde 4 (Etape 4 finie).
+          const stepToSave = nextStepId - 1;
           
-          if (nextStepId >= 4) {
-              // Pour la toute dernière étape (fin du flow), on peut déclencher le refresh complet
+          await supabase.from('profiles').update({ onboarding_step: stepToSave }).eq('id', currentUser.id);
+          
+          // C'est seulement si on dépasse l'étape 4 (donc stepToSave = 4) qu'on a fini.
+          if (nextStepId > 4) {
               setIsLoading(true); 
               onComplete(); 
           }
@@ -279,7 +284,8 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
           
           // Petit délai pour l'expérience utilisateur
           setTimeout(() => {
-              updateStep(4);
+              // CORRECTION : On appelle updateStep(5) pour valider l'étape 4 et finir
+              updateStep(5);
           }, 1500);
 
       } catch (err: any) {
