@@ -299,6 +299,7 @@ const GlobalFinance: React.FC = () => {
   };
 
   // --- FILTERED DATA ---
+  // Ces listes filtrées sont utilisées pour l'affichage ET pour le calcul des KPI
   const filteredInvoices = invoices.filter(inv => {
       const matchesClient = selectedClientId === 'all' || inv.clientId === selectedClientId;
       const matchesSearch = inv.number.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -313,17 +314,25 @@ const GlobalFinance: React.FC = () => {
       return matchesClient && matchesSearch;
   });
 
-  // KPI calculés sur la sélection
+  // KPI calculés sur les listes FILTRÉES (et non plus sur "invoices" ou "subscriptions" bruts)
   let totalRevenue = 0;
   let totalPending = 0;
   let mrr = 0;
 
-  invoices.forEach(inv => {
+  // Utilisation de filteredInvoices ici, mais attention : 
+  // filteredInvoices dépend aussi de filterStatus et searchTerm.
+  // Pour les KPI globaux du client (en haut), on veut souvent juste filtrer par CLIENT, pas par status.
+  // On refait donc un filtre "juste client" pour les KPI.
+  
+  const kpiInvoices = invoices.filter(inv => selectedClientId === 'all' || inv.clientId === selectedClientId);
+  const kpiSubscriptions = subscriptions.filter(sub => selectedClientId === 'all' || sub.clientId === selectedClientId);
+
+  kpiInvoices.forEach(inv => {
       if (inv.status === 'paid') totalRevenue += inv.amount;
       if (inv.status === 'pending' || inv.status === 'overdue') totalPending += inv.amount;
   });
 
-  subscriptions.forEach(sub => {
+  kpiSubscriptions.forEach(sub => {
       if (sub.status === 'active') {
           mrr += sub.billingCycle === 'monthly' ? sub.amount : sub.amount / 12;
       }
@@ -378,7 +387,7 @@ const GlobalFinance: React.FC = () => {
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Total de toutes les factures avec le statut "Payée".
+                    Total encaissé pour la sélection actuelle.
                 </div>
             </div>
 
@@ -397,7 +406,7 @@ const GlobalFinance: React.FC = () => {
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Montant total des factures envoyées mais non encore réglées.
+                    Montant facturé non réglé pour la sélection actuelle.
                 </div>
             </div>
 
@@ -416,7 +425,7 @@ const GlobalFinance: React.FC = () => {
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Revenu Récurrent Mensuel : Somme lissée de tous les abonnements actifs (Mensuels + Annuels/12).
+                    Revenu Récurrent Mensuel pour la sélection.
                 </div>
             </div>
 
@@ -427,7 +436,7 @@ const GlobalFinance: React.FC = () => {
                         Abonnements <HelpCircle size={10} className="text-slate-300" />
                     </p>
                     <p className="text-2xl font-extrabold text-slate-900">
-                        {subscriptions.filter(s => s.status === 'active').length}
+                        {kpiSubscriptions.filter(s => s.status === 'active').length}
                     </p>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-50 text-slate-400">
@@ -435,7 +444,7 @@ const GlobalFinance: React.FC = () => {
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Nombre total d'abonnements actuellement actifs.
+                    Nombre total d'abonnements actifs pour la sélection.
                 </div>
             </div>
         </div>
@@ -458,7 +467,7 @@ const GlobalFinance: React.FC = () => {
             </button>
         </div>
 
-        {/* ... (Le reste du code des tables reste inchangé) ... */}
+        {/* ... (Rest of tables logic) ... */}
         {/* --- INVOICES VIEW --- */}
         {activeTab === 'invoices' && (
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-fade-in">

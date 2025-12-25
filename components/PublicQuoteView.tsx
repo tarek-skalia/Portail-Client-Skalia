@@ -5,7 +5,7 @@ import {
     Check, Download, AlertCircle, FileText, Calendar, DollarSign, PenTool, 
     CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
     Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit,
-    ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid, Terminal
+    ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid, Terminal, Activity, Server
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
@@ -477,12 +477,13 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 </div>
                             </div>
 
-                            {/* RIGHT SIDE : BIGGER FLOAT CARD */}
+                            {/* RIGHT SIDE : BIGGER FLOAT CARD (EXPANDED) */}
                             <div className="hidden lg:flex justify-end animate-fade-in-up delay-200 relative perspective-1000">
-                                <div className="relative w-96 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group">
+                                <div className="relative w-96 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group flex flex-col gap-6">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent rounded-3xl pointer-events-none"></div>
                                     
-                                    <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
+                                    {/* Header Card */}
+                                    <div className="flex items-center justify-between border-b border-white/10 pb-6">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 border border-white/5">
                                                 <Cpu size={24} />
@@ -495,6 +496,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                         <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_#34d399]"></div>
                                     </div>
 
+                                    {/* Progress */}
                                     <div className="space-y-4">
                                         <div className="bg-black/20 rounded-xl p-4 border border-white/5">
                                             <div className="flex justify-between items-center mb-2">
@@ -508,17 +510,40 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
                                         <div className="flex items-center gap-3">
                                             <Terminal size={14} className="text-slate-400" />
-                                            <p className="text-xs text-slate-300 font-mono">Initializing modules...</p>
+                                            <p className="text-xs text-slate-300 font-mono">Initializing core modules...</p>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <CheckCircle2 size={14} className="text-emerald-500" />
-                                            <p className="text-xs text-white font-mono">AI Models loaded</p>
+                                            <p className="text-xs text-white font-mono">AI Models loaded successfully</p>
                                         </div>
                                     </div>
 
-                                    <div className="mt-8 pt-6 border-t border-white/10 flex justify-between text-[10px] text-indigo-200 font-mono">
-                                        <span>STATUS_CHECK: OK</span>
-                                        <span>READY_TO_SCALE</span>
+                                    {/* NEW: Logs Area */}
+                                    <div className="bg-black/40 rounded-xl p-4 border border-white/10 font-mono text-[10px] space-y-1.5 text-indigo-200/80">
+                                        <div className="flex gap-2">
+                                            <span className="text-slate-500">[10:42:01]</span>
+                                            <span>Connecting to client API...</span>
+                                        </div>
+                                        <div className="flex gap-2 text-emerald-400/80">
+                                            <span className="text-slate-500">[10:42:02]</span>
+                                            <span>Connection established.</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <span className="text-slate-500">[10:42:03]</span>
+                                            <span>Fetching workflow data...</span>
+                                        </div>
+                                        <div className="h-2 w-2 bg-white/50 animate-pulse mt-1"></div>
+                                    </div>
+
+                                    <div className="pt-2 flex justify-between text-[10px] text-indigo-200 font-mono border-t border-white/10 mt-auto">
+                                        <div className="flex items-center gap-1.5">
+                                            <Server size={12} />
+                                            <span>STATUS: ONLINE</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <Activity size={12} />
+                                            <span>LATENCY: 24ms</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -532,7 +557,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-3xl mx-auto mb-16">
                         <h2 className="text-4xl font-bold text-slate-900 mb-6">L'expertise <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Skalia</span>.</h2>
-                        {/* LONG TEXT RESTORED */}
                         <p className="text-lg text-slate-600 leading-relaxed font-medium">
                             Jeune agence liégeoise, Skalia aide les entreprises à supprimer les
                             tâches répétitives et gagner clarté en automatisant leurs processus
@@ -558,14 +582,15 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                         <div className="bg-[#0F0A1F] rounded-3xl p-8 shadow-lg text-white relative overflow-hidden">
                             <div className="relative z-10">
-                                <h3 className="font-bold mb-6 flex items-center gap-2 text-xl"><Users size={24} className="text-indigo-400" /> Vos Interlocuteurs</h3>
-                                <div className="space-y-6">
+                                <h3 className="font-bold mb-8 flex items-center gap-2 text-xl"><Users size={24} className="text-indigo-400" /> Vos Interlocuteurs</h3>
+                                <div className="space-y-8">
                                     {AGENCY_TEAM.map((member, i) => (
-                                        <div key={i} className="flex items-center gap-4">
-                                            <img src={member.img} className="w-14 h-14 rounded-full border-2 border-white/20 object-cover shadow-lg" />
+                                        <div key={i} className="flex items-center gap-6">
+                                            {/* PHOTOS XL */}
+                                            <img src={member.img} className="w-20 h-20 rounded-full border-4 border-white/10 object-cover shadow-2xl hover:scale-105 transition-transform" />
                                             <div>
-                                                <p className="text-lg font-bold">{member.name}</p>
-                                                <p className="text-sm text-indigo-300">{member.role}</p>
+                                                <p className="text-xl font-bold">{member.name}</p>
+                                                <p className="text-sm text-indigo-300 font-medium uppercase tracking-wide mt-1">{member.role}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -575,21 +600,38 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         </div>
 
                         <div className="space-y-6">
-                            <h3 className="text-2xl font-bold text-slate-900">Nos Valeurs</h3>
-                            <ul className="space-y-4">
-                                <li className="flex items-start gap-3">
-                                    <div className="mt-1 p-1 bg-emerald-100 rounded-full text-emerald-600"><Check size={14} strokeWidth={3} /></div>
-                                    <p className="text-slate-700"><strong>Transparence :</strong> Pas de jargon, pas de coûts cachés.</p>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <div className="mt-1 p-1 bg-emerald-100 rounded-full text-emerald-600"><Check size={14} strokeWidth={3} /></div>
-                                    <p className="text-slate-700"><strong>Pragmatisme :</strong> Nous visons l'efficacité avant la complexité technique.</p>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <div className="mt-1 p-1 bg-emerald-100 rounded-full text-emerald-600"><Check size={14} strokeWidth={3} /></div>
-                                    <p className="text-slate-700"><strong>Accompagnement :</strong> Nous ne livrons pas juste du code, nous formons vos équipes.</p>
-                                </li>
-                            </ul>
+                            <h3 className="text-2xl font-bold text-slate-900 mb-2">Nos Valeurs</h3>
+                            <div className="space-y-4">
+                                <div className="p-5 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex gap-4">
+                                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                                        <ShieldCheck size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">Transparence</h4>
+                                        <p className="text-slate-600 text-sm mt-1">Pas de jargon, pas de coûts cachés. Nous communiquons clairement à chaque étape.</p>
+                                    </div>
+                                </div>
+
+                                <div className="p-5 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex gap-4">
+                                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                                        <Target size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">Pragmatisme</h4>
+                                        <p className="text-slate-600 text-sm mt-1">Nous visons l'efficacité avant la complexité technique. Solutions simples et robustes.</p>
+                                    </div>
+                                </div>
+
+                                <div className="p-5 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex gap-4">
+                                    <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+                                        <Users size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">Accompagnement</h4>
+                                        <p className="text-slate-600 text-sm mt-1">Nous ne livrons pas juste du code, nous formons vos équipes à l'utilisation.</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -622,7 +664,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             </section>
 
             {/* SECTION PROJET */}
-            <section className="py-24 bg-slate-50 relative overflow-hidden">
+            <section className="py-24 bg-slate-50 relative overflow-hidden border-b border-slate-200">
                 <div className="max-w-5xl mx-auto px-6 relative z-10">
                     <div className="flex items-center gap-4 mb-12">
                         <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md border border-slate-100"><Target size={28} /></div>
@@ -635,8 +677,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </section>
 
-            {/* SECTION PRIX */}
-            <section className="py-24 bg-white">
+            {/* SECTION PRIX - CONTRASTE MARQUÉ */}
+            <section className="py-24 bg-white shadow-[inset_0_20px_20px_-20px_rgba(0,0,0,0.05)]">
                 <div className="max-w-5xl mx-auto px-6">
                     <div className="text-center mb-16"><h2 className="text-3xl font-bold text-slate-900 mb-4">Proposition Financière</h2></div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
