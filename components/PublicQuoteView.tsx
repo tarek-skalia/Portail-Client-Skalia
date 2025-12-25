@@ -5,7 +5,7 @@ import {
     Check, Download, AlertCircle, FileText, Calendar, DollarSign, PenTool, 
     CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
     Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit,
-    ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid
+    ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid, Terminal
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
@@ -477,29 +477,48 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 </div>
                             </div>
 
+                            {/* RIGHT SIDE : BIGGER FLOAT CARD */}
                             <div className="hidden lg:flex justify-end animate-fade-in-up delay-200 relative perspective-1000">
-                                <div className="relative w-80 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group">
+                                <div className="relative w-96 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent rounded-3xl pointer-events-none"></div>
-                                    <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 border border-white/5">
-                                                <Cpu size={20} />
+                                    
+                                    <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 border border-white/5">
+                                                <Cpu size={24} />
                                             </div>
                                             <div>
                                                 <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider">Système</p>
-                                                <p className="text-sm font-bold text-white">Skalia Engine v2.0</p>
+                                                <p className="text-lg font-bold text-white">Skalia Engine v2.0</p>
                                             </div>
                                         </div>
-                                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_#34d399]"></div>
+                                        <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_#34d399]"></div>
                                     </div>
-                                    <div className="mt-8 pt-4 border-t border-white/10">
-                                        <div className="w-full bg-white/10 rounded-full h-1 overflow-hidden mb-2">
-                                            <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-[85%] rounded-full animate-pulse"></div>
+
+                                    <div className="space-y-4">
+                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-xs text-indigo-200 font-mono">DEPLOY_PIPELINE</span>
+                                                <span className="text-xs text-emerald-400 font-bold">RUNNING</span>
+                                            </div>
+                                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                                                <div className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full w-[75%] rounded-full animate-pulse"></div>
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between text-[10px] text-indigo-200 font-mono">
-                                            <span>STATUS_CHECK</span>
-                                            <span>READY_TO_DEPLOY</span>
+
+                                        <div className="flex items-center gap-3">
+                                            <Terminal size={14} className="text-slate-400" />
+                                            <p className="text-xs text-slate-300 font-mono">Initializing modules...</p>
                                         </div>
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircle2 size={14} className="text-emerald-500" />
+                                            <p className="text-xs text-white font-mono">AI Models loaded</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-8 pt-6 border-t border-white/10 flex justify-between text-[10px] text-indigo-200 font-mono">
+                                        <span>STATUS_CHECK: OK</span>
+                                        <span>READY_TO_SCALE</span>
                                     </div>
                                 </div>
                             </div>
@@ -511,12 +530,19 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             {/* SECTION EXPERTISE */}
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
-                    <div className="text-center max-w-3xl mx-auto mb-20">
+                    <div className="text-center max-w-3xl mx-auto mb-16">
                         <h2 className="text-4xl font-bold text-slate-900 mb-6">L'expertise <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Skalia</span>.</h2>
-                        <p className="text-lg text-slate-600 leading-relaxed">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et à scaler grâce à l'intelligence artificielle.</p>
+                        {/* LONG TEXT RESTORED */}
+                        <p className="text-lg text-slate-600 leading-relaxed font-medium">
+                            Jeune agence liégeoise, Skalia aide les entreprises à supprimer les
+                            tâches répétitives et gagner clarté en automatisant leurs processus
+                            avec l’intelligence artificielle. Notre approche pragmatique et sur
+                            mesure transforme la complexité en solutions simples, efficaces et
+                            orientées résultats.
+                        </p>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
                         {SKALIA_EXPERTISE.map((item, i) => (
                             <div key={i} className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:border-indigo-200 transition-colors group">
                                 <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm mb-6 group-hover:scale-110 transition-transform">
@@ -527,61 +553,84 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             </div>
                         ))}
                     </div>
-                </div>
-            </section>
 
-            {/* SECTION PROJET */}
-            <section className="py-24 bg-slate-50 relative overflow-hidden">
-                <div className="max-w-7xl mx-auto px-6 relative z-10">
-                    <div className="flex items-center gap-4 mb-12">
-                        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md border border-slate-100"><Target size={28} /></div>
-                        <div><h2 className="text-3xl font-bold text-slate-900">Le Projet</h2><p className="text-slate-500">Cadrage de la mission et objectifs.</p></div>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-12 items-start">
-                        <div className="lg:col-span-3">
-                            <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-xl shadow-slate-100 border border-slate-100/80">
-                                <RichDescription text={quote.description || "Aucune description détaillée."} />
-                            </div>
-                        </div>
-                        
-                        <div className="lg:col-span-2 space-y-8">
-                            <div className="bg-white rounded-3xl p-8 shadow-lg border border-slate-100">
-                                <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
-                                    <Clock size={20} className="text-indigo-500" /> Planning
-                                </h3>
-                                <div className="space-y-6 relative">
-                                    <div className="absolute left-3.5 top-2 bottom-2 w-0.5 bg-slate-100"></div>
-                                    {METHODOLOGY_STEPS.map((step, i) => (
-                                        <div key={i} className="flex gap-4 relative">
-                                            <div className="w-7 h-7 rounded-full bg-white border-2 border-indigo-500 shrink-0 z-10 flex items-center justify-center text-[10px] font-bold text-indigo-700">
-                                                {step.num}
-                                            </div>
+                    {/* TEAM & VALUES INTEGRATED HERE */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                        <div className="bg-[#0F0A1F] rounded-3xl p-8 shadow-lg text-white relative overflow-hidden">
+                            <div className="relative z-10">
+                                <h3 className="font-bold mb-6 flex items-center gap-2 text-xl"><Users size={24} className="text-indigo-400" /> Vos Interlocuteurs</h3>
+                                <div className="space-y-6">
+                                    {AGENCY_TEAM.map((member, i) => (
+                                        <div key={i} className="flex items-center gap-4">
+                                            <img src={member.img} className="w-14 h-14 rounded-full border-2 border-white/20 object-cover shadow-lg" />
                                             <div>
-                                                <h4 className="font-bold text-slate-800 text-sm">{step.title}</h4>
-                                                <p className="text-xs text-slate-500 mt-1">{step.desc}</p>
+                                                <p className="text-lg font-bold">{member.name}</p>
+                                                <p className="text-sm text-indigo-300">{member.role}</p>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
-
-                            <div className="bg-[#0F0A1F] rounded-3xl p-8 shadow-lg text-white relative overflow-hidden">
-                                <div className="relative z-10">
-                                    <h3 className="font-bold mb-4 flex items-center gap-2"><Users size={20} className="text-indigo-400" /> Vos Interlocuteurs</h3>
-                                    <div className="space-y-4">
-                                        {AGENCY_TEAM.map((member, i) => (
-                                            <div key={i} className="flex items-center gap-3">
-                                                <img src={member.img} className="w-10 h-10 rounded-full border border-white/20 object-cover" />
-                                                <div>
-                                                    <p className="text-sm font-bold">{member.name}</p>
-                                                    <p className="text-xs text-indigo-300">{member.role}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
+                            <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-500/20 rounded-full blur-[60px]"></div>
                         </div>
+
+                        <div className="space-y-6">
+                            <h3 className="text-2xl font-bold text-slate-900">Nos Valeurs</h3>
+                            <ul className="space-y-4">
+                                <li className="flex items-start gap-3">
+                                    <div className="mt-1 p-1 bg-emerald-100 rounded-full text-emerald-600"><Check size={14} strokeWidth={3} /></div>
+                                    <p className="text-slate-700"><strong>Transparence :</strong> Pas de jargon, pas de coûts cachés.</p>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <div className="mt-1 p-1 bg-emerald-100 rounded-full text-emerald-600"><Check size={14} strokeWidth={3} /></div>
+                                    <p className="text-slate-700"><strong>Pragmatisme :</strong> Nous visons l'efficacité avant la complexité technique.</p>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <div className="mt-1 p-1 bg-emerald-100 rounded-full text-emerald-600"><Check size={14} strokeWidth={3} /></div>
+                                    <p className="text-slate-700"><strong>Accompagnement :</strong> Nous ne livrons pas juste du code, nous formons vos équipes.</p>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* SECTION METHODOLOGIE (DARK HORIZONTAL) */}
+            <section className="py-24 bg-[#0F0A1F] text-white relative overflow-hidden">
+                <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+                <div className="max-w-7xl mx-auto px-6 relative z-10">
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl font-bold mb-4">Notre Méthodologie</h2>
+                        <p className="text-indigo-300">Un processus clair en 4 étapes pour garantir le succès.</p>
+                    </div>
+
+                    <div className="relative grid grid-cols-1 md:grid-cols-4 gap-8">
+                        {/* Connecting Line (Horizontal) */}
+                        <div className="hidden md:block absolute top-8 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500/0 via-indigo-500 to-indigo-500/0 z-0"></div>
+
+                        {METHODOLOGY_STEPS.map((step, i) => (
+                            <div key={i} className="relative z-10 flex flex-col items-center text-center group">
+                                <div className="w-16 h-16 rounded-full bg-[#0F0A1F] border-2 border-indigo-500 flex items-center justify-center text-xl font-bold text-white shadow-[0_0_20px_rgba(99,102,241,0.4)] mb-6 group-hover:scale-110 transition-transform duration-300">
+                                    {step.num}
+                                </div>
+                                <h3 className="text-lg font-bold mb-2 text-indigo-100">{step.title}</h3>
+                                <p className="text-sm text-slate-400 leading-relaxed max-w-[200px]">{step.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* SECTION PROJET */}
+            <section className="py-24 bg-slate-50 relative overflow-hidden">
+                <div className="max-w-5xl mx-auto px-6 relative z-10">
+                    <div className="flex items-center gap-4 mb-12">
+                        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md border border-slate-100"><Target size={28} /></div>
+                        <div><h2 className="text-3xl font-bold text-slate-900">Le Projet</h2><p className="text-slate-500">Cadrage de la mission et objectifs.</p></div>
+                    </div>
+                    
+                    <div className="bg-white rounded-[2rem] p-8 md:p-12 shadow-xl shadow-slate-100 border border-slate-100/80">
+                        <RichDescription text={quote.description || "Aucune description détaillée."} />
                     </div>
                 </div>
             </section>

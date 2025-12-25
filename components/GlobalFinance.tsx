@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Invoice, ClientSubscription } from '../types';
 import { useAdmin } from './AdminContext';
-import { DollarSign, TrendingUp, AlertTriangle, Search, Filter, Plus, Edit3, Trash2, Users, RefreshCw, PlayCircle, PauseCircle, StopCircle, CheckCircle2, Clock, Loader2, Wallet } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertTriangle, Search, Filter, Plus, Edit3, Trash2, Users, RefreshCw, PlayCircle, PauseCircle, StopCircle, CheckCircle2, Clock, Loader2, Wallet, HelpCircle } from 'lucide-react';
 import Skeleton from './Skeleton';
 import InvoiceSlideOver from './InvoiceSlideOver';
 import Modal from './ui/Modal';
@@ -214,15 +214,13 @@ const GlobalFinance: React.FC = () => {
       setProcessingSubId(sub.id);
 
       try {
-          // 1. Récupérer les infos clients pour Stripe
           const { data: profile } = await supabase.from('profiles').select('email, full_name, stripe_customer_id').eq('id', sub.clientId).single();
           
           if (!profile) throw new Error("Profil client introuvable.");
 
-          // 2. Appel Webhook N8N (Branche 'start_subscription')
           const payload = {
-              action: 'start_subscription', // LA CLÉ DU SWITCH
-              subscription_id: sub.id, // ID Supabase pour update futur
+              action: 'start_subscription',
+              subscription_id: sub.id,
               client: {
                   email: profile.email,
                   name: profile.full_name,
@@ -237,16 +235,13 @@ const GlobalFinance: React.FC = () => {
               }
           };
 
-          console.log("Sending to N8N:", payload);
-
           await fetch(N8N_FINANCE_WEBHOOK, {
               method: 'POST',
-              mode: 'no-cors', // Important pour éviter CORS error si N8N n'est pas config
+              mode: 'no-cors',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
           });
 
-          // 3. Mise à jour Optimiste (En attendant que N8N update le stripe_subscription_id)
           const { error } = await supabase.from('client_subscriptions').update({
               status: 'active',
               start_date: new Date().toISOString()
@@ -258,7 +253,6 @@ const GlobalFinance: React.FC = () => {
           fetchSubscriptions();
 
       } catch (err: any) {
-          console.error(err);
           toast.error("Erreur", "Echec de l'activation : " + err.message);
       } finally {
           setProcessingSubId(null);
@@ -270,8 +264,6 @@ const GlobalFinance: React.FC = () => {
       
       setProcessingSubId(sub.id);
       try {
-          // Appel N8N pour cancel Stripe (Optionnel, ou juste update local)
-          // Pour l'instant on fait simple : update local
           await supabase.from('client_subscriptions').update({ status: 'cancelled' }).eq('id', sub.id);
           toast.info("Arrêté", "Abonnement annulé.");
           fetchSubscriptions();
@@ -372,9 +364,11 @@ const GlobalFinance: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             
             {/* Total Encaissé */}
-            <div className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-sm flex items-center justify-between group relative cursor-help">
+            <div className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-sm flex items-center justify-between group relative cursor-help hover:shadow-md transition-shadow">
                 <div>
-                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1">Total Encaissé</p>
+                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        Total Encaissé <HelpCircle size={10} className="text-slate-300" />
+                    </p>
                     <p className="text-2xl font-extrabold text-slate-900">
                         {totalRevenue.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
                     </p>
@@ -384,14 +378,16 @@ const GlobalFinance: React.FC = () => {
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Somme de toutes les factures marquées comme "Payées".
+                    Total de toutes les factures avec le statut "Payée".
                 </div>
             </div>
 
             {/* Montant en Attente (Restauré) */}
-            <div className={`p-5 rounded-2xl border shadow-sm flex items-center justify-between group relative cursor-help transition-colors ${totalPending > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
+            <div className={`p-5 rounded-2xl border shadow-sm flex items-center justify-between group relative cursor-help hover:shadow-md transition-all ${totalPending > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
                 <div>
-                    <p className={`text-xs font-bold uppercase tracking-wide mb-1 ${totalPending > 0 ? 'text-amber-700' : 'text-slate-400'}`}>En Attente</p>
+                    <p className={`text-xs font-bold uppercase tracking-wide mb-1 flex items-center gap-1 ${totalPending > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                        En Attente <HelpCircle size={10} className="opacity-50" />
+                    </p>
                     <p className={`text-2xl font-extrabold ${totalPending > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
                         {totalPending.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
                     </p>
@@ -401,14 +397,16 @@ const GlobalFinance: React.FC = () => {
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Total des factures émises mais non encore réglées (y compris retards).
+                    Montant total des factures envoyées mais non encore réglées.
                 </div>
             </div>
 
             {/* MRR */}
-            <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm flex items-center justify-between group relative cursor-help">
+            <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm flex items-center justify-between group relative cursor-help hover:shadow-md transition-shadow">
                 <div>
-                    <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">MRR (Récurrent)</p>
+                    <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        MRR Récurrent <HelpCircle size={10} className="text-slate-300" />
+                    </p>
                     <p className="text-2xl font-extrabold text-slate-900">
                         {mrr.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
                     </p>
@@ -418,14 +416,16 @@ const GlobalFinance: React.FC = () => {
                 </div>
                 {/* Tooltip */}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 text-center shadow-xl">
-                    Revenu Récurrent Mensuel. Somme lissée de tous les abonnements actifs.
+                    Revenu Récurrent Mensuel : Somme lissée de tous les abonnements actifs (Mensuels + Annuels/12).
                 </div>
             </div>
 
             {/* Abonnements Actifs */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between group relative cursor-help">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between group relative cursor-help hover:shadow-md transition-shadow">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Abonnements</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                        Abonnements <HelpCircle size={10} className="text-slate-300" />
+                    </p>
                     <p className="text-2xl font-extrabold text-slate-900">
                         {subscriptions.filter(s => s.status === 'active').length}
                     </p>
@@ -458,6 +458,7 @@ const GlobalFinance: React.FC = () => {
             </button>
         </div>
 
+        {/* ... (Le reste du code des tables reste inchangé) ... */}
         {/* --- INVOICES VIEW --- */}
         {activeTab === 'invoices' && (
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-fade-in">
@@ -697,6 +698,7 @@ const GlobalFinance: React.FC = () => {
 
     {/* SUBSCRIPTION MODAL */}
     <Modal isOpen={isSubModalOpen} onClose={() => setIsSubModalOpen(false)} title={editingSub ? "Modifier Abonnement" : "Nouvel Abonnement"}>
+        {/* ... Formulaire Sub inchangé ... */}
         <form onSubmit={handleSubmitSub} className="space-y-6 pt-2">
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Client</label>
