@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
-import { Plus, Trash2, Calculator, Save, User, FileText, Calendar, Lock, Users, UserPlus, RefreshCw, Layers, DollarSign, MapPin, Hash, Percent, Clock } from 'lucide-react';
+import { Plus, Trash2, Calculator, Save, User, FileText, Calendar, Lock, Users, UserPlus, RefreshCw, Layers, DollarSign, MapPin, Hash, Percent, Clock, Briefcase, Infinity } from 'lucide-react';
 import { Lead } from '../../types';
 
 interface QuoteFormProps {
@@ -41,6 +41,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
   const [leads, setLeads] = useState<Lead[]>([]);
   
   // --- FORM STATE ---
+  const [quoteType, setQuoteType] = useState<'project' | 'retainer'>('project'); // NOUVEAU
   const [clientMode, setClientMode] = useState<'existing' | 'prospect'>('existing');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [selectedLeadId, setSelectedLeadId] = useState<string>('');
@@ -55,8 +56,8 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('draft');
   const [validUntil, setValidUntil] = useState('');
-  const [deliveryDelay, setDeliveryDelay] = useState(''); // NOUVEAU
-  const [taxRate, setTaxRate] = useState<number>(0); // NEW (TVA)
+  const [deliveryDelay, setDeliveryDelay] = useState('');
+  const [taxRate, setTaxRate] = useState<number>(0); 
   
   // Items
   const [items, setItems] = useState([
@@ -126,6 +127,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
           if (initialData.payment_terms) {
               setPaymentTermsType(initialData.payment_terms.type || '100_percent');
               setTaxRate(initialData.payment_terms.tax_rate || 0);
+              setQuoteType(initialData.payment_terms.quote_type || 'project'); // Récupération du type
           }
 
       } else {
@@ -215,12 +217,13 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
               description,
               status: ['draft', 'sent', 'signed', 'rejected'].includes(status) ? status : 'draft',
               valid_until: validUntil || null,
-              delivery_delay: deliveryDelay || null, // SAVE DELAY
-              total_amount: totalTTC, // On stocke le TTC global pour affichage rapide
+              delivery_delay: deliveryDelay || null, 
+              total_amount: totalTTC, 
               // On stocke les métadonnées de facturation dans le JSON payment_terms
               payment_terms: { 
                   type: paymentTermsType,
                   tax_rate: taxRate,
+                  quote_type: quoteType // Sauvegarde du type (Project vs Retainer)
               },
               updated_at: new Date().toISOString()
           };
@@ -276,8 +279,35 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 pt-2">
+        
+        {/* TYPE D'OFFRE TOGGLE */}
+        <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm flex mb-4">
+            <button
+                type="button"
+                onClick={() => setQuoteType('project')}
+                className={`flex-1 py-3 text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${
+                    quoteType === 'project' 
+                    ? 'bg-slate-900 text-white shadow-md' 
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+            >
+                <Briefcase size={16} /> Projet Standard (Facture)
+            </button>
+            <button
+                type="button"
+                onClick={() => setQuoteType('retainer')}
+                className={`flex-1 py-3 text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${
+                    quoteType === 'retainer' 
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md' 
+                    : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'
+                }`}
+            >
+                <Infinity size={16} /> Accompagnement (Abonnement)
+            </button>
+        </div>
+
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-            {/* Mode Toggle */}
+            {/* Mode Toggle Client/Prospect */}
             <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm w-full">
                 <button
                     type="button"
@@ -382,7 +412,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Date de validité</label>
                 <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} className="w-full px-3 py-2 border rounded-lg outline-none" />
             </div>
-            {/* NEW: DELAI LIVRAISON */}
+            
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12} /> Délai Livraison</label>
                 <input 
@@ -405,8 +435,10 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
 
         {/* ITEMS */}
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-600 uppercase">Prestations</span>
+            <div className={`px-4 py-2 border-b border-slate-200 flex justify-between items-center ${quoteType === 'retainer' ? 'bg-indigo-50' : 'bg-slate-50'}`}>
+                <span className={`text-xs font-bold uppercase ${quoteType === 'retainer' ? 'text-indigo-700' : 'text-slate-600'}`}>
+                    {quoteType === 'retainer' ? 'Détails de l\'abonnement' : 'Prestations'}
+                </span>
                 <button type="button" onClick={handleAddItem} className="text-xs font-bold text-indigo-600 flex items-center gap-1"><Plus size={12} /> Ajouter ligne</button>
             </div>
             <div className="p-2 space-y-2">
@@ -458,9 +490,11 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
                         {totalTTC.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                     </span>
                 </div>
-                <div className="text-right text-[10px] text-slate-400 mt-1">
-                    Dont acompte TTC : {depositTTC.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                </div>
+                {quoteType === 'project' && (
+                    <div className="text-right text-[10px] text-slate-400 mt-1">
+                        Dont acompte TTC : {depositTTC.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                    </div>
+                )}
             </div>
         </div>
 

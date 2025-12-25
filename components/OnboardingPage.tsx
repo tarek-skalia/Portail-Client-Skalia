@@ -155,13 +155,10 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
       // 2. Sauvegarde silencieuse en arrière-plan
       try {
           // CORRECTION : On sauvegarde l'étape PRÉCÉDENTE comme complétée.
-          // Si on va vers l'étape 4, on sauvegarde 3 (Etape 3 finie).
-          // Si on va vers l'étape 5 (fictive), on sauvegarde 4 (Etape 4 finie).
           const stepToSave = nextStepId - 1;
           
           await supabase.from('profiles').update({ onboarding_step: stepToSave }).eq('id', currentUser.id);
           
-          // C'est seulement si on dépasse l'étape 4 (donc stepToSave = 4) qu'on a fini.
           if (nextStepId > 4) {
               setIsLoading(true); 
               onComplete(); 
@@ -227,64 +224,105 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
 
           if (error) throw error;
 
-          // 2. Traitement Financier (Facture One-Shot)
+          // 2. Traitement Financier (N8N Trigger)
           if (pendingQuote) {
-              const invoiceItems = pendingQuote.quote_items.filter((i: any) => i.billing_frequency === 'once');
+              const taxRate = pendingQuote.payment_terms?.tax_rate || 0;
+              const isRetainer = pendingQuote.payment_terms?.quote_type === 'retainer';
 
-              if (invoiceItems.length > 0) {
-                  const invoiceAmount = invoiceItems.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
-                  const taxRate = pendingQuote.payment_terms?.tax_rate || 0;
-                  const totalWithTax = invoiceAmount * (1 + taxRate / 100);
+              // Payload de base Client
+              const clientPayload = {
+                  email: currentUser.email,
+                  name: currentUser.name,
+                  company: billingInfo.companyName,
+                  supabase_user_id: currentUser.id,
+                  vat_number: billingInfo.vatNumber,
+                  phone: fullPhone,
+                  address_line1: billingInfo.addressLine1,
+                  address_postal_code: billingInfo.postalCode,
+                  address_city: billingInfo.city,
+                  address_country: countryCode 
+              };
 
-                  const issueDateObj = new Date();
-                  const issueDateStr = issueDateObj.toISOString().split('T')[0];
-                  
-                  const dueDateObj = new Date(issueDateObj);
-                  dueDateObj.setDate(dueDateObj.getDate() + 7);
-                  const dueDateStr = dueDateObj.toISOString().split('T')[0];
+              // --- LOGIQUE DISTINCTE : RETAINER VS PROJET ---
+              if (isRetainer) {
+                  // Récupération de l'abonnement en attente créé à la signature
+                  const { data: subs } = await supabase.from('client_subscriptions').select('*').eq('user_id', currentUser.id).eq('status', 'pending').limit(1);
+                  const subscription = subs && subs.length > 0 ? subs[0] : null;
 
                   const n8nPayload = {
-                      client: {
-                          email: currentUser.email,
-                          name: currentUser.name,
-                          company: billingInfo.companyName,
-                          supabase_user_id: currentUser.id,
-                          vat_number: billingInfo.vatNumber,
-                          phone: fullPhone,
-                          // STRUCTURED ADDRESS
-                          address_line1: billingInfo.addressLine1,
-                          address_postal_code: billingInfo.postalCode,
-                          address_city: billingInfo.city,
-                          address_country: countryCode 
-                      },
-                      invoice: {
-                          projectName: pendingQuote.title,
-                          issueDate: issueDateStr,
-                          dueDate: dueDateStr,
-                          amount: totalWithTax, 
-                          quote_id: pendingQuote.id,
-                          currency: 'eur',
-                          tax_rate: taxRate,
-                          status: 'pending'
-                      },
-                      items: invoiceItems
+                      mode: 'subscription_start', // SIGNAL POUR N8N
+                      client: clientPayload,
+                      subscription: subscription ? {
+                          id: subscription.id,
+                          name: subscription.service_name,
+                          amount: subscription.amount,
+                          interval: subscription.billing_cycle === 'monthly' ? 'month' : 'year',
+                          currency: 'eur'
+                      } : null
                   };
 
-                  // Fire & Forget
-                  fetch(N8N_CREATE_INVOICE_WEBHOOK, {
-                      method: 'POST',
-                      mode: 'no-cors', 
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(n8nPayload)
-                  });
+                  // Si on a bien un abonnement à activer
+                  if (subscription) {
+                      await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
+                          method: 'POST',
+                          mode: 'no-cors', 
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(n8nPayload)
+                      });
+                      
+                      // Activation locale immédiate
+                      await supabase.from('client_subscriptions').update({ status: 'active', start_date: new Date().toISOString() }).eq('id', subscription.id);
+                  }
+
+              } else {
+                  // --- CAS STANDARD (PROJET) ---
+                  // Création Facture One-Shot uniquement
+                  const invoiceItems = pendingQuote.quote_items.filter((i: any) => i.billing_frequency === 'once');
+
+                  if (invoiceItems.length > 0) {
+                      const invoiceAmount = invoiceItems.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
+                      const totalWithTax = invoiceAmount * (1 + taxRate / 100);
+
+                      const issueDateObj = new Date();
+                      const issueDateStr = issueDateObj.toISOString().split('T')[0];
+                      
+                      const dueDateObj = new Date(issueDateObj);
+                      dueDateObj.setDate(dueDateObj.getDate() + 7);
+                      const dueDateStr = dueDateObj.toISOString().split('T')[0];
+
+                      const n8nPayload = {
+                          client: clientPayload,
+                          invoice: {
+                              projectName: pendingQuote.title,
+                              issueDate: issueDateStr,
+                              dueDate: dueDateStr,
+                              amount: totalWithTax, 
+                              quote_id: pendingQuote.id,
+                              currency: 'eur',
+                              tax_rate: taxRate,
+                              status: 'pending'
+                          },
+                          items: invoiceItems
+                      };
+
+                      // Fire & Forget Standard
+                      fetch(N8N_CREATE_INVOICE_WEBHOOK, {
+                          method: 'POST',
+                          mode: 'no-cors', 
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(n8nPayload)
+                      });
+                  }
               }
           }
 
-          toast.success("Dossier validé", "Bienvenue à bord ! Accès au portail en cours...");
+          const isRetainer = pendingQuote?.payment_terms?.quote_type === 'retainer';
+          const successTitle = isRetainer ? "Abonnement activé" : "Dossier validé";
+          const successMsg = isRetainer ? "Bienvenue Partenaire ! Accès complet débloqué." : "Bienvenue à bord ! Accès au portail en cours...";
+
+          toast.success(successTitle, successMsg);
           
-          // Petit délai pour l'expérience utilisateur
           setTimeout(() => {
-              // CORRECTION : On appelle updateStep(5) pour valider l'étape 4 et finir
               updateStep(5);
           }, 1500);
 
@@ -296,6 +334,8 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
   };
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-indigo-500 w-12 h-12" /></div>;
+
+  const isRetainer = pendingQuote?.payment_terms?.quote_type === 'retainer';
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans overflow-hidden selection:bg-indigo-200 selection:text-indigo-900">
@@ -645,7 +685,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                                         {isSubmitting ? <Loader2 className="animate-spin" /> : (
                                             <>
                                                 {isFormValid() ? <Lock size={20} /> : <Info size={20} />} 
-                                                Valider et Accéder au Portail
+                                                {isRetainer ? "Valider et Activer l'abonnement" : "Valider et Accéder au Portail"}
                                             </>
                                         )}
                                     </button>
@@ -655,7 +695,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                                         </p>
                                     )}
                                     <p className="text-[10px] text-center text-slate-400 mt-4 flex items-center justify-center gap-1 opacity-70">
-                                        <Info size={12} /> La facture de setup sera générée automatiquement.
+                                        <Info size={12} /> {isRetainer ? "L'activation déclenchera le premier prélèvement." : "La facture de setup sera générée automatiquement."}
                                     </p>
                                 </div>
                             </form>
