@@ -39,7 +39,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
   const toast = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [maxStepReached, setMaxStepReached] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Seulement pour le chargement initial
   const [pendingQuote, setPendingQuote] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -59,7 +59,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
 
   const [vatError, setVatError] = useState('');
 
-  // Initialisation
+  // Initialisation au montage uniquement
   useEffect(() => {
       checkProgress();
   }, []);
@@ -144,15 +144,25 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
       setIsLoading(false);
   };
 
-  const updateStep = async (step: number) => {
-      setIsLoading(true);
-      // On sauvegarde l'étape atteinte en base
-      await supabase.from('profiles').update({ onboarding_step: step }).eq('id', currentUser.id);
-      
-      if (step >= 4) {
-          onComplete(); // Fin du flow -> Refresh App
-      } else {
-          checkProgress();
+  // --- MISE À JOUR FLUIDE (SANS LOADING SCREEN) ---
+  const updateStep = async (nextStepId: number) => {
+      // 1. Mise à jour visuelle immédiate (Optimistic UI)
+      setCurrentStep(nextStepId);
+      if (nextStepId > maxStepReached) {
+          setMaxStepReached(nextStepId);
+      }
+
+      // 2. Sauvegarde silencieuse en arrière-plan
+      try {
+          await supabase.from('profiles').update({ onboarding_step: nextStepId }).eq('id', currentUser.id);
+          
+          if (nextStepId >= 4) {
+              // Pour la toute dernière étape (fin du flow), on peut déclencher le refresh complet
+              setIsLoading(true); 
+              onComplete(); 
+          }
+      } catch (err) {
+          console.error("Erreur sauvegarde étape", err);
       }
   };
 
@@ -164,7 +174,9 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
               return;
           }
       }
-      await updateStep(currentStep); 
+      
+      // Passage à l'étape suivante
+      await updateStep(currentStep + 1); 
   };
 
   const handleNavigate = (stepId: number) => {
@@ -355,11 +367,12 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
             )}
 
             <div className="flex-1 overflow-y-auto p-6 md:p-12 lg:p-20 flex items-center justify-center">
-                <div className="max-w-2xl w-full mx-auto">
+                <div className="max-w-2xl w-full mx-auto relative min-h-[400px]">
                     
-                    {/* --- STEP 1: SIGNATURE --- */}
+                    {/* KEY FOR ANIMATION: En utilisant currentStep comme clé, React remonte le composant à chaque changement */}
+                    {/* STEP 1: SIGNATURE */}
                     {currentStep === 1 && (
-                        <div className="text-center animate-fade-in-up">
+                        <div key="step1" className="text-center animate-fade-in-up">
                             <div className="w-24 h-24 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
                                 <FileSignature size={40} />
                             </div>
@@ -406,9 +419,9 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                         </div>
                     )}
 
-                    {/* --- STEP 2: VIDEO --- */}
+                    {/* STEP 2: VIDEO */}
                     {currentStep === 2 && (
-                        <div className="text-center animate-fade-in-up">
+                        <div key="step2" className="text-center animate-fade-in-up">
                             <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-50 text-purple-700 text-xs font-bold uppercase tracking-widest mb-6 border border-purple-100">
                                 <Sparkles size={14} /> Message de l'équipe
                             </span>
@@ -430,9 +443,9 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                         </div>
                     )}
 
-                    {/* --- STEP 3: CALENDAR --- */}
+                    {/* STEP 3: CALENDAR */}
                     {currentStep === 3 && (
-                        <div className="text-center animate-fade-in-up">
+                        <div key="step3" className="text-center animate-fade-in-up">
                             <div className="w-20 h-20 bg-purple-50 text-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner border border-purple-100 transform rotate-3">
                                 <Calendar size={36} />
                             </div>
@@ -450,9 +463,9 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                         </div>
                     )}
 
-                    {/* --- STEP 4: BILLING (UPDATED) --- */}
+                    {/* STEP 4: BILLING */}
                     {currentStep === 4 && (
-                        <div className="animate-fade-in-up">
+                        <div key="step4" className="animate-fade-in-up">
                             <div className="text-center mb-10">
                                 <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100">
                                     <Building size={30} />
@@ -499,12 +512,14 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                                             </div>
                                         </div>
 
-                                        {/* TVA DYNAMIQUE */}
+                                        {/* TVA DYNAMIQUE - CORRECTION VISUELLE ERREUR */}
                                         <div>
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1 flex items-center gap-1">
-                                                Numéro de TVA <span className="text-red-500">*</span>
-                                                {vatError && <span className="text-red-500 text-[9px] ml-auto bg-red-50 px-2 py-0.5 rounded">{vatError}</span>}
-                                            </label>
+                                            <div className="flex justify-between items-center mb-2 ml-1">
+                                                <label className="block text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                                    Numéro de TVA <span className="text-red-500">*</span>
+                                                </label>
+                                                {vatError && <span className="text-red-500 text-[9px] font-bold bg-red-50 px-2 py-0.5 rounded animate-fade-in">{vatError}</span>}
+                                            </div>
                                             <div className="relative group">
                                                 <Hash size={18} className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${vatError ? 'text-red-400' : 'text-slate-400 group-focus-within:text-indigo-500'}`} />
                                                 <input 

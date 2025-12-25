@@ -404,15 +404,61 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         <p className="text-slate-500 mb-10 text-sm">SKALIA SRL • BE1023.214.594 • Liège, Belgique</p>
                         
                         <div className="prose prose-slate prose-sm max-w-none text-justify space-y-8">
-                            <p>Les présentes Conditions Générales régissent l’ensemble des relations entre la SRL Skalia et ses clients.</p>
-                            <h3>1. Objet</h3>
-                            <p>Skalia fournit des services d'automatisation, d'intégration et de conseil technologique.</p>
-                            <h3>2. Devis et Commandes</h3>
-                            <p>La signature du devis vaut acceptation sans réserve des présentes conditions.</p>
-                            <h3>3. Paiement</h3>
-                            <p>Sauf mention contraire, les factures sont payables à réception.</p>
-                            <h3>4. Confidentialité</h3>
-                            <p>Skalia s'engage à traiter toutes les données clients avec la plus stricte confidentialité.</p>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Préambule</h3>
+                                <p>Les présentes Conditions Générales régissent l’ensemble des relations entre la SRL Skalia (ci-dessous dénommée « le prestataire ») et ses clients, à moins qu’un autre accord écrit stipule expressément qu’il y est dérogé. La personne physique ou morale qui accepte l’offre par écrit (y compris par email) est considérée comme « le client » et se porte garante du paiement de la facture. Les engagements verbaux n’engagent le prestataire qu’après confirmation écrite et dûment signée.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Objet du contrat</h3>
+                                <p>Le prestataire est chargé par le client de réaliser un projet défini dans l’offre commerciale annexée. L’offre de prix formulée par le prestataire fait partie intégrante du contrat et peut contenir certaines dérogations et limitations aux présentes conditions.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Collaboration entre les parties</h3>
+                                <p>Le client veillera à fournir tous les éléments et informations nécessaires à la bonne exécution du projet. Il collaborera avec le prestataire en vue d’assurer le bon déroulement des travaux, notamment en y allouant les moyens et le personnel nécessaire. À défaut, les délais et échéances pourront être adaptés à due concurrence.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Délais de création</h3>
+                                <p>Le projet est réalisé dans les délais indiqués dans l’offre commerciale, sous réserve de la bonne collaboration du client et de la transmission des éléments nécessaires.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Prix et paiement</h3>
+                                <p>Les modalités de paiement sont précisées dans l’offre commerciale et peuvent prendre l’une des formes suivantes :</p>
+                                <ul className="list-disc pl-5 mt-2 space-y-1">
+                                    <li>Frais de réalisation forfaitaires à la signature, complétés par des mensualités couvrant le support, les mises à jour et le suivi du projet ;</li>
+                                    <li>Frais de réalisation forfaitaires à la signature uniquement ;</li>
+                                    <li>Frais mensuels fixes sur la durée indiquée dans l’offre.</li>
+                                </ul>
+                                <p className="mt-2">Les factures sont payables dans un délai de sept (7) jours calendrier. En cas de non-paiement, le prestataire se réserve le droit de suspendre ses prestations jusqu’à réception du règlement.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Propriété intellectuelle</h3>
+                                <p>Le prestataire reste propriétaire du savoir-faire, workflows, outils et méthodes développés dans le cadre du projet. Le client dispose d’un droit d’utilisation des livrables remis, mais ne peut ni les revendre ni les sous-louer.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Confidentialité</h3>
+                                <p>Chacune des parties s’engage à considérer comme confidentielles les informations, documents, systèmes, logiciels et savoir-faire échangés pendant et après l’exécution du contrat.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Responsabilités et limitations</h3>
+                                <p>La responsabilité du prestataire est limitée, toutes causes confondues, au montant total des honoraires perçus au titre du présent contrat. Le prestataire ne pourra être tenu responsable des dommages indirects tels que perte de chiffre d’affaires, perte de chance ou perte de données.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Interruption liée à des outils tiers</h3>
+                                <p>Le prestataire ne pourra être tenu responsable des interruptions ou défaillances liées à des outils tiers intégrés dans la solution. Dans ce cas, le prestataire s’engage à mettre en œuvre tous les moyens possibles pour contourner, remplacer ou rétablir le bon fonctionnement du projet.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Litiges et droit applicable</h3>
+                                <p>En cas de difficultés ou de différend entre les parties à l’occasion de l’interprétation ou de l’exécution du présent contrat, celles-ci conviennent de rechercher une solution amiable. Si aucune solution ne peut être trouvée, les tribunaux de l’arrondissement de Liège seront compétents et appliqueront exclusivement le droit matériel belge.</p>
+                            </div>
                         </div>
 
                         <div className="mt-16 pt-8 border-t border-slate-100 flex justify-center">
@@ -422,6 +468,17 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         </div>
                     </div>
                 </div>
+                
+                {/* FOOTER CGV View */}
+                <footer className="bg-white py-8 border-t border-slate-200">
+                    <div className="max-w-4xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center text-xs text-slate-500">
+                        <p>© {new Date().getFullYear()} Skalia SRL. Tous droits réservés.</p>
+                        <div className="flex gap-4 mt-4 md:mt-0">
+                            <a href="https://www.skalia.io/mentions-legales" target="_blank" className="hover:text-indigo-600 transition-colors">Mentions Légales</a>
+                            <a href="https://www.skalia.io/politique-de-confidentialite" target="_blank" className="hover:text-indigo-600 transition-colors">Politique de Confidentialité</a>
+                        </div>
+                    </div>
+                </footer>
             </div>
         );
     }
@@ -778,11 +835,27 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             </button>
                         </div>
                         <p className="mt-6 text-xs text-slate-500 font-medium">
-                            En signant, vous acceptez les conditions générales de vente de Skalia SRL.
+                            En signant, vous acceptez les <button onClick={() => setViewMode('legal')} className="text-indigo-400 hover:underline">conditions générales de vente</button> de Skalia SRL.
                         </p>
                     </div>
                 </section>
             )}
+
+            {/* MAIN FOOTER */}
+            <footer className="bg-white py-12 border-t border-slate-200">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="flex flex-col md:flex-row justify-between items-center text-sm text-slate-500 gap-6">
+                        <div className="flex items-center gap-4">
+                            <p>© {new Date().getFullYear()} Skalia SRL. Tous droits réservés.</p>
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-6 font-medium">
+                            <button onClick={() => setViewMode('legal')} className="hover:text-indigo-600 transition-colors">Conditions Générales de Vente</button>
+                            <a href="https://www.skalia.io/mentions-legales" target="_blank" className="hover:text-indigo-600 transition-colors">Mentions Légales</a>
+                            <a href="https://www.skalia.io/politique-de-confidentialite" target="_blank" className="hover:text-indigo-600 transition-colors">Politique de Confidentialité</a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
 
             {/* MODAL SIGNATURE (Code Modal inchangé sauf handleMagicSign mis à jour ci-dessus) */}
             {isSigningModalOpen && !isSignedOrAccepted && (
