@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { FileText, ExternalLink, CheckCircle2, Clock, XCircle, Send } from 'lucide-react';
+import { FileText, ExternalLink, CheckCircle2, Clock, XCircle, Send, RefreshCw } from 'lucide-react';
 import Skeleton from './Skeleton';
 
 interface QuotesPageProps {
@@ -19,9 +19,10 @@ const QuotesPage: React.FC<QuotesPageProps> = ({ userId }) => {
   }, [userId]);
 
   const fetchQuotes = async () => {
+      // FIX: On doit sélectionner quote_items pour calculer le prix correct
       const { data, error } = await supabase
         .from('quotes')
-        .select('*')
+        .select('*, quote_items(*)')
         .eq('profile_id', userId)
         .order('created_at', { ascending: false });
       
@@ -41,6 +42,22 @@ const QuotesPage: React.FC<QuotesPageProps> = ({ userId }) => {
       }
   };
 
+  // Helper pour calculer le montant Initial vs Récurrent
+  const getQuoteAmounts = (quote: any) => {
+      const items = quote.quote_items || [];
+      const taxRate = quote.payment_terms?.tax_rate || 0;
+
+      const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
+      const recurringItems = items.filter((i: any) => i.billing_frequency !== 'once');
+
+      const oneShotTotalHT = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+      const recurringTotalHT = recurringItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+
+      const oneShotTTC = oneShotTotalHT * (1 + taxRate / 100);
+      
+      return { oneShotTTC, recurringTotalHT };
+  };
+
   if (isLoading) return <div className="p-8"><Skeleton className="h-64 w-full rounded-2xl" /></div>;
 
   return (
@@ -56,34 +73,45 @@ const QuotesPage: React.FC<QuotesPageProps> = ({ userId }) => {
                     Aucun devis disponible pour le moment.
                 </div>
             ) : (
-                quotes.map(quote => (
-                    <div key={quote.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group">
-                        <div>
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-                                    <FileText size={24} />
-                                </div>
-                                {getStatusBadge(quote.status)}
-                            </div>
-                            <h3 className="font-bold text-slate-900 text-lg mb-1">{quote.title}</h3>
-                            <p className="text-sm text-slate-500 line-clamp-2">{quote.description || "Voir le détail de la proposition."}</p>
-                        </div>
-                        
-                        <div className="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between">
+                quotes.map(quote => {
+                    const { oneShotTTC, recurringTotalHT } = getQuoteAmounts(quote);
+
+                    return (
+                        <div key={quote.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group">
                             <div>
-                                <p className="text-[10px] text-slate-400 uppercase font-bold">Total TTC</p>
-                                <p className="text-xl font-black text-slate-900">{quote.total_amount.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}</p>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                                        <FileText size={24} />
+                                    </div>
+                                    {getStatusBadge(quote.status)}
+                                </div>
+                                <h3 className="font-bold text-slate-900 text-lg mb-1">{quote.title}</h3>
+                                <p className="text-sm text-slate-500 line-clamp-2">{quote.description || "Voir le détail de la proposition."}</p>
                             </div>
-                            <a 
-                                href={`/?quote_id=${quote.id}`} 
-                                target="_blank"
-                                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-600 transition-colors shadow-lg"
-                            >
-                                Voir <ExternalLink size={14} />
-                            </a>
+                            
+                            <div className="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold">Initial TTC</p>
+                                    <p className="text-xl font-black text-slate-900">{oneShotTTC.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}</p>
+                                    
+                                    {recurringTotalHT > 0 && (
+                                        <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-indigo-600">
+                                            <RefreshCw size={10} />
+                                            <span>+{recurringTotalHT.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}/mois</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <a 
+                                    href={`/?quote_id=${quote.id}`} 
+                                    target="_blank"
+                                    className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-600 transition-colors shadow-lg"
+                                >
+                                    Voir <ExternalLink size={14} />
+                                </a>
+                            </div>
                         </div>
-                    </div>
-                ))
+                    );
+                })
             )}
         </div>
     </div>

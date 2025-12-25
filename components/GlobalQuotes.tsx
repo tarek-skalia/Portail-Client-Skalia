@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { FileText, Plus, Search, Filter, Edit3, Trash2, ExternalLink, CheckCircle2, XCircle, Clock, Copy, Send, Eye } from 'lucide-react';
+import { FileText, Plus, Search, Filter, Edit3, Trash2, ExternalLink, CheckCircle2, XCircle, Clock, Copy, Send, Eye, RefreshCw } from 'lucide-react';
 import { useAdmin } from './AdminContext';
 import Modal from './ui/Modal';
 import QuoteForm from './forms/QuoteForm';
@@ -47,7 +47,6 @@ const GlobalQuotes: React.FC = () => {
   };
 
   const handleCopyLink = (id: string) => {
-      // Nouvelle URL avec paramètre de requête pour éviter les erreurs 404 en preview
       const link = `${window.location.origin}/?quote_id=${id}`;
       navigator.clipboard.writeText(link);
       toast.success("Lien copié", "Lien public du devis dans le presse-papier.");
@@ -78,6 +77,23 @@ const GlobalQuotes: React.FC = () => {
       const matchesStatus = filterStatus === 'all' || q.status === filterStatus;
       return matchesSearch && matchesStatus;
   });
+
+  // Helper pour calculer les montants séparés
+  const getQuoteAmounts = (quote: any) => {
+      const items = quote.quote_items || [];
+      const taxRate = quote.payment_terms?.tax_rate || 0;
+
+      const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
+      const recurringItems = items.filter((i: any) => i.billing_frequency !== 'once');
+
+      const oneShotTotalHT = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+      const recurringTotalHT = recurringItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+
+      // Calcul TTC du One Shot (C'est ce que le client paie maintenant)
+      const oneShotTTC = oneShotTotalHT * (1 + taxRate / 100);
+      
+      return { oneShotTTC, recurringTotalHT };
+  };
 
   if (isLoading) return <div className="p-8"><Skeleton className="h-96 w-full rounded-2xl" /></div>;
 
@@ -112,39 +128,51 @@ const GlobalQuotes: React.FC = () => {
                 {filteredQuotes.length === 0 ? (
                     <div className="p-12 text-center text-slate-400 italic">Aucun devis trouvé.</div>
                 ) : (
-                    filteredQuotes.map(quote => (
-                        <div key={quote.id} className="p-4 flex flex-col md:flex-row items-center gap-4 hover:bg-slate-50 transition-colors group">
-                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-                                <FileText size={24} />
-                            </div>
-                            <div className="flex-1 min-w-0 text-center md:text-left">
-                                <div className="flex items-center gap-2 justify-center md:justify-start mb-1">
-                                    <h3 className="font-bold text-slate-800 text-sm">{quote.title}</h3>
-                                    {getStatusBadge(quote.status)}
+                    filteredQuotes.map(quote => {
+                        const { oneShotTTC, recurringTotalHT } = getQuoteAmounts(quote);
+                        
+                        return (
+                            <div key={quote.id} className="p-4 flex flex-col md:flex-row items-center gap-4 hover:bg-slate-50 transition-colors group">
+                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                                    <FileText size={24} />
+                                </div>
+                                <div className="flex-1 min-w-0 text-center md:text-left">
+                                    <div className="flex items-center gap-2 justify-center md:justify-start mb-1">
+                                        <h3 className="font-bold text-slate-800 text-sm">{quote.title}</h3>
+                                        {getStatusBadge(quote.status)}
+                                        
+                                        {quote.view_count > 0 && (
+                                            <div className="ml-2 flex items-center gap-1 text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200" title={`Vu ${quote.view_count} fois`}>
+                                                <Eye size={10} /> 
+                                                <span className="font-bold">{quote.view_count}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500">{quote.profiles?.company_name || quote.profiles?.full_name || quote.recipient_company || quote.recipient_name} • Créé le {new Date(quote.created_at).toLocaleDateString()}</p>
+                                </div>
+                                
+                                {/* PRICE DISPLAY FIX */}
+                                <div className="text-right flex flex-col items-end">
+                                    <p className="font-bold text-slate-900">{oneShotTTC.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}</p>
+                                    <p className="text-[10px] text-slate-400 uppercase">Initial TTC</p>
                                     
-                                    {/* INDICATEUR DE VUE */}
-                                    {quote.view_count > 0 && (
-                                        <div className="ml-2 flex items-center gap-1 text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200" title={`Vu ${quote.view_count} fois. Dernier : ${new Date(quote.last_viewed_at).toLocaleString()}`}>
-                                            <Eye size={10} /> 
-                                            <span className="font-bold">{quote.view_count}</span>
-                                            <span className="hidden sm:inline font-normal">• {getTimeAgo(quote.last_viewed_at)}</span>
+                                    {recurringTotalHT > 0 && (
+                                        <div className="flex items-center gap-1 mt-1 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px] font-bold text-indigo-600">
+                                            <RefreshCw size={8} />
+                                            +{recurringTotalHT.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}/mois
                                         </div>
                                     )}
                                 </div>
-                                <p className="text-xs text-slate-500">{quote.profiles?.company_name || quote.profiles?.full_name || quote.recipient_company || quote.recipient_name} • Créé le {new Date(quote.created_at).toLocaleDateString()}</p>
+
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleCopyLink(quote.id)} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Copier lien public"><Copy size={16} /></button>
+                                    <a href={`/?quote_id=${quote.id}`} target="_blank" className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Voir"><ExternalLink size={16} /></a>
+                                    <button onClick={() => { setEditingQuote(quote); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Modifier"><Edit3 size={16} /></button>
+                                    <button onClick={() => handleDelete(quote.id)} className="p-2 text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Supprimer"><Trash2 size={16} /></button>
+                                </div>
                             </div>
-                            <div className="text-right">
-                                <p className="font-bold text-slate-900">{quote.total_amount.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}</p>
-                                <p className="text-[10px] text-slate-400 uppercase">Total TTC</p>
-                            </div>
-                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => handleCopyLink(quote.id)} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Copier lien public"><Copy size={16} /></button>
-                                <a href={`/?quote_id=${quote.id}`} target="_blank" className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Voir"><ExternalLink size={16} /></a>
-                                <button onClick={() => { setEditingQuote(quote); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Modifier"><Edit3 size={16} /></button>
-                                <button onClick={() => handleDelete(quote.id)} className="p-2 text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Supprimer"><Trash2 size={16} /></button>
-                            </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
         </div>

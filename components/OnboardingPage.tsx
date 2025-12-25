@@ -15,23 +15,21 @@ const STEPS = [
     { id: 1, label: 'Signature Devis', icon: FileSignature },
     { id: 2, label: 'Vidéo Bienvenue', icon: Play },
     { id: 3, label: 'Appel Lancement', icon: Calendar },
-    { id: 4, label: 'Dossier Admin', icon: Building }, // Nouvelle étape
+    { id: 4, label: 'Dossier Admin', icon: Building },
 ];
 
-// WEBHOOK N8N POUR CRÉATION FACTURE
 const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook/de8b8392-51b4-4a45-875e-f11c9b6a0f6e";
 
 const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1);
-  const [maxStepReached, setMaxStepReached] = useState(1); // Pour permettre le retour
+  const [maxStepReached, setMaxStepReached] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingQuote, setPendingQuote] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const toast = useToast();
 
-  // --- STATE FOR STEP 4 (BILLING INFO) ---
   const [billingInfo, setBillingInfo] = useState({
-      companyName: '', // Nom Légal
+      companyName: '', 
       vatNumber: '',
       address: '',
       phone: '',
@@ -43,24 +41,21 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
   }, []);
 
   const checkProgress = async () => {
-      // 1. Get current step from DB
       const { data: profile } = await supabase.from('profiles').select('onboarding_step, company_name, phone, address, vat_number, logo_url').eq('id', currentUser.id).single();
       const dbStep = profile?.onboarding_step || 0;
       
-      // Calculate real step
       let realStep = 1;
       if (dbStep >= 1) realStep = 2;
       if (dbStep >= 2) realStep = 3;
       if (dbStep >= 3) realStep = 4;
       if (dbStep >= 4) {
-          onComplete(); // Already done
+          onComplete(); 
           return;
       }
 
       setMaxStepReached(realStep);
       setCurrentStep(realStep);
 
-      // Prefill Billing Info if available
       if (profile) {
           setBillingInfo({
               companyName: profile.company_name || '',
@@ -71,12 +66,10 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
           });
       }
 
-      // Check for pending/signed quote
-      // Même si on est à l'étape 4, on a besoin des infos du devis pour la facture
       const { data: quotes } = await supabase.from('quotes')
         .select('*, quote_items(*)')
         .eq('profile_id', currentUser.id)
-        .order('created_at', { ascending: false }) // Le plus récent
+        .order('created_at', { ascending: false })
         .limit(1);
       
       if (quotes && quotes.length > 0) {
@@ -91,10 +84,8 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
       await supabase.from('profiles').update({ onboarding_step: step }).eq('id', currentUser.id);
       
       if (step >= 4) {
-          // Finalize after step 4
           onComplete();
       } else {
-          // Go to next
           checkProgress();
       }
   };
@@ -109,7 +100,6 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
       }
   };
 
-  // --- SUBMIT BILLING INFO (STEP 4) ---
   const handleBillingSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setIsSubmitting(true);
@@ -127,28 +117,21 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
 
           if (error) throw error;
 
-          // 2. Traitement Financier (Facture One-Shot + Abonnement Pending)
+          // 2. Traitement Financier (Facture One-Shot UNIQUEMENT)
+          // L'abonnement a déjà été créé au moment de la signature (Magic Sign)
           if (pendingQuote) {
-              
-              // Séparation des items : "Une fois" (Facture) vs "Mensuel/Annuel" (Abonnement futur)
               const invoiceItems = pendingQuote.quote_items.filter((i: any) => i.billing_frequency === 'once');
-              const recurringItems = pendingQuote.quote_items.filter((i: any) => i.billing_frequency !== 'once');
 
-              // A. Calcul montant facture immédiate (Setup)
-              // NOTE: On ne facture QUE les items "Once". Si l'acompte est partiel, la facture sera partielle, 
-              // mais pour simplifier ici, on envoie le total des items "Once".
-              const invoiceAmount = invoiceItems.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
-              const taxRate = pendingQuote.payment_terms?.tax_rate || 0;
-              const totalWithTax = invoiceAmount * (1 + taxRate / 100);
-
-              // B. Envoi Webhook N8N (Uniquement pour le One-Shot)
-              // On envoie seulement si y'a quelque chose à facturer maintenant
               if (invoiceItems.length > 0) {
+                  const invoiceAmount = invoiceItems.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
+                  const taxRate = pendingQuote.payment_terms?.tax_rate || 0;
+                  const totalWithTax = invoiceAmount * (1 + taxRate / 100);
+
                   const issueDateObj = new Date();
                   const issueDateStr = issueDateObj.toISOString().split('T')[0];
                   
                   const dueDateObj = new Date(issueDateObj);
-                  dueDateObj.setDate(dueDateObj.getDate() + 7); // Ajout de 7 jours
+                  dueDateObj.setDate(dueDateObj.getDate() + 7);
                   const dueDateStr = dueDateObj.toISOString().split('T')[0];
 
                   const n8nPayload = {
@@ -162,21 +145,20 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                           phone: billingInfo.phone
                       },
                       invoice: {
-                          projectName: pendingQuote.title, // Titre du projet
+                          projectName: pendingQuote.title,
                           issueDate: issueDateStr,
-                          dueDate: dueDateStr, // J+7
+                          dueDate: dueDateStr,
                           amount: totalWithTax, 
                           quote_id: pendingQuote.id,
                           currency: 'eur',
                           tax_rate: taxRate,
                           status: 'pending'
                       },
-                      items: invoiceItems // Seulement les items one-shot
+                      items: invoiceItems // Seulement le One-Shot
                   };
 
                   console.log("Sending Invoice to N8N:", n8nPayload);
 
-                  // Appel non-bloquant pour la facture
                   fetch(N8N_CREATE_INVOICE_WEBHOOK, {
                       method: 'POST',
                       mode: 'no-cors', 
@@ -184,28 +166,10 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                       body: JSON.stringify(n8nPayload)
                   });
               }
-
-              // C. Sauvegarde des Abonnements en base (Pending)
-              // Ils seront activés manuellement par l'admin plus tard via l'onglet Finance
-              if (recurringItems.length > 0) {
-                  const subscriptionsPayload = recurringItems.map((item: any) => ({
-                      user_id: currentUser.id,
-                      service_name: item.description,
-                      amount: item.unit_price * item.quantity,
-                      currency: 'EUR',
-                      billing_cycle: item.billing_frequency, // 'monthly' ou 'yearly'
-                      status: 'pending', // Important: En attente d'activation manuelle
-                      created_at: new Date().toISOString()
-                  }));
-
-                  const { error: subError } = await supabase.from('client_subscriptions').insert(subscriptionsPayload);
-                  if (subError) console.error("Erreur sauvegarde abonnement:", subError);
-              }
           }
 
           toast.success("Dossier validé", "Vos informations sont enregistrées et la facture est en cours de génération.");
           
-          // 3. Finaliser l'onboarding
           await updateStep(4);
 
       } catch (err: any) {
@@ -235,9 +199,9 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
             {/* Left Sidebar Steps */}
             <div className="w-full md:w-80 bg-white border-r border-slate-200 p-8 flex flex-col gap-8 sticky top-20 h-auto md:h-[calc(100vh-80px)]">
                 {STEPS.map((step) => {
-                    const isDone = maxStepReached > step.id; // Basé sur le max atteint
+                    const isDone = maxStepReached > step.id; 
                     const isCurrent = currentStep === step.id;
-                    const isClickable = step.id <= maxStepReached; // On peut revenir en arrière
+                    const isClickable = step.id <= maxStepReached;
 
                     return (
                         <div 
@@ -258,11 +222,10 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                 })}
             </div>
 
-            {/* Main Content Area */}
+            {/* Main Content */}
             <div className="flex-1 p-8 md:p-16 flex items-center justify-center bg-slate-50/50">
                 <div className="max-w-2xl w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-10 animate-fade-in-up relative">
                     
-                    {/* BOUTON RETOUR (Si étape > 1) */}
                     {currentStep > 1 && (
                         <button 
                             onClick={() => handleNavigate(currentStep - 1)}
@@ -313,7 +276,6 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                                 </div>
                             )}
                             
-                            {/* Bypass pour avancer si signé ou si pas de devis */}
                             <button onClick={handleStepAction} className="block w-full mt-4 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors">
                                 Continuer
                             </button>
@@ -327,7 +289,6 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                             <p className="text-slate-500">Un petit message de Tarek pour vous expliquer la suite.</p>
                             
                             <div className="aspect-video bg-slate-900 rounded-2xl overflow-hidden shadow-2xl my-8 relative group cursor-pointer">
-                                {/* Placeholder Video */}
                                 <img src="https://cdn.dribbble.com/users/1728247/screenshots/14299887/media/6b9d80c05763b03666632490333276df.png" className="w-full h-full object-cover opacity-80" />
                                 <div className="absolute inset-0 flex items-center justify-center">
                                     <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -456,7 +417,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                                         {isSubmitting ? <Loader2 className="animate-spin" /> : 'Valider et Accéder au Portail'}
                                     </button>
                                     <p className="text-[10px] text-center text-slate-400 mt-3 flex items-center justify-center gap-1">
-                                        <Info size={12} /> La facture sera générée et l'abonnement en attente d'activation.
+                                        <Info size={12} /> La facture sera générée pour le paiement du setup.
                                     </p>
                                 </div>
                             </form>
