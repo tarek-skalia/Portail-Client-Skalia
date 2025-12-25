@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { CheckCircle2, Circle, ArrowRight, Play, Calendar, CreditCard, FileSignature, Lock, Loader2, Building, Mail, Phone, MapPin, Hash, Globe, Info, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, Circle, ArrowRight, Play, Calendar, CreditCard, FileSignature, Lock, Loader2, Building, Mail, Phone, MapPin, Hash, Globe, Info, ArrowLeft, Flag } from 'lucide-react';
 import { Client } from '../types';
 import Logo from './Logo';
 import { useToast } from './ToastProvider';
@@ -18,6 +18,18 @@ const STEPS = [
     { id: 4, label: 'Dossier Admin', icon: Building },
 ];
 
+const COUNTRIES = [
+    { code: 'FR', label: 'France' },
+    { code: 'BE', label: 'Belgique' },
+    { code: 'CH', label: 'Suisse' },
+    { code: 'LU', label: 'Luxembourg' },
+    { code: 'CA', label: 'Canada' },
+    { code: 'US', label: 'États-Unis' },
+    { code: 'GB', label: 'Royaume-Uni' },
+    { code: 'MA', label: 'Maroc' },
+    { code: 'OTHER', label: 'Autre' }
+];
+
 const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook/de8b8392-51b4-4a45-875e-f11c9b6a0f6e";
 
 const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete }) => {
@@ -31,7 +43,10 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
   const [billingInfo, setBillingInfo] = useState({
       companyName: '', 
       vatNumber: '',
-      address: '',
+      addressLine1: '',
+      postalCode: '',
+      city: '',
+      country: 'FR',
       phone: '',
       website: ''
   });
@@ -57,13 +72,17 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
       setCurrentStep(realStep);
 
       if (profile) {
-          setBillingInfo({
+          // Tentative de parsing basique si l'adresse est déjà remplie (fallback)
+          // Sinon on laisse vide pour forcer une saisie propre
+          setBillingInfo(prev => ({
+              ...prev,
               companyName: profile.company_name || '',
               vatNumber: profile.vat_number || '',
-              address: profile.address || '',
               phone: profile.phone || '',
-              website: profile.logo_url || ''
-          });
+              website: profile.logo_url || '',
+              // On met l'adresse existante dans line1 par défaut si elle existe
+              addressLine1: profile.address || '' 
+          }));
       }
 
       const { data: quotes } = await supabase.from('quotes')
@@ -105,11 +124,15 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
       setIsSubmitting(true);
 
       try {
+          // Reconstitution de l'adresse complète pour Supabase (Stockage simple)
+          const countryLabel = COUNTRIES.find(c => c.code === billingInfo.country)?.label || billingInfo.country;
+          const fullAddress = `${billingInfo.addressLine1}, ${billingInfo.postalCode} ${billingInfo.city}, ${countryLabel}`;
+
           // 1. Mise à jour Supabase Profil
           const { error } = await supabase.from('profiles').update({
               company_name: billingInfo.companyName,
               vat_number: billingInfo.vatNumber,
-              address: billingInfo.address,
+              address: fullAddress,
               phone: billingInfo.phone,
               logo_url: billingInfo.website,
               updated_at: new Date().toISOString()
@@ -140,9 +163,13 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                           name: currentUser.name,
                           company: billingInfo.companyName,
                           supabase_user_id: currentUser.id,
-                          address: billingInfo.address,
                           vat_number: billingInfo.vatNumber,
-                          phone: billingInfo.phone
+                          phone: billingInfo.phone,
+                          // STRUCTURED ADDRESS FOR STRIPE
+                          address_line1: billingInfo.addressLine1,
+                          address_postal_code: billingInfo.postalCode,
+                          address_city: billingInfo.city,
+                          address_country: billingInfo.country // Code ISO (FR, BE...)
                       },
                       invoice: {
                           projectName: pendingQuote.title,
@@ -157,7 +184,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                       items: invoiceItems // Seulement le One-Shot
                   };
 
-                  console.log("Sending Invoice to N8N:", n8nPayload);
+                  console.log("Sending Structured Data to N8N:", n8nPayload);
 
                   fetch(N8N_CREATE_INVOICE_WEBHOOK, {
                       method: 'POST',
@@ -379,18 +406,60 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                                     </div>
                                 </div>
 
+                                {/* STRUCTURATION ADRESSE */}
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Adresse de Facturation Complète</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Adresse (Rue & Numéro)</label>
                                     <div className="relative">
-                                        <MapPin size={16} className="absolute left-4 top-3 text-slate-400" />
-                                        <textarea 
-                                            rows={2}
+                                        <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input 
+                                            type="text"
                                             required
-                                            value={billingInfo.address}
-                                            onChange={(e) => setBillingInfo({...billingInfo, address: e.target.value})}
-                                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium resize-none"
-                                            placeholder="Rue, Numéro, Code Postal, Ville"
+                                            value={billingInfo.addressLine1}
+                                            onChange={(e) => setBillingInfo({...billingInfo, addressLine1: e.target.value})}
+                                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+                                            placeholder="123 Avenue de la Gare"
                                         />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Code Postal</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            value={billingInfo.postalCode}
+                                            onChange={(e) => setBillingInfo({...billingInfo, postalCode: e.target.value})}
+                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+                                            placeholder="75000"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Ville</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            value={billingInfo.city}
+                                            onChange={(e) => setBillingInfo({...billingInfo, city: e.target.value})}
+                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+                                            placeholder="Paris"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Pays</label>
+                                    <div className="relative">
+                                        <Flag size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <select
+                                            value={billingInfo.country}
+                                            onChange={(e) => setBillingInfo({...billingInfo, country: e.target.value})}
+                                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium appearance-none cursor-pointer"
+                                        >
+                                            {COUNTRIES.map(c => (
+                                                <option key={c.code} value={c.code}>{c.label}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
 
