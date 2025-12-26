@@ -69,29 +69,38 @@ const GlobalQuotes: React.FC = () => {
       return matchesSearch && matchesStatus;
   });
 
-  // Helper pour calculer les montants
+  // Helper pour calculer les montants et détecter le récurrent
   const getQuoteAmounts = (quote: any) => {
       const items = quote.quote_items || [];
-      // Cast strict du taxRate pour éviter erreurs de calcul
       const taxRate = (quote.payment_terms && quote.payment_terms.tax_rate) ? Number(quote.payment_terms.tax_rate) : 0;
       const isRetainer = quote.payment_terms?.quote_type === 'retainer';
 
       if (items.length === 0) {
-          // Fallback legacy
-          return { displayAmount: quote.total_amount || 0, isMonthly: isRetainer, label: isRetainer ? 'Mensuel TTC' : 'Initial TTC' };
+          return { displayAmount: quote.total_amount || 0, isMonthly: isRetainer, label: isRetainer ? 'Mensuel TTC' : 'Initial TTC', subText: null };
       }
 
       const totalHT = items.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
-      const totalTTC = totalHT * (1 + taxRate / 100);
-
+      
       if (isRetainer) {
-          return { displayAmount: totalTTC, isMonthly: true, label: 'Mensuel TTC' };
+          const totalTTC = totalHT * (1 + taxRate / 100);
+          return { displayAmount: totalTTC, isMonthly: true, label: 'Mensuel TTC', subText: null };
       } else {
           // Pour les projets standards, on sépare One-Shot et Récurrent si mixte
           const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
+          const recurringItems = items.filter((i: any) => i.billing_frequency !== 'once');
+
           const oneShotHT = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+          const recurringHT = recurringItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+
           const oneShotTTC = oneShotHT * (1 + taxRate / 100);
-          return { displayAmount: oneShotTTC, isMonthly: false, label: 'Initial TTC' };
+          
+          let subText = null;
+          if (recurringHT > 0) {
+              const recurringTTC = recurringHT * (1 + taxRate / 100);
+              subText = `+ ${recurringTTC.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})} /mois`;
+          }
+
+          return { displayAmount: oneShotTTC, isMonthly: false, label: 'Initial TTC', subText };
       }
   };
 
@@ -129,7 +138,7 @@ const GlobalQuotes: React.FC = () => {
                     <div className="p-12 text-center text-slate-400 italic">Aucun devis trouvé.</div>
                 ) : (
                     filteredQuotes.map(quote => {
-                        const { displayAmount, isMonthly, label } = getQuoteAmounts(quote);
+                        const { displayAmount, isMonthly, label, subText } = getQuoteAmounts(quote);
                         const isRetainer = quote.payment_terms?.quote_type === 'retainer';
                         
                         return (
@@ -153,12 +162,20 @@ const GlobalQuotes: React.FC = () => {
                                     <p className="text-xs text-slate-500">{quote.profiles?.company_name || quote.profiles?.full_name || quote.recipient_company || quote.recipient_name} • Créé le {new Date(quote.created_at).toLocaleDateString()}</p>
                                 </div>
                                 
-                                <div className="text-right flex flex-col items-end min-w-[120px]">
+                                <div className="text-right flex flex-col items-end min-w-[140px]">
                                     <p className={`font-bold ${isRetainer ? 'text-purple-600' : 'text-slate-900'}`}>
                                         {displayAmount.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}
                                         {isMonthly && <span className="text-xs font-normal text-slate-500">/mois</span>}
                                     </p>
                                     <p className="text-[10px] text-slate-400 uppercase">{label}</p>
+                                    
+                                    {/* Affichage du récurrent additionnel */}
+                                    {subText && (
+                                        <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-100 text-[10px] font-bold text-indigo-600">
+                                            <RefreshCw size={10} />
+                                            {subText}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
