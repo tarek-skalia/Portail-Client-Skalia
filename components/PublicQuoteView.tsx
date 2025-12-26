@@ -47,18 +47,18 @@ const SKALIA_KNOWHOW = [
 const SKALIA_VALUES = [
     {
         label: "Réactivité",
-        color: "bg-amber-50 text-amber-600 border-amber-100",
-        icon: <Zap size={18} />
+        color: "bg-slate-50 text-slate-700 border-slate-200",
+        icon: <Zap size={18} className="text-indigo-600" />
     },
     {
         label: "Transparence",
-        color: "bg-blue-50 text-blue-600 border-blue-100",
-        icon: <Eye size={18} />
+        color: "bg-slate-50 text-slate-700 border-slate-200",
+        icon: <Eye size={18} className="text-indigo-600" />
     },
     {
         label: "Innovation",
-        color: "bg-purple-50 text-purple-600 border-purple-100",
-        icon: <Lightbulb size={18} />
+        color: "bg-slate-50 text-slate-700 border-slate-200",
+        icon: <Lightbulb size={18} className="text-indigo-600" />
     }
 ];
 
@@ -683,7 +683,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-4xl mx-auto mb-16">
-                        <h2 className="text-4xl font-bold text-slate-900 mb-6">Skalia<span className="text-amber-400">.</span></h2>
+                        <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6 tracking-tight">Skalia.</h2>
                         <p className="text-lg text-slate-600 leading-relaxed font-medium">
                             Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner clarté en automatisant leurs processus avec l’intelligence artificielle. Notre approche pragmatique et sur mesure transforme la complexité en solutions simples, efficaces et orientées résultats.
                         </p>
@@ -691,7 +691,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     
                     {/* CARTES SAVOIR-FAIRE (REMPLACEMENT DES VALEURS) */}
                     <div className="text-center mb-10">
-                        <h3 className="text-2xl font-bold text-slate-900">Savoir-faire<span className="text-amber-400">.</span></h3>
+                        <h3 className="text-2xl font-bold text-slate-900 flex items-center justify-center gap-3">
+                            <span className="w-8 h-1 bg-slate-900 rounded-full"></span>
+                            Savoir-faire
+                        </h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
                         {SKALIA_KNOWHOW.map((item, i) => (
@@ -710,10 +713,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         
                         {/* COLONNE PHOTOS (2/3) */}
                         <div className="lg:col-span-2 space-y-8">
-                            <h3 className="text-3xl font-bold text-slate-900">L'équipe<span className="text-amber-400">.</span></h3>
+                            <h3 className="text-2xl font-bold text-slate-900 border-l-4 border-slate-900 pl-4">L'équipe</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 {AGENCY_TEAM.map((member, i) => (
-                                    <div key={i} className="relative group overflow-hidden rounded-3xl h-[450px] w-full shadow-xl transition-all duration-300 hover:shadow-2xl">
+                                    <div key={i} className="relative group overflow-hidden rounded-2xl h-[340px] w-full shadow-xl transition-all duration-300 hover:shadow-2xl">
                                         <img 
                                             src={member.img} 
                                             alt={member.name} 
@@ -734,20 +737,22 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
                         {/* COLONNE VALEURS (1/3) */}
                         <div className="space-y-8 lg:pt-16">
-                            <h3 className="text-2xl font-bold text-slate-900">Nos valeurs<span className="text-amber-400">.</span></h3>
+                            <h3 className="text-2xl font-bold text-slate-900 border-l-4 border-slate-900 pl-4">Nos valeurs</h3>
                             <div className="space-y-4">
                                 {SKALIA_VALUES.map((val, i) => (
                                     <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${val.color} bg-white shadow-sm hover:shadow-md`}>
-                                        <div className={`p-2 rounded-lg ${val.color.split(' ')[0]} bg-opacity-20`}>
+                                        <div className="p-2 rounded-lg bg-indigo-50">
                                             {val.icon}
                                         </div>
-                                        <span className="font-bold text-lg">{val.label}</span>
+                                        <span className="font-bold text-lg text-slate-800">{val.label}</span>
                                     </div>
                                 ))}
                             </div>
                             
-                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-sm text-slate-600 italic leading-relaxed">
-                                "Nous ne sommes pas juste des exécutants. Nous nous positionnons comme votre pôle R&D externalisé pour vous accompagner dans la durée."
+                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-sm text-slate-600 leading-relaxed shadow-inner">
+                                <p className="font-medium italic">
+                                    "Plus que des techniciens, nous sommes des partenaires business. Nous n'automatisons pas pour la beauté du geste, mais pour structurer votre croissance. Nous identifions et optimisons les processus clés qui impactent directement votre rentabilité."
+                                </p>
                             </div>
                         </div>
 
