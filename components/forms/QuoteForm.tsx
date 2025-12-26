@@ -41,7 +41,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
   const [leads, setLeads] = useState<Lead[]>([]);
   
   // --- FORM STATE ---
-  const [quoteType, setQuoteType] = useState<'project' | 'retainer'>('project'); // NOUVEAU
+  const [quoteType, setQuoteType] = useState<'project' | 'retainer'>('project'); 
   const [clientMode, setClientMode] = useState<'existing' | 'prospect'>('existing');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [selectedLeadId, setSelectedLeadId] = useState<string>('');
@@ -112,22 +112,24 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
               setProspectCompany(initialData.recipient_company || initialData.company || '');
           }
 
+          // Récupération des infos étendues stockées dans payment_terms (JSON)
+          if (initialData.payment_terms) {
+              setPaymentTermsType(initialData.payment_terms.type || '100_percent');
+              setTaxRate(initialData.payment_terms.tax_rate || 0);
+              const loadedType = initialData.payment_terms.quote_type || 'project';
+              setQuoteType(loadedType);
+          }
+
           if (initialData.items && Array.isArray(initialData.items)) {
               setItems(initialData.items.map((i: any) => ({
                   description: i.description,
                   quantity: i.quantity,
                   unit_price: i.unit_price,
+                  // Si c'est un retainer, on force monthly visuellement, sinon on prend la valeur
                   billing_frequency: i.billing_frequency || 'once'
               })));
           } else if (initialData.value) {
               setItems([{ description: 'Prestation principale', quantity: 1, unit_price: initialData.value, billing_frequency: 'once' }]);
-          }
-
-          // Récupération des infos étendues stockées dans payment_terms (JSON)
-          if (initialData.payment_terms) {
-              setPaymentTermsType(initialData.payment_terms.type || '100_percent');
-              setTaxRate(initialData.payment_terms.tax_rate || 0);
-              setQuoteType(initialData.payment_terms.quote_type || 'project'); // Récupération du type
           }
 
       } else {
@@ -144,6 +146,13 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
       }
   }, [initialData, clients]);
 
+  // Si on passe en mode Retainer, on met à jour les items existants pour être mensuels
+  useEffect(() => {
+      if (quoteType === 'retainer') {
+          setItems(prev => prev.map(i => ({ ...i, billing_frequency: 'monthly' })));
+      }
+  }, [quoteType]);
+
   const handleLeadSelect = (leadId: string) => {
       setSelectedLeadId(leadId);
       const lead = leads.find(l => l.id === leadId);
@@ -152,7 +161,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
           setProspectEmail(lead.email || '');
           setProspectCompany(lead.company || '');
           if (lead.value > 0) {
-             setItems([{ description: 'Prestation principale', quantity: 1, unit_price: lead.value, billing_frequency: 'once' }]);
+             setItems([{ description: 'Prestation principale', quantity: 1, unit_price: lead.value, billing_frequency: quoteType === 'retainer' ? 'monthly' : 'once' }]);
           }
       } else {
           setProspectName('');
@@ -161,7 +170,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
       }
   };
 
-  const handleAddItem = () => setItems([...items, { description: '', quantity: 1, unit_price: 0, billing_frequency: 'once' }]);
+  const handleAddItem = () => setItems([...items, { description: '', quantity: 1, unit_price: 0, billing_frequency: quoteType === 'retainer' ? 'monthly' : 'once' }]);
   const handleRemoveItem = (index: number) => setItems(items.filter((_, i) => i !== index));
   
   const updateItem = (index: number, field: string, value: any) => {
@@ -176,8 +185,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
   const totalTTC = subTotal + taxAmount;
 
   const oneShotTotal = items.filter(i => i.billing_frequency === 'once').reduce((acc, i) => acc + (i.quantity * i.unit_price), 0);
-  const monthlyTotal = items.filter(i => i.billing_frequency === 'monthly').reduce((acc, i) => acc + (i.quantity * i.unit_price), 0);
-
+  
   let depositAmount = oneShotTotal;
   if (paymentTermsType === '50_50') depositAmount = oneShotTotal * 0.5;
   if (paymentTermsType === '30_70') depositAmount = oneShotTotal * 0.3;
@@ -218,6 +226,8 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
               status: ['draft', 'sent', 'signed', 'rejected'].includes(status) ? status : 'draft',
               valid_until: validUntil || null,
               delivery_delay: deliveryDelay || null, 
+              // Si Retainer, le total_amount stocké est 0 pour la partie "One-Shot", 
+              // mais pour l'affichage liste, on stocke le total TTC du mois.
               total_amount: totalTTC, 
               // On stocke les métadonnées de facturation dans le JSON payment_terms
               payment_terms: { 
@@ -254,7 +264,8 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
                   description: item.description,
                   quantity: item.quantity,
                   unit_price: item.unit_price,
-                  billing_frequency: item.billing_frequency
+                  // Force 'monthly' si mode retainer
+                  billing_frequency: quoteType === 'retainer' ? 'monthly' : item.billing_frequency
               }));
               const { error: itemsError } = await supabase.from('quote_items').insert(itemsPayload);
               if (itemsError) throw itemsError;
@@ -420,16 +431,22 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
                     value={deliveryDelay} 
                     onChange={e => setDeliveryDelay(e.target.value)} 
                     className="w-full px-3 py-2 border rounded-lg outline-none text-sm"
-                    placeholder="Ex: 3 semaines"
+                    placeholder={quoteType === 'retainer' ? "Immédiat" : "Ex: 3 semaines"}
                 />
             </div>
             <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Conditions Paiement</label>
-                <select value={paymentTermsType} onChange={e => setPaymentTermsType(e.target.value as any)} className="w-full px-3 py-2 border rounded-lg outline-none bg-white">
-                    <option value="100_percent">100% à la commande</option>
-                    <option value="50_50">Acompte 50% / Solde 50%</option>
-                    <option value="30_70">Acompte 30% / Solde 70%</option>
-                </select>
+                {quoteType === 'retainer' ? (
+                    <div className="w-full px-3 py-2 border rounded-lg bg-slate-50 text-slate-500 text-sm font-bold">
+                        Paiement Mensuel
+                    </div>
+                ) : (
+                    <select value={paymentTermsType} onChange={e => setPaymentTermsType(e.target.value as any)} className="w-full px-3 py-2 border rounded-lg outline-none bg-white">
+                        <option value="100_percent">100% à la commande</option>
+                        <option value="50_50">Acompte 50% / Solde 50%</option>
+                        <option value="30_70">Acompte 30% / Solde 70%</option>
+                    </select>
+                )}
             </div>
         </div>
 
@@ -447,11 +464,17 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
                         <div className="flex-1 space-y-2">
                             <input type="text" placeholder="Description" value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} className="w-full px-3 py-1.5 text-sm border rounded outline-none focus:border-indigo-500" />
                             <div className="flex gap-2">
-                                <select value={item.billing_frequency} onChange={e => updateItem(idx, 'billing_frequency', e.target.value)} className="text-xs font-bold py-1.5 px-2 rounded border outline-none bg-white">
-                                    <option value="once">Une fois (Setup)</option>
-                                    <option value="monthly">Mensuel</option>
-                                    <option value="yearly">Annuel</option>
-                                </select>
+                                {quoteType === 'retainer' ? (
+                                    <div className="px-3 py-1.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold flex items-center gap-1">
+                                        <RefreshCw size={10} /> Mensuel
+                                    </div>
+                                ) : (
+                                    <select value={item.billing_frequency} onChange={e => updateItem(idx, 'billing_frequency', e.target.value)} className="text-xs font-bold py-1.5 px-2 rounded border outline-none bg-white">
+                                        <option value="once">Une fois (Setup)</option>
+                                        <option value="monthly">Mensuel</option>
+                                        <option value="yearly">Annuel</option>
+                                    </select>
+                                )}
                                 <input type="number" placeholder="Qté" value={item.quantity} onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value))} className="w-16 px-2 py-1.5 text-sm border rounded outline-none text-center" />
                                 <input type="number" placeholder="Prix" value={item.unit_price} onChange={e => updateItem(idx, 'unit_price', parseFloat(e.target.value))} className="w-24 px-2 py-1.5 text-sm border rounded outline-none text-right font-mono" />
                             </div>
@@ -484,7 +507,9 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
                 </div>
 
                 <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between items-center">
-                    <span className="font-bold text-slate-700 uppercase text-xs">Total TTC à payer</span>
+                    <span className="font-bold text-slate-700 uppercase text-xs">
+                        {quoteType === 'retainer' ? 'Total Mensuel TTC' : 'Total TTC'}
+                    </span>
                     <span className="text-lg font-black text-indigo-600 flex items-center gap-2">
                         <Calculator size={16} /> 
                         {totalTTC.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}

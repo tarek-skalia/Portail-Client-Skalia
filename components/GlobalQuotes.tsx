@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { FileText, Plus, Search, Filter, Edit3, Trash2, ExternalLink, CheckCircle2, XCircle, Clock, Copy, Send, Eye, RefreshCw } from 'lucide-react';
+import { FileText, Plus, Search, Filter, Edit3, Trash2, ExternalLink, CheckCircle2, XCircle, Clock, Copy, Send, Eye, RefreshCw, Infinity } from 'lucide-react';
 import { useAdmin } from './AdminContext';
 import Modal from './ui/Modal';
 import QuoteForm from './forms/QuoteForm';
@@ -69,27 +69,30 @@ const GlobalQuotes: React.FC = () => {
       return matchesSearch && matchesStatus;
   });
 
-  // Helper pour calculer les montants séparés
+  // Helper pour calculer les montants
   const getQuoteAmounts = (quote: any) => {
       const items = quote.quote_items || [];
+      // Cast strict du taxRate pour éviter erreurs de calcul
       const taxRate = (quote.payment_terms && quote.payment_terms.tax_rate) ? Number(quote.payment_terms.tax_rate) : 0;
+      const isRetainer = quote.payment_terms?.quote_type === 'retainer';
 
-      // Si pas d'items, fallback sur total_amount (vieux devis)
       if (items.length === 0) {
-          return { oneShotTTC: quote.total_amount || 0, recurringTotalHT: 0 };
+          // Fallback legacy
+          return { displayAmount: quote.total_amount || 0, isMonthly: isRetainer, label: isRetainer ? 'Mensuel TTC' : 'Initial TTC' };
       }
 
-      // Séparation stricte basée sur billing_frequency
-      const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
-      const recurringItems = items.filter((i: any) => i.billing_frequency === 'monthly' || i.billing_frequency === 'yearly');
+      const totalHT = items.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+      const totalTTC = totalHT * (1 + taxRate / 100);
 
-      const oneShotTotalHT = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
-      const recurringTotalHT = recurringItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
-
-      // Calcul TTC du One Shot (C'est ce que le client paie maintenant)
-      const oneShotTTC = oneShotTotalHT * (1 + taxRate / 100);
-      
-      return { oneShotTTC, recurringTotalHT };
+      if (isRetainer) {
+          return { displayAmount: totalTTC, isMonthly: true, label: 'Mensuel TTC' };
+      } else {
+          // Pour les projets standards, on sépare One-Shot et Récurrent si mixte
+          const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
+          const oneShotHT = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+          const oneShotTTC = oneShotHT * (1 + taxRate / 100);
+          return { displayAmount: oneShotTTC, isMonthly: false, label: 'Initial TTC' };
+      }
   };
 
   if (isLoading) return <div className="p-8"><Skeleton className="h-96 w-full rounded-2xl" /></div>;
@@ -126,17 +129,19 @@ const GlobalQuotes: React.FC = () => {
                     <div className="p-12 text-center text-slate-400 italic">Aucun devis trouvé.</div>
                 ) : (
                     filteredQuotes.map(quote => {
-                        const { oneShotTTC, recurringTotalHT } = getQuoteAmounts(quote);
+                        const { displayAmount, isMonthly, label } = getQuoteAmounts(quote);
+                        const isRetainer = quote.payment_terms?.quote_type === 'retainer';
                         
                         return (
                             <div key={quote.id} className="p-4 flex flex-col md:flex-row items-center gap-4 hover:bg-slate-50 transition-colors group">
-                                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-                                    <FileText size={24} />
+                                <div className={`p-3 rounded-xl ${isRetainer ? 'bg-purple-50 text-purple-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                    {isRetainer ? <Infinity size={24} /> : <FileText size={24} />}
                                 </div>
                                 <div className="flex-1 min-w-0 text-center md:text-left">
                                     <div className="flex items-center gap-2 justify-center md:justify-start mb-1">
                                         <h3 className="font-bold text-slate-800 text-sm">{quote.title}</h3>
                                         {getStatusBadge(quote.status)}
+                                        {isRetainer && <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-bold uppercase tracking-wider">Abonnement</span>}
                                         
                                         {quote.view_count > 0 && (
                                             <div className="ml-2 flex items-center gap-1 text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200" title={`Vu ${quote.view_count} fois`}>
@@ -148,18 +153,12 @@ const GlobalQuotes: React.FC = () => {
                                     <p className="text-xs text-slate-500">{quote.profiles?.company_name || quote.profiles?.full_name || quote.recipient_company || quote.recipient_name} • Créé le {new Date(quote.created_at).toLocaleDateString()}</p>
                                 </div>
                                 
-                                <div className="text-right flex flex-col items-end">
-                                    {/* Montant One-Shot Principal */}
-                                    <p className="font-bold text-slate-900">{oneShotTTC.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase">Initial TTC</p>
-                                    
-                                    {/* Montant Récurrent séparé */}
-                                    {recurringTotalHT > 0 && (
-                                        <div className="flex items-center gap-1 mt-1 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px] font-bold text-indigo-600 border border-indigo-100">
-                                            <RefreshCw size={8} />
-                                            <span>+{recurringTotalHT.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}/mois</span>
-                                        </div>
-                                    )}
+                                <div className="text-right flex flex-col items-end min-w-[120px]">
+                                    <p className={`font-bold ${isRetainer ? 'text-purple-600' : 'text-slate-900'}`}>
+                                        {displayAmount.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}
+                                        {isMonthly && <span className="text-xs font-normal text-slate-500">/mois</span>}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 uppercase">{label}</p>
                                 </div>
 
                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

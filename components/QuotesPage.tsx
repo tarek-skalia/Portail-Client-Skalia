@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { FileText, ExternalLink, CheckCircle2, Clock, XCircle, Send, RefreshCw } from 'lucide-react';
+import { FileText, ExternalLink, CheckCircle2, Clock, XCircle, Send, RefreshCw, Infinity } from 'lucide-react';
 import Skeleton from './Skeleton';
 
 interface QuotesPageProps {
@@ -42,26 +42,38 @@ const QuotesPage: React.FC<QuotesPageProps> = ({ userId }) => {
       }
   };
 
-  // Helper pour calculer le montant Initial vs Récurrent
-  const getQuoteAmounts = (quote: any) => {
+  // Helper pour calculer le montant à afficher
+  const getQuoteDisplay = (quote: any) => {
       const items = quote.quote_items || [];
       const taxRate = (quote.payment_terms && quote.payment_terms.tax_rate) ? Number(quote.payment_terms.tax_rate) : 0;
+      const isRetainer = quote.payment_terms?.quote_type === 'retainer';
 
-      // Si pas d'items, fallback sur total_amount
       if (items.length === 0) {
-          return { oneShotTTC: quote.total_amount || 0, recurringTotalHT: 0 };
+          return { mainAmount: quote.total_amount || 0, isMonthly: isRetainer, label: isRetainer ? 'Mensuel TTC' : 'Initial TTC', subText: null };
       }
 
-      // Séparation stricte
-      const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
-      const recurringItems = items.filter((i: any) => i.billing_frequency === 'monthly' || i.billing_frequency === 'yearly');
+      if (isRetainer) {
+          const totalHT = items.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+          const totalTTC = totalHT * (1 + taxRate / 100);
+          return { mainAmount: totalTTC, isMonthly: true, label: 'Mensuel TTC', subText: null };
+      } else {
+          // Standard Project
+          const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
+          const recurringItems = items.filter((i: any) => i.billing_frequency !== 'once');
 
-      const oneShotTotalHT = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
-      const recurringTotalHT = recurringItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+          const oneShotHT = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+          const recurringHT = recurringItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
 
-      const oneShotTTC = oneShotTotalHT * (1 + taxRate / 100);
-      
-      return { oneShotTTC, recurringTotalHT };
+          const oneShotTTC = oneShotHT * (1 + taxRate / 100);
+          
+          let subText = null;
+          if (recurringHT > 0) {
+              const recurringTTC = recurringHT * (1 + taxRate / 100);
+              subText = `+${recurringTTC.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}/mois`;
+          }
+
+          return { mainAmount: oneShotTTC, isMonthly: false, label: 'Initial TTC', subText };
+      }
   };
 
   if (isLoading) return <div className="p-8"><Skeleton className="h-64 w-full rounded-2xl" /></div>;
@@ -80,14 +92,15 @@ const QuotesPage: React.FC<QuotesPageProps> = ({ userId }) => {
                 </div>
             ) : (
                 quotes.map(quote => {
-                    const { oneShotTTC, recurringTotalHT } = getQuoteAmounts(quote);
+                    const { mainAmount, isMonthly, label, subText } = getQuoteDisplay(quote);
+                    const isRetainer = quote.payment_terms?.quote_type === 'retainer';
 
                     return (
                         <div key={quote.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group">
                             <div>
                                 <div className="flex justify-between items-start mb-4">
-                                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-                                        <FileText size={24} />
+                                    <div className={`p-3 rounded-xl ${isRetainer ? 'bg-purple-50 text-purple-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                        {isRetainer ? <Infinity size={24} /> : <FileText size={24} />}
                                     </div>
                                     {getStatusBadge(quote.status)}
                                 </div>
@@ -97,13 +110,16 @@ const QuotesPage: React.FC<QuotesPageProps> = ({ userId }) => {
                             
                             <div className="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between">
                                 <div>
-                                    <p className="text-[10px] text-slate-400 uppercase font-bold">Initial TTC</p>
-                                    <p className="text-xl font-black text-slate-900">{oneShotTTC.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}</p>
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold">{label}</p>
+                                    <p className={`text-xl font-black ${isRetainer ? 'text-purple-600' : 'text-slate-900'}`}>
+                                        {mainAmount.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}
+                                        {isMonthly && <span className="text-xs font-normal text-slate-500">/mois</span>}
+                                    </p>
                                     
-                                    {recurringTotalHT > 0 && (
+                                    {subText && (
                                         <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 w-fit">
                                             <RefreshCw size={10} />
-                                            <span>+{recurringTotalHT.toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'})}/mois</span>
+                                            <span>{subText}</span>
                                         </div>
                                     )}
                                 </div>

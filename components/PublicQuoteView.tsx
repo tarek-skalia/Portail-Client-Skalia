@@ -215,7 +215,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const taxRate = quote?.payment_terms?.tax_rate || 0;
     const prospectAddress = quote?.payment_terms?.billing_address || '';
     const prospectVat = quote?.payment_terms?.vat_number || '';
-    const isRetainer = quote?.payment_terms?.quote_type === 'retainer'; // DÉTECTION DU MODE RETAINER
+    const isRetainer = quote?.payment_terms?.quote_type === 'retainer'; 
 
     let depositAmountHT = oneShotTotal;
     const termsType = quote?.payment_terms?.type || '100_percent';
@@ -223,6 +223,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     if (termsType === '30_70') depositAmountHT = oneShotTotal * 0.3;
 
     const totalDueNowTTC = depositAmountHT * (1 + taxRate / 100);
+    
+    // Calcul TVA mensuelle pour affichage Retainer
+    const recurringTotalTTC = recurringTotal * (1 + taxRate / 100);
 
     const handleOpenSignModal = () => setIsSigningModalOpen(true);
 
@@ -242,11 +245,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setIsProcessing(true);
         setAuthError('');
 
-        // Utilisation d'un client Supabase frais pour l'opération (pour passer les RLS)
         const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         try {
-            // Capture IP
             let userIp = 'Unknown';
             try {
                 const ipRes = await fetch('https://api.ipify.org?format=json');
@@ -257,7 +258,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             let userId = quote?.profile_id;
             let session = null;
 
-            // Gestion Auth
             if (authMode === 'login') {
                 const { data, error } = await tempClient.auth.signInWithPassword({ email, password });
                 if (error) throw new Error("Mot de passe incorrect.");
@@ -295,7 +295,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             if (!userId) throw new Error("Erreur d'identification technique.");
 
             if (!session) {
-                // TENTATIVE DE LOGIN FORCÉ SI SIGNUP A ÉCHOUÉ MAIS COMPTE EXISTE
                 const { data: loginData, error: loginError } = await tempClient.auth.signInWithPassword({ email, password });
                 if (loginError) {
                     throw new Error("Veuillez confirmer votre email avant de signer.");
@@ -303,7 +302,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 session = loginData.session;
             }
 
-            // 1. Signature du Devis
             const auditTrail = {
                 signed_at: new Date().toISOString(),
                 signer_ip: userIp,
@@ -327,7 +325,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
             if (signError) throw signError;
 
-            // 2. CRÉATION IMMÉDIATE DE L'ABONNEMENT (PENDING)
             if (recurringItems.length > 0) {
                 const subscriptionsPayload = recurringItems.map((item: any) => ({
                     user_id: userId,
@@ -345,20 +342,17 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 }
             }
 
-            // 3. Update CRM (Best effort)
             if (quote?.lead_id) {
                 try {
                     await tempClient.from('crm_leads').update({ status: 'won', updated_at: new Date().toISOString() }).eq('id', quote.lead_id);
                 } catch (e) {}
             }
 
-            // 4. Update Onboarding (Step 1 -> Done)
             const { data: profile } = await tempClient.from('profiles').select('onboarding_step').eq('id', userId).single();
             if (profile && (!profile.onboarding_step || profile.onboarding_step < 1)) {
                 await tempClient.from('profiles').update({ onboarding_step: 1 }).eq('id', userId);
             }
 
-            // 5. Login & Redirect
             await supabase.auth.signInWithPassword({ email, password });
             
             setQuote(prev => prev ? ({ ...prev, status: 'signed', profile_id: userId }) : null);
@@ -441,10 +435,15 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     <h3 className="text-lg font-bold text-indigo-200 uppercase tracking-widest mb-2">Partenariat Skalia</h3>
                     <div className="flex items-baseline justify-center gap-2 mb-4">
                         <span className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-indigo-200 tracking-tight">
-                            {formatCurrency(recurringTotal)}
+                            {formatCurrency(recurringTotalTTC)}
                         </span>
                         <span className="text-2xl text-indigo-400 font-medium">/mois</span>
                     </div>
+                    {taxRate > 0 && (
+                        <p className="text-xs text-indigo-300 font-mono mb-2">
+                            Dont TVA {taxRate}% incluse
+                        </p>
+                    )}
                     <p className="text-indigo-200/80 text-sm max-w-sm mx-auto">
                         Un accompagnement complet pour transformer votre entreprise, sans coûts cachés.
                     </p>
@@ -490,47 +489,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             </div>
         </div>
     );
-
-    if (viewMode === 'legal') {
-        // ... (Code Legal inchangé) ...
-        return (
-            <div className="min-h-screen bg-slate-50 font-sans">
-                {/* Header Legal */}
-                <div className="bg-white border-b border-slate-200 sticky top-0 z-50">
-                    <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
-                        <Logo classNameText="text-slate-900" />
-                        <button 
-                            onClick={() => setViewMode('quote')}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors"
-                        >
-                            <ChevronLeft size={16} /> Retour à la proposition
-                        </button>
-                    </div>
-                </div>
-
-                <div className="max-w-3xl mx-auto px-6 py-12">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 md:p-16">
-                        <h1 className="text-3xl font-bold text-slate-900 mb-2">Conditions Générales de Vente</h1>
-                        <p className="text-slate-500 mb-10 text-sm">SKALIA SRL • BE1023.214.594 • Liège, Belgique</p>
-                        
-                        <div className="prose prose-slate prose-sm max-w-none text-justify space-y-8">
-                            <div>
-                                <h3 className="text-lg font-bold text-slate-800 mb-2">Préambule</h3>
-                                <p>Les présentes Conditions Générales régissent l’ensemble des relations entre la SRL Skalia (ci-dessous dénommée « le prestataire ») et ses clients, à moins qu’un autre accord écrit stipule expressément qu’il y est dérogé. La personne physique ou morale qui accepte l’offre par écrit (y compris par email) est considérée comme « le client » et se porte garante du paiement de la facture. Les engagements verbaux n’engagent le prestataire qu’après confirmation écrite et dûment signée.</p>
-                            </div>
-                            {/* ... Reste des CGV ... */}
-                        </div>
-
-                        <div className="mt-16 pt-8 border-t border-slate-100 flex justify-center">
-                            <button onClick={() => setViewMode('quote')} className="px-8 py-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-600 transition-colors">
-                                J'ai lu et je reviens au devis
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen bg-white font-sans selection:bg-indigo-200 selection:text-indigo-900 overflow-x-hidden">
@@ -629,7 +587,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             {/* SECTION EXPERTISE */}
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
-                    {/* ... (Contenu Expertise inchangé) ... */}
                     <div className="text-center max-w-3xl mx-auto mb-16">
                         <h2 className="text-4xl font-bold text-slate-900 mb-6">L'expertise <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Skalia</span>.</h2>
                         <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner clarté en automatisant leurs processus avec l’intelligence artificielle.</p>
@@ -643,12 +600,40 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             </div>
                         ))}
                     </div>
+
+                    {/* RESTAURATION SECTION ÉQUIPE & VALEURS */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                        <div className="space-y-8">
+                            <h3 className="text-2xl font-bold text-slate-900">Une équipe dédiée à votre croissance</h3>
+                            <p className="text-slate-600 leading-relaxed">
+                                Derrière chaque automatisation se cachent des experts passionnés. Notre mission est de vous libérer des contraintes techniques pour que vous puissiez vous concentrer sur ce qui compte vraiment.
+                            </p>
+                            <div className="flex gap-4">
+                                {AGENCY_TEAM.map((member, i) => (
+                                    <div key={i} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100 pr-6">
+                                        <img src={member.img} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
+                                        <div>
+                                            <p className="font-bold text-sm text-slate-900">{member.name}</p>
+                                            <p className="text-xs text-slate-500">{member.role}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-3xl rotate-3 opacity-10"></div>
+                            <img 
+                                src="https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e208badeaae7b477b5ee4_Design%20sans%20titre%20(17).png" 
+                                alt="Skalia Team Work" 
+                                className="relative rounded-3xl shadow-xl border border-slate-200 w-full object-cover h-64 md:h-80"
+                            />
+                        </div>
+                    </div>
                 </div>
             </section>
 
             {/* SECTION METHODOLOGIE (DARK) */}
             <section className="py-24 bg-[#0F0A1F] text-white relative overflow-hidden">
-                {/* ... (Contenu Méthodologie inchangé) ... */}
                 <div className="max-w-7xl mx-auto px-6 relative z-10">
                     <div className="text-center mb-16"><h2 className="text-3xl font-bold mb-4">Notre Méthodologie</h2><p className="text-indigo-300">Un processus clair en 4 étapes.</p></div>
                     <div className="relative grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -705,48 +690,48 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </section>
 
-            {/* ACTION FINALE */}
-            {isSignedOrAccepted ? (
-                <section className="py-20 bg-emerald-50 text-emerald-900 border-t border-emerald-100">
-                    <div className="max-w-4xl mx-auto px-6 text-center">
-                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-200">
-                            <CheckCircle2 size={40} className="text-emerald-600" />
+            {/* ACTION FINALE : UNIQUEMENT SI CE N'EST PAS UN RETAINER (Car le retainer a déjà son bouton dans la Pricing Card) OU SI C'EST SIGNÉ */}
+            {(!isRetainer || isSignedOrAccepted) && (
+                isSignedOrAccepted ? (
+                    <section className="py-20 bg-emerald-50 text-emerald-900 border-t border-emerald-100">
+                        <div className="max-w-4xl mx-auto px-6 text-center">
+                            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-200">
+                                <CheckCircle2 size={40} className="text-emerald-600" />
+                            </div>
+                            <h2 className="text-3xl md:text-4xl font-bold mb-4">Offre Validée</h2>
+                            <p className="text-emerald-800 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
+                                Merci de votre confiance ! Le projet est officiellement lancé.<br/>
+                                Vous pouvez accéder à votre espace client pour suivre l'avancement.
+                            </p>
+                            <a href="/" className="inline-flex items-center gap-2 px-8 py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-105">
+                                Accéder à mon espace <ArrowRight size={20} />
+                            </a>
                         </div>
-                        <h2 className="text-3xl md:text-4xl font-bold mb-4">Offre Validée</h2>
-                        <p className="text-emerald-800 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
-                            Merci de votre confiance ! Le projet est officiellement lancé.<br/>
-                            Vous pouvez accéder à votre espace client pour suivre l'avancement.
-                        </p>
-                        <a href="/" className="inline-flex items-center gap-2 px-8 py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all transform hover:scale-105">
-                            Accéder à mon espace <ArrowRight size={20} />
-                        </a>
-                    </div>
-                </section>
-            ) : (
-                <section className="py-20 bg-slate-900 text-white relative overflow-hidden">
-                    <div className="max-w-4xl mx-auto px-6 relative z-10 text-center">
-                        <h2 className="text-3xl md:text-4xl font-bold mb-6">{isRetainer ? 'Démarrer le partenariat' : 'Prêt à accélérer ?'}</h2>
-                        <p className="text-indigo-200 text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
-                            {isRetainer 
-                                ? "Validez cette proposition pour activer l'accompagnement et accéder à votre espace."
-                                : "Validez cette proposition pour lancer le projet. Dès signature, vous accéderez instantanément à votre espace client Skalia."}
-                        </p>
-                        <div className="flex justify-center">
-                            <button 
-                                onClick={handleOpenSignModal}
-                                className="group relative overflow-hidden bg-white text-indigo-900 px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_-15px_rgba(255,255,255,0.5)] transition-all transform hover:scale-105 active:scale-95 flex items-center gap-3"
-                            >
-                                <span className="relative z-10 flex items-center gap-3">
-                                    <PenTool size={24} />
-                                    {isRetainer ? "Activer l'offre" : "Accepter et Signer"}
-                                </span>
-                            </button>
+                    </section>
+                ) : (
+                    <section className="py-20 bg-slate-900 text-white relative overflow-hidden">
+                        <div className="max-w-4xl mx-auto px-6 relative z-10 text-center">
+                            <h2 className="text-3xl md:text-4xl font-bold mb-6">Prêt à accélérer ?</h2>
+                            <p className="text-indigo-200 text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
+                                Validez cette proposition pour lancer le projet. Dès signature, vous accéderez instantanément à votre espace client Skalia.
+                            </p>
+                            <div className="flex justify-center">
+                                <button 
+                                    onClick={handleOpenSignModal}
+                                    className="group relative overflow-hidden bg-white text-indigo-900 px-10 py-5 rounded-2xl font-black text-xl shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_-15px_rgba(255,255,255,0.5)] transition-all transform hover:scale-105 active:scale-95 flex items-center gap-3"
+                                >
+                                    <span className="relative z-10 flex items-center gap-3">
+                                        <PenTool size={24} />
+                                        Accepter et Signer
+                                    </span>
+                                </button>
+                            </div>
+                            <p className="mt-6 text-xs text-slate-500 font-medium">
+                                En signant, vous acceptez les <button onClick={() => setViewMode('legal')} className="text-indigo-400 hover:underline">conditions générales de vente</button> de Skalia SRL.
+                            </p>
                         </div>
-                        <p className="mt-6 text-xs text-slate-500 font-medium">
-                            En signant, vous acceptez les <button onClick={() => setViewMode('legal')} className="text-indigo-400 hover:underline">conditions générales de vente</button> de Skalia SRL.
-                        </p>
-                    </div>
-                </section>
+                    </section>
+                )
             )}
 
             {/* MAIN FOOTER */}
@@ -765,7 +750,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </footer>
 
-            {/* MODAL SIGNATURE */}
+            {/* MODAL SIGNATURE (Inchangée) */}
             {isSigningModalOpen && !isSignedOrAccepted && (
                 <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">

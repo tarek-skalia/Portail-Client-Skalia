@@ -257,7 +257,9 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                           name: subscription.service_name,
                           amount: subscription.amount,
                           interval: subscription.billing_cycle === 'monthly' ? 'month' : 'year',
-                          currency: 'eur'
+                          currency: 'eur',
+                          tax_rate: taxRate, // AJOUT TAX RATE
+                          price_includes_tax: false
                       } : null
                   };
 
