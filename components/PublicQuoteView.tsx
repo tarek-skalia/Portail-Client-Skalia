@@ -659,7 +659,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </header>
 
-            {/* SECTION EXPERTISE & VALEURS (RESTAURATION GRANDS VISUELS) */}
+            {/* SECTION EXPERTISE & VALEURS (RESTAURATION GRANDS VISUELS + CARTES VALEURS) */}
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-3xl mx-auto mb-16">
@@ -680,33 +680,30 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         ))}
                     </div>
 
-                    {/* SECTION ÉQUIPE COMPACTE */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                        <div className="space-y-8">
-                            <h3 className="text-3xl font-bold text-slate-900">Une équipe dédiée à votre croissance</h3>
-                            <p className="text-slate-600 leading-relaxed text-lg">
-                                Derrière chaque automatisation se cachent des experts passionnés. Notre mission est de vous libérer des contraintes techniques pour que vous puissiez vous concentrer sur ce qui compte vraiment.
-                            </p>
-                            <div className="flex gap-4">
-                                {AGENCY_TEAM.map((member, i) => (
-                                    <div key={i} className="flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 pr-8 shadow-sm">
-                                        <img src={member.img} alt={member.name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" />
-                                        <div>
-                                            <p className="font-bold text-slate-900">{member.name}</p>
-                                            <p className="text-xs text-indigo-600 font-medium uppercase tracking-wide">{member.role}</p>
-                                        </div>
-                                    </div>
-                                ))}
+                    {/* GRANDS VISUELS ÉQUIPE (RESTAURÉS) */}
+                    <div className="text-center mb-12">
+                        <h3 className="text-3xl font-bold text-slate-900">Une équipe dédiée à votre croissance</h3>
+                        <p className="text-slate-500 mt-2">Vos experts en automatisation.</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center justify-center max-w-4xl mx-auto">
+                        {AGENCY_TEAM.map((member, i) => (
+                            <div key={i} className="relative group overflow-hidden rounded-3xl h-[450px] w-full shadow-xl transition-all duration-300 hover:shadow-2xl">
+                                <img 
+                                    src={member.img} 
+                                    alt={member.name} 
+                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent opacity-80"></div>
+                                <div className="absolute bottom-0 left-0 p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                                    <p className="text-white font-bold text-2xl mb-1">{member.name}</p>
+                                    <p className="text-indigo-300 font-medium text-lg flex items-center gap-2">
+                                        <div className="w-8 h-0.5 bg-indigo-500"></div>
+                                        {member.role}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-[2.5rem] rotate-3 opacity-10"></div>
-                            <img 
-                                src="https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e208badeaae7b477b5ee4_Design%20sans%20titre%20(17).png" 
-                                alt="Skalia Team Work" 
-                                className="relative rounded-[2.5rem] shadow-2xl border border-slate-200 w-full object-cover h-[400px]"
-                            />
-                        </div>
+                        ))}
                     </div>
                 </div>
             </section>
