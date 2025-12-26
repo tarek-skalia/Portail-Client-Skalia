@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToast } from './ToastProvider';
 import { Client } from '../types';
-import { User, Building, Lock, UploadCloud, Save, Loader2, Camera, ShieldCheck, Mail, Phone, MapPin, Hash, Globe } from 'lucide-react';
+import { User, Building, Lock, UploadCloud, Save, Loader2, Camera, ShieldCheck, Mail, Phone, MapPin, Hash, Globe, Info } from 'lucide-react';
 
 interface SettingsPageProps {
   currentUser: Client;
@@ -56,7 +56,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
                   email: data.email || '',
                   phone: data.phone || '',
                   company_name: data.company_name || '',
-                  website: data.logo_url || '', // On utilise logo_url comme site web pour l'instant
+                  website: data.logo_url || '',
                   address: data.address || '',
                   vat_number: data.vat_number || ''
               }));
@@ -73,7 +73,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
           setAvatarFile(file);
-          // Preview local
           const reader = new FileReader();
           reader.onloadend = () => {
               setAvatarPreview(reader.result as string);
@@ -87,7 +86,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
       setIsSaving(true);
 
       try {
-          // UPDATE : On inclut le téléphone
+          // 1. Mise à jour Profil (Table profiles)
           const updates = {
               full_name: formData.full_name,
               phone: formData.phone || null,
@@ -97,12 +96,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
           const { error } = await supabase.from('profiles').update(updates).eq('id', currentUser.id);
           if (error) throw error;
 
+          // 2. Gestion Changement Email (Auth)
+          // Note : Supabase envoie un mail de confirmation à l'ancienne ET à la nouvelle adresse.
+          if (formData.email && formData.email !== currentUser.email) {
+              const { error: emailError } = await supabase.auth.updateUser({ email: formData.email });
+              if (emailError) throw emailError;
+              
+              toast.info("Changement d'email", "Un lien de confirmation a été envoyé à votre nouvelle adresse.");
+          }
+
           toast.success("Succès", "Profil mis à jour.");
           if (onProfileUpdate) onProfileUpdate();
 
       } catch (err: any) {
           console.error(err);
-          toast.error("Erreur", "Impossible de mettre à jour le profil.");
+          toast.error("Erreur", err.message || "Impossible de mettre à jour le profil.");
       } finally {
           setIsSaving(false);
       }
@@ -113,10 +121,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
       setIsSaving(true);
 
       try {
-          // UPDATE : On inclut l'adresse et le numéro de TVA
           const updates = {
               company_name: formData.company_name,
-              logo_url: formData.website, // Simplified logic: website url = logo source via logo.dev
+              logo_url: formData.website,
               address: formData.address || null,
               vat_number: formData.vat_number || null,
               updated_at: new Date().toISOString()
@@ -138,35 +145,19 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
       e.preventDefault();
-      
-      // Validation basique
-      if (!formData.current_password) {
-          toast.error("Erreur", "Veuillez entrer votre mot de passe actuel.");
-          return;
-      }
-      if (formData.new_password !== formData.confirm_password) {
-          toast.error("Erreur", "Les nouveaux mots de passe ne correspondent pas.");
-          return;
-      }
-      if (formData.new_password.length < 6) {
-          toast.error("Erreur", "Le mot de passe doit contenir au moins 6 caractères.");
-          return;
-      }
+      if (!formData.current_password) { toast.error("Erreur", "Veuillez entrer votre mot de passe actuel."); return; }
+      if (formData.new_password !== formData.confirm_password) { toast.error("Erreur", "Les nouveaux mots de passe ne correspondent pas."); return; }
+      if (formData.new_password.length < 6) { toast.error("Erreur", "Le mot de passe doit contenir au moins 6 caractères."); return; }
 
       setIsSaving(true);
       try {
-          // 1. VÉRIFICATION DE L'ANCIEN MOT DE PASSE
-          // On tente une connexion avec l'email actuel et l'ancien mot de passe fourni.
           const { error: verifyError } = await supabase.auth.signInWithPassword({
-              email: formData.email, // L'email est chargé depuis le profil
+              email: currentUser.email,
               password: formData.current_password
           });
 
-          if (verifyError) {
-              throw new Error("Votre ancien mot de passe est incorrect.");
-          }
+          if (verifyError) throw new Error("Votre ancien mot de passe est incorrect.");
 
-          // 2. MISE À JOUR SI VÉRIFICATION OK
           const { error } = await supabase.auth.updateUser({ password: formData.new_password });
           if (error) throw error;
           
@@ -183,257 +174,83 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, onProfileUpdat
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in-up pb-10">
-        
         <div>
             <h1 className="text-3xl font-extrabold text-slate-900">Paramètres du compte</h1>
             <p className="text-slate-500 mt-1">Gérez vos informations personnelles et préférences.</p>
         </div>
 
         <div className="flex flex-col md:flex-row gap-8">
-            
-            {/* SIDEBAR TABS */}
             <div className="w-full md:w-64 flex flex-col gap-2 shrink-0">
-                <button 
-                    onClick={() => setActiveTab('profile')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'profile' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
-                >
-                    <User size={18} /> Mon Profil
-                </button>
-                <button 
-                    onClick={() => setActiveTab('company')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'company' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
-                >
-                    <Building size={18} /> Entreprise
-                </button>
-                <button 
-                    onClick={() => setActiveTab('security')}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'security' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}
-                >
-                    <ShieldCheck size={18} /> Sécurité
-                </button>
+                <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'profile' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><User size={18} /> Mon Profil</button>
+                <button onClick={() => setActiveTab('company')} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'company' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><Building size={18} /> Entreprise</button>
+                <button onClick={() => setActiveTab('security')} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'security' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}><ShieldCheck size={18} /> Sécurité</button>
             </div>
 
-            {/* CONTENT AREA */}
             <div className="flex-1">
-                
-                {/* --- TAB: PROFILE --- */}
                 {activeTab === 'profile' && (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 animate-fade-in">
                         <div className="flex items-center gap-6 mb-8">
                             <div className="relative group">
                                 <div className="w-24 h-24 rounded-full bg-slate-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center">
-                                    {avatarPreview ? (
-                                        <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="text-2xl font-bold text-slate-400">{currentUser.avatarInitials}</div>
-                                    )}
+                                    {avatarPreview ? <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" /> : <div className="text-2xl font-bold text-slate-400">{currentUser.avatarInitials}</div>}
                                 </div>
-                                <button 
-                                    onClick={() => avatarInputRef.current?.click()}
-                                    className="absolute bottom-0 right-0 p-2 bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition-colors"
-                                >
-                                    <Camera size={16} />
-                                </button>
+                                <button onClick={() => avatarInputRef.current?.click()} className="absolute bottom-0 right-0 p-2 bg-indigo-600 text-white rounded-full shadow-md hover:bg-indigo-700 transition-colors"><Camera size={16} /></button>
                                 <input type="file" ref={avatarInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                             </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-slate-900">Photo de profil</h3>
-                                <p className="text-sm text-slate-500">Formats acceptés : JPG, PNG. Max 2MB.</p>
-                            </div>
+                            <div><h3 className="text-lg font-bold text-slate-900">Photo de profil</h3><p className="text-sm text-slate-500">Formats acceptés : JPG, PNG. Max 2MB.</p></div>
                         </div>
 
                         <form onSubmit={handleSaveProfile} className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nom Complet</label>
-                                    <div className="relative">
-                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                        <input 
-                                            type="text" 
-                                            value={formData.full_name} 
-                                            onChange={e => setFormData({...formData, full_name: e.target.value})}
-                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Téléphone</label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                        <input 
-                                            type="tel" 
-                                            value={formData.phone} 
-                                            onChange={e => setFormData({...formData, phone: e.target.value})}
-                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                            placeholder="+33 6..."
-                                        />
-                                    </div>
-                                </div>
+                                <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nom Complet</label><div className="relative"><User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium" /></div></div>
+                                <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Téléphone</label><div className="relative"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium" placeholder="+33 6..." /></div></div>
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Email (Non modifiable)</label>
-                                <div className="relative opacity-70">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Email</label>
+                                <div className="relative">
                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                    <input 
-                                        type="email" 
-                                        value={formData.email} 
-                                        disabled
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-100 border border-slate-200 rounded-xl outline-none text-slate-500 cursor-not-allowed text-sm font-medium"
-                                    />
+                                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium" />
                                 </div>
+                                {formData.email !== currentUser.email && (
+                                    <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1"><Info size={10} /> La modification de l'email nécessitera une confirmation.</p>
+                                )}
                             </div>
 
                             <div className="pt-4 border-t border-slate-100 flex justify-end">
-                                <button 
-                                    type="submit" 
-                                    disabled={isSaving}
-                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 disabled:opacity-50"
-                                >
-                                    {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                                    Sauvegarder
-                                </button>
+                                <button type="submit" disabled={isSaving} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 disabled:opacity-50">{isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} Sauvegarder</button>
                             </div>
                         </form>
                     </div>
                 )}
 
-                {/* --- TAB: COMPANY --- */}
                 {activeTab === 'company' && (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 animate-fade-in">
                         <form onSubmit={handleSaveCompany} className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nom de la Société</label>
-                                    <div className="relative">
-                                        <Building className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                        <input 
-                                            type="text" 
-                                            value={formData.company_name} 
-                                            onChange={e => setFormData({...formData, company_name: e.target.value})}
-                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Site Web (pour Logo)</label>
-                                    <div className="relative">
-                                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                        <input 
-                                            type="text" 
-                                            value={formData.website} 
-                                            onChange={e => setFormData({...formData, website: e.target.value})}
-                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                            placeholder="https://..."
-                                        />
-                                    </div>
-                                </div>
+                                <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nom de la Société</label><div className="relative"><Building className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" value={formData.company_name} onChange={e => setFormData({...formData, company_name: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium" /></div></div>
+                                <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Site Web (pour Logo)</label><div className="relative"><Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" value={formData.website} onChange={e => setFormData({...formData, website: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium" placeholder="https://..." /></div></div>
                             </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Numéro de TVA</label>
-                                <div className="relative">
-                                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                    <input 
-                                        type="text" 
-                                        value={formData.vat_number} 
-                                        onChange={e => setFormData({...formData, vat_number: e.target.value})}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                        placeholder="FR..."
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Adresse de Facturation</label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-3 top-4 text-slate-400" size={18} />
-                                    <textarea 
-                                        rows={3}
-                                        value={formData.address} 
-                                        onChange={e => setFormData({...formData, address: e.target.value})}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium resize-none"
-                                        placeholder="Adresse complète..."
-                                    />
-                                </div>
-                            </div>
-
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Numéro de TVA</label><div className="relative"><Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" value={formData.vat_number} onChange={e => setFormData({...formData, vat_number: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium" placeholder="FR..." /></div></div>
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Adresse de Facturation</label><div className="relative"><MapPin className="absolute left-3 top-4 text-slate-400" size={18} /><textarea rows={3} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium resize-none" placeholder="Adresse complète..." /></div></div>
                             <div className="pt-4 border-t border-slate-100 flex justify-end">
-                                <button 
-                                    type="submit" 
-                                    disabled={isSaving}
-                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 disabled:opacity-50"
-                                >
-                                    {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                                    Enregistrer infos
-                                </button>
+                                <button type="submit" disabled={isSaving} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 disabled:opacity-50">{isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} Enregistrer infos</button>
                             </div>
                         </form>
                     </div>
                 )}
 
-                {/* --- TAB: SECURITY --- */}
                 {activeTab === 'security' && (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 animate-fade-in">
                         <form onSubmit={handleUpdatePassword} className="space-y-6 max-w-md">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Ancien mot de passe</label>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                    <input 
-                                        type="password" 
-                                        required
-                                        value={formData.current_password} 
-                                        onChange={e => setFormData({...formData, current_password: e.target.value})}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                        placeholder="Mot de passe actuel"
-                                    />
-                                </div>
-                            </div>
-
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Ancien mot de passe</label><div className="relative"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="password" required value={formData.current_password} onChange={e => setFormData({...formData, current_password: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium" placeholder="Mot de passe actuel" /></div></div>
                             <div className="h-px bg-slate-100 my-4"></div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nouveau mot de passe</label>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                    <input 
-                                        type="password" 
-                                        value={formData.new_password} 
-                                        onChange={e => setFormData({...formData, new_password: e.target.value})}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                        placeholder="Minimum 6 caractères"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Confirmer le mot de passe</label>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                    <input 
-                                        type="password" 
-                                        value={formData.confirm_password} 
-                                        onChange={e => setFormData({...formData, confirm_password: e.target.value})}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium"
-                                        placeholder="Répétez le mot de passe"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="pt-4 border-t border-slate-100">
-                                <button 
-                                    type="submit" 
-                                    disabled={isSaving}
-                                    className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
-                                >
-                                    {isSaving ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
-                                    Mettre à jour
-                                </button>
-                            </div>
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Nouveau mot de passe</label><div className="relative"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="password" value={formData.new_password} onChange={e => setFormData({...formData, new_password: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium" placeholder="Minimum 6 caractères" /></div></div>
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Confirmer le mot de passe</label><div className="relative"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="password" value={formData.confirm_password} onChange={e => setFormData({...formData, confirm_password: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium" placeholder="Répétez le mot de passe" /></div></div>
+                            <div className="pt-4 border-t border-slate-100"><button type="submit" disabled={isSaving} className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-50">{isSaving ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />} Mettre à jour</button></div>
                         </form>
                     </div>
                 )}
-
             </div>
         </div>
     </div>
