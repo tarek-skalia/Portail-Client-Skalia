@@ -502,11 +502,72 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
                 <div className="max-w-3xl mx-auto px-6 py-12">
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 md:p-16">
-                        <h1 className="text-3xl font-bold text-slate-900 mb-2">Conditions Générales de Vente</h1>
-                        <p className="text-slate-500 mb-10 text-sm">SKALIA SRL • BE1023.214.594 • Liège, Belgique</p>
+                        <h1 className="text-3xl font-bold text-slate-900 mb-8 pb-4 border-b border-slate-100">Conditions Générales de Vente</h1>
                         <div className="prose prose-slate prose-sm max-w-none text-justify space-y-8">
-                            <p>Les présentes Conditions Générales régissent l’ensemble des relations entre la SRL Skalia (ci-dessous dénommée « le prestataire ») et ses clients...</p>
-                            <p className="italic text-slate-400">[Texte légal complet masqué pour la brièveté de la démo]</p>
+                            
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Préambule</h3>
+                                <p>Les présentes Conditions Générales régissent l’ensemble des relations entre la SRL Skalia (ci-dessous dénommée « le prestataire ») et ses clients, à moins qu’un autre accord écrit stipule expressément qu’il y est dérogé.</p>
+                                <p>La personne physique ou morale qui accepte l’offre par écrit (y compris par email) est considérée comme « le client » et se porte garante du paiement de la facture.</p>
+                                <p>Les engagements verbaux n’engagent le prestataire qu’après confirmation écrite et dûment signée.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Objet du contrat</h3>
+                                <p>Le prestataire est chargé par le client de réaliser un projet défini dans l’offre commerciale annexée. L’offre de prix formulée par le prestataire fait partie intégrante du contrat et peut contenir certaines dérogations et limitations aux présentes conditions.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Collaboration entre les parties</h3>
+                                <p>Le client veillera à fournir tous les éléments et informations nécessaires à la bonne exécution du projet.</p>
+                                <p>Il collaborera avec le prestataire en vue d’assurer le bon déroulement des travaux, notamment en y allouant les moyens et le personnel nécessaire. À défaut, les délais et échéances pourront être adaptés à due concurrence.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Délais de création</h3>
+                                <p>Le projet est réalisé dans les délais indiqués dans l’offre commerciale, sous réserve de la bonne collaboration du client et de la transmission des éléments nécessaires.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Prix et paiement</h3>
+                                <p>Les modalités de paiement sont précisées dans l’offre commerciale et peuvent prendre l’une des formes suivantes :</p>
+                                <ul className="list-disc pl-5 space-y-1">
+                                    <li>Frais de réalisation forfaitaires à la signature, complétés par des mensualités couvrant le support, les mises à jour et le suivi du projet ;</li>
+                                    <li>Frais de réalisation forfaitaires à la signature uniquement ;</li>
+                                    <li>Frais mensuels fixes sur la durée indiquée dans l’offre.</li>
+                                </ul>
+                                <p>Les factures sont payables dans un délai de sept (7) jours calendrier.</p>
+                                <p>En cas de non-paiement, le prestataire se réserve le droit de suspendre ses prestations jusqu’à réception du règlement.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Propriété intellectuelle</h3>
+                                <p>Le prestataire reste propriétaire du savoir-faire, workflows, outils et méthodes développés dans le cadre du projet.</p>
+                                <p>Le client dispose d’un droit d’utilisation des livrables remis, mais ne peut ni les revendre ni les sous-louer.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Confidentialité</h3>
+                                <p>Chacune des parties s’engage à considérer comme confidentielles les informations, documents, systèmes, logiciels et savoir-faire échangés pendant et après l’exécution du contrat.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Responsabilités et limitations</h3>
+                                <p>La responsabilité du prestataire est limitée, toutes causes confondues, au montant total des honoraires perçus au titre du présent contrat.</p>
+                                <p>Le prestataire ne pourra être tenu responsable des dommages indirects tels que perte de chiffre d’affaires, perte de chance ou perte de données.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Interruption liée à des outils tiers</h3>
+                                <p>Le prestataire ne pourra être tenu responsable des interruptions ou défaillances liées à des outils tiers intégrés dans la solution. Dans ce cas, le prestataire s’engage à mettre en œuvre tous les moyens possibles pour contourner, remplacer ou rétablir le bon fonctionnement du projet.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Litiges et droit applicable</h3>
+                                <p>En cas de difficultés ou de différend entre les parties à l’occasion de l’interprétation ou de l’exécution du présent contrat, celles-ci conviennent de rechercher une solution amiable.</p>
+                                <p>Si aucune solution ne peut être trouvée, les tribunaux de l’arrondissement de Liège seront compétents et appliqueront exclusivement le droit matériel belge.</p>
+                            </div>
+
                         </div>
                         <div className="mt-16 pt-8 border-t border-slate-100 flex justify-center">
                             <button onClick={() => handleViewModeChange('quote')} className="px-8 py-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-600 transition-colors">J'ai lu et je reviens au devis</button>
@@ -660,10 +721,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
-                        <div className="lg:col-span-2 space-y-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-stretch">
+                        <div className="lg:col-span-2 space-y-8 flex flex-col">
                             <h3 className="text-2xl font-bold text-slate-900 border-l-4 border-slate-900 pl-4">L'équipe</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 flex-1">
                                 {AGENCY_TEAM.map((member, i) => (
                                     <div key={i} className="relative group overflow-hidden rounded-2xl h-[340px] w-full shadow-xl transition-all duration-300 hover:shadow-2xl">
                                         <img src={member.img} alt={member.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -676,12 +737,12 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 ))}
                             </div>
                         </div>
-                        <div className="space-y-8">
+                        <div className="space-y-8 flex flex-col h-full">
                             <h3 className="text-2xl font-bold text-slate-900 border-l-4 border-slate-900 pl-4">Nos valeurs</h3>
-                            <div className="space-y-4">
+                            <div className="flex flex-col justify-between flex-1 gap-4">
                                 {SKALIA_VALUES.map((val, i) => (
-                                    <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${val.color} bg-white shadow-sm hover:shadow-md`}>
-                                        <div className={`p-2 rounded-lg ${val.iconColor}`}>{val.icon}</div>
+                                    <div key={i} className={`flex-1 flex items-center gap-4 p-6 rounded-xl border transition-all ${val.color} bg-white shadow-sm hover:shadow-md hover:-translate-y-1`}>
+                                        <div className={`p-3 rounded-lg ${val.iconColor}`}>{val.icon}</div>
                                         <span className="font-bold text-lg text-slate-800">{val.label}</span>
                                     </div>
                                 ))}
