@@ -6,7 +6,7 @@ import {
     CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
     Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit,
     ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid, Terminal, Activity, Server, Rocket, Crown,
-    Eye, HeartHandshake, Lightbulb, TrendingUp, GraduationCap, Workflow, Bot, Fingerprint, Shield
+    Eye, HeartHandshake, Lightbulb, TrendingUp, GraduationCap, Workflow, Bot, Fingerprint, Shield, BarChart3
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
@@ -553,23 +553,77 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     </button>
                                 </div>
                             </div>
+                            
+                            {/* --- HERO CARD UPDATED (Taller & More Logs) --- */}
                             <div className="hidden lg:flex justify-end animate-fade-in-up delay-200 relative perspective-1000">
-                                <div className="relative w-96 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group flex flex-col gap-6">
+                                <div className="relative w-96 h-[500px] bg-gradient-to-br from-[#1E1B2E] to-[#141220] border border-white/10 rounded-3xl p-8 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group flex flex-col gap-6 overflow-hidden">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent rounded-3xl pointer-events-none"></div>
-                                    <div className="flex items-center justify-between border-b border-white/10 pb-6">
+                                    
+                                    {/* Card Header */}
+                                    <div className="flex items-center justify-between border-b border-white/10 pb-6 shrink-0">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 border border-white/5"><Cpu size={24} /></div>
-                                            <div><p className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider">Système</p><p className="text-lg font-bold text-white">Skalia Engine v2.0</p></div>
+                                            <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 border border-white/5 shadow-inner">
+                                                <Cpu size={24} />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider">Système</p>
+                                                <p className="text-lg font-bold text-white">Skalia Engine v2.0</p>
+                                            </div>
                                         </div>
                                         <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_10px_#34d399]"></div>
                                     </div>
-                                    <div className="space-y-4">
-                                        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                                            <div className="flex justify-between items-center mb-2"><span className="text-xs text-indigo-200 font-mono">DEPLOY_PIPELINE</span><span className="text-xs text-emerald-400 font-bold">RUNNING</span></div>
-                                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden"><div className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full w-[75%] rounded-full animate-pulse"></div></div>
+
+                                    {/* Card Content - Logs */}
+                                    <div className="flex-1 space-y-4 font-mono text-xs overflow-hidden flex flex-col">
+                                        {/* Deployment Bar */}
+                                        <div className="bg-black/40 rounded-xl p-4 border border-white/5 shrink-0">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-indigo-200 font-bold">DEPLOY_PIPELINE</span>
+                                                <span className="text-emerald-400 font-bold">RUNNING</span>
+                                            </div>
+                                            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                                                <div className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full w-[75%] rounded-full animate-pulse"></div>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-3"><Terminal size={14} className="text-slate-400" /><p className="text-xs text-slate-300 font-mono">Initializing core modules...</p></div>
-                                        <div className="flex items-center gap-3"><CheckCircle2 size={14} className="text-emerald-500" /><p className="text-xs text-white font-mono">AI Models loaded successfully</p></div>
+
+                                        {/* Logs Scroller */}
+                                        <div className="flex-1 space-y-3 opacity-90">
+                                            <div className="flex items-center gap-3">
+                                                <Terminal size={12} className="text-slate-500 shrink-0" />
+                                                <p className="text-slate-400">Initializing core modules...</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                                                <p className="text-white">AI Models loaded successfully</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <Activity size={12} className="text-indigo-400 shrink-0" />
+                                                <p className="text-indigo-100">Connecting to API Gateway...</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <Server size={12} className="text-slate-500 shrink-0" />
+                                                <p className="text-slate-400">Database synchronization</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <Zap size={12} className="text-amber-400 shrink-0" />
+                                                <p className="text-amber-100">Optimization: +240% speed</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <ShieldCheck size={12} className="text-emerald-500 shrink-0" />
+                                                <p className="text-white">Security protocols active</p>
+                                            </div>
+                                            <div className="flex items-center gap-3 animate-pulse">
+                                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                                <p className="text-indigo-300">Waiting for user input...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Fake Activity Graph at bottom */}
+                                    <div className="h-12 flex items-end gap-1 opacity-50 shrink-0">
+                                        {[40, 60, 30, 80, 50, 90, 70, 40, 60, 80, 50, 100].map((h, i) => (
+                                            <div key={i} className="flex-1 bg-indigo-500/50 rounded-t-sm transition-all duration-1000" style={{ height: `${h}%` }}></div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
@@ -582,7 +636,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-4xl mx-auto mb-16">
                         <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6 tracking-tight">Skalia.</h2>
-                        <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives...</p>
+                        <p className="text-lg text-slate-600 leading-relaxed font-medium">
+                            Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner clarté en automatisant leurs processus avec l’intelligence artificielle. Notre approche pragmatique et sur mesure transforme la complexité en solutions simples, efficaces et orientées résultats.
+                        </p>
                     </div>
                     <div className="text-center mb-10">
                         <h3 className="text-2xl font-bold text-slate-900 flex items-center justify-center gap-3"><span className="w-8 h-1 bg-slate-900 rounded-full"></span>Savoir-faire</h3>
@@ -596,6 +652,14 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                             </div>
                         ))}
                     </div>
+                    
+                    {/* --- BUSINESS / ROI SECTION --- */}
+                    <div className="text-center max-w-3xl mx-auto mb-16">
+                        <p className="text-xl md:text-2xl text-slate-800 font-bold leading-relaxed">
+                            "Nous ne sommes pas de simples exécutants techniques. Nous sommes des entrepreneurs qui parlent votre langage : ROI, marge et croissance."
+                        </p>
+                    </div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
                         <div className="lg:col-span-2 space-y-8">
                             <h3 className="text-2xl font-bold text-slate-900 border-l-4 border-slate-900 pl-4">L'équipe</h3>
