@@ -6,7 +6,7 @@ import {
     CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
     Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit,
     ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid, Terminal, Activity, Server, Rocket, Crown,
-    Eye, HeartHandshake, Lightbulb
+    Eye, HeartHandshake, Lightbulb, TrendingUp, GraduationCap, Workflow, Bot
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
@@ -24,29 +24,49 @@ const AGENCY_TEAM = [
     }
 ];
 
+// NOUVEAU CONTENU : SAVOIR-FAIRE (Pour les cartes)
+const SKALIA_KNOWHOW = [
+    {
+        title: "Automatisation & intégration",
+        desc: "Conception de systèmes complets qui connectent vos outils et optimisent vos processus de bout en bout.",
+        icon: <Workflow size={24} />
+    },
+    {
+        title: "Agents IA sur mesure",
+        desc: "Développement d'agents intelligents capables de traiter vos tâches complexes comme de vrais collaborateurs digitaux.",
+        icon: <Bot size={24} />
+    },
+    {
+        title: "Formation en entreprise",
+        desc: "Transmission des savoir-faire pour assurer l'adoption et l'utilisation optimale des solutions.",
+        icon: <GraduationCap size={24} />
+    }
+];
+
+// NOUVEAU CONTENU : VALEURS (Pour la section équipe)
+const SKALIA_VALUES = [
+    {
+        label: "Réactivité",
+        color: "bg-amber-50 text-amber-600 border-amber-100",
+        icon: <Zap size={18} />
+    },
+    {
+        label: "Transparence",
+        color: "bg-blue-50 text-blue-600 border-blue-100",
+        icon: <Eye size={18} />
+    },
+    {
+        label: "Innovation",
+        color: "bg-purple-50 text-purple-600 border-purple-100",
+        icon: <Lightbulb size={18} />
+    }
+];
+
 const METHODOLOGY_STEPS = [
     { num: '01', title: 'Onboarding', desc: 'Cadrage, compréhension des objectifs et collecte des accès.' },
     { num: '02', title: 'Réalisation', desc: 'Construction des flux, intégration IA et tests rigoureux.' },
     { num: '03', title: 'Livraison', desc: 'Démonstration, transfert de propriété et formation.' },
     { num: '04', title: 'Support', desc: 'Maintenance continue et ajustements post-lancement.' },
-];
-
-const SKALIA_VALUES = [
-    {
-        title: "Transparence Totale",
-        desc: "Nous jouons cartes sur table. Pas de coûts cachés, pas de jargon technique inutile. Vous gardez la main sur vos systèmes.",
-        icon: <Eye size={24} />
-    },
-    {
-        title: "Partenariat Long Terme",
-        desc: "Nous ne sommes pas juste des exécutants. Nous nous positionnons comme votre pôle R&D externalisé pour vous accompagner dans la durée.",
-        icon: <HeartHandshake size={24} />
-    },
-    {
-        title: "Innovation Pragmatique",
-        desc: "L'IA pour l'IA ne nous intéresse pas. Nous déployons des technologies avancées uniquement si elles apportent un ROI concret.",
-        icon: <Lightbulb size={24} />
-    }
 ];
 
 const formatCurrency = (val: number) => val.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -659,17 +679,22 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </header>
 
-            {/* SECTION EXPERTISE & VALEURS (RESTAURATION GRANDS VISUELS + CARTES VALEURS) */}
+            {/* SECTION SKALIA REVISITÉE (DESIGN "01" TEXTE + "GRANDES PHOTOS" DESIGN) */}
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
-                    <div className="text-center max-w-3xl mx-auto mb-16">
-                        <h2 className="text-4xl font-bold text-slate-900 mb-6">Nos <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Valeurs</span>.</h2>
-                        <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner clarté en automatisant leurs processus avec l’intelligence artificielle.</p>
+                    <div className="text-center max-w-4xl mx-auto mb-16">
+                        <h2 className="text-4xl font-bold text-slate-900 mb-6">Skalia<span className="text-amber-400">.</span></h2>
+                        <p className="text-lg text-slate-600 leading-relaxed font-medium">
+                            Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner clarté en automatisant leurs processus avec l’intelligence artificielle. Notre approche pragmatique et sur mesure transforme la complexité en solutions simples, efficaces et orientées résultats.
+                        </p>
                     </div>
                     
-                    {/* CARTES VALEURS (ICONES COLORÉES) */}
+                    {/* CARTES SAVOIR-FAIRE (REMPLACEMENT DES VALEURS) */}
+                    <div className="text-center mb-10">
+                        <h3 className="text-2xl font-bold text-slate-900">Savoir-faire<span className="text-amber-400">.</span></h3>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
-                        {SKALIA_VALUES.map((item, i) => (
+                        {SKALIA_KNOWHOW.map((item, i) => (
                             <div key={i} className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:border-indigo-200 transition-all group hover:-translate-y-1 hover:shadow-lg duration-300">
                                 <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md mb-6 group-hover:scale-110 transition-transform group-hover:rotate-3">
                                     {item.icon}
@@ -680,30 +705,52 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         ))}
                     </div>
 
-                    {/* GRANDS VISUELS ÉQUIPE (RESTAURÉS) */}
-                    <div className="text-center mb-12">
-                        <h3 className="text-3xl font-bold text-slate-900">Une équipe dédiée à votre croissance</h3>
-                        <p className="text-slate-500 mt-2">Vos experts en automatisation.</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center justify-center max-w-4xl mx-auto">
-                        {AGENCY_TEAM.map((member, i) => (
-                            <div key={i} className="relative group overflow-hidden rounded-3xl h-[450px] w-full shadow-xl transition-all duration-300 hover:shadow-2xl">
-                                <img 
-                                    src={member.img} 
-                                    alt={member.name} 
-                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent opacity-80"></div>
-                                <div className="absolute bottom-0 left-0 p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                                    <p className="text-white font-bold text-2xl mb-1">{member.name}</p>
-                                    <p className="text-indigo-300 font-medium text-lg flex items-center gap-2">
-                                        <div className="w-8 h-0.5 bg-indigo-500"></div>
-                                        {member.role}
-                                    </p>
-                                </div>
+                    {/* SECTION ÉQUIPE & VALEURS (MIXTE) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
+                        
+                        {/* COLONNE PHOTOS (2/3) */}
+                        <div className="lg:col-span-2 space-y-8">
+                            <h3 className="text-3xl font-bold text-slate-900">L'équipe<span className="text-amber-400">.</span></h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {AGENCY_TEAM.map((member, i) => (
+                                    <div key={i} className="relative group overflow-hidden rounded-3xl h-[450px] w-full shadow-xl transition-all duration-300 hover:shadow-2xl">
+                                        <img 
+                                            src={member.img} 
+                                            alt={member.name} 
+                                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent opacity-80"></div>
+                                        <div className="absolute bottom-0 left-0 p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                                            <p className="text-white font-bold text-2xl mb-1">{member.name}</p>
+                                            <p className="text-indigo-300 font-medium text-lg flex items-center gap-2">
+                                                <div className="w-8 h-0.5 bg-indigo-500"></div>
+                                                {member.role}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                        </div>
+
+                        {/* COLONNE VALEURS (1/3) */}
+                        <div className="space-y-8 lg:pt-16">
+                            <h3 className="text-2xl font-bold text-slate-900">Nos valeurs<span className="text-amber-400">.</span></h3>
+                            <div className="space-y-4">
+                                {SKALIA_VALUES.map((val, i) => (
+                                    <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${val.color} bg-white shadow-sm hover:shadow-md`}>
+                                        <div className={`p-2 rounded-lg ${val.color.split(' ')[0]} bg-opacity-20`}>
+                                            {val.icon}
+                                        </div>
+                                        <span className="font-bold text-lg">{val.label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-sm text-slate-600 italic leading-relaxed">
+                                "Nous ne sommes pas juste des exécutants. Nous nous positionnons comme votre pôle R&D externalisé pour vous accompagner dans la durée."
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </section>
