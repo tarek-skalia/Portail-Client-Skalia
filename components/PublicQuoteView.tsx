@@ -490,6 +490,80 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         </div>
     );
 
+    if (viewMode === 'legal') {
+        return (
+            <div className="min-h-screen bg-slate-50 font-sans">
+                {/* Header Legal */}
+                <div className="bg-white border-b border-slate-200 sticky top-0 z-50">
+                    <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
+                        <Logo classNameText="text-slate-900" />
+                        <button 
+                            onClick={() => setViewMode('quote')}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors"
+                        >
+                            <ChevronLeft size={16} /> Retour à la proposition
+                        </button>
+                    </div>
+                </div>
+
+                <div className="max-w-3xl mx-auto px-6 py-12">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 md:p-16">
+                        <h1 className="text-3xl font-bold text-slate-900 mb-2">Conditions Générales de Vente</h1>
+                        <p className="text-slate-500 mb-10 text-sm">SKALIA SRL • BE1023.214.594 • Liège, Belgique</p>
+                        
+                        <div className="prose prose-slate prose-sm max-w-none text-justify space-y-8">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Article 1 - Objet</h3>
+                                <p>Les présentes conditions générales ont pour objet de définir les droits et obligations des parties dans le cadre de la vente de services et de prestations d'automatisation et de conseil par Skalia SRL au Client. Elles s'appliquent à toutes les prestations conclues entre les parties.</p>
+                            </div>
+                            
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Article 2 - Prix et Modalités de paiement</h3>
+                                <p>Les prix des services sont indiqués en euros hors taxes. La TVA est applicable au taux en vigueur. Sauf mention contraire sur le devis, les factures sont payables à réception. Pour les projets, un acompte est exigé avant tout début de prestation. Pour les abonnements, le paiement s'effectue par prélèvement automatique via Stripe.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Article 3 - Retard de paiement</h3>
+                                <p>En cas de défaut de paiement total ou partiel des services livrés à la date d'échéance, l'acheteur doit verser à Skalia une pénalité de retard égale à trois fois le taux de l'intérêt légal. Le taux de l'intérêt légal retenu est celui en vigueur au jour de la livraison des services. Cette pénalité est calculée sur le montant TTC de la somme restant due, et court à compter de la date d'échéance du prix sans qu'aucune mise en demeure préalable ne soit nécessaire.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Article 4 - Abonnements et Résiliation</h3>
+                                <p>Les abonnements mensuels sont conclus pour une durée indéterminée. Ils peuvent être résiliés à tout moment par le Client moyennant un préavis de 30 jours notifié par email. Tout mois entamé est dû dans son intégralité.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Article 5 - Propriété Intellectuelle</h3>
+                                <p>Skalia conserve la propriété intellectuelle des méthodologies et du code générique utilisés. Toutefois, les scénarios d'automatisation spécifiques développés pour le Client deviennent sa propriété à compter du paiement intégral du prix.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Article 6 - Confidentialité</h3>
+                                <p>Chaque partie s'engage à conserver la confidentialité la plus stricte sur toutes les informations confidentielles qu'elle pourrait recevoir de l'autre partie. Ces informations ne seront utilisées que pour les besoins de l'exécution des prestations.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Article 7 - Responsabilité</h3>
+                                <p>La responsabilité de Skalia ne pourra être engagée qu'en cas de faute prouvée. Elle est limitée au montant des prestations payées par le Client au cours des 12 derniers mois. Skalia ne saurait être tenue responsable des dommages indirects, pertes de données ou pertes d'exploitation.</p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Article 8 - Droit applicable</h3>
+                                <p>Les présentes conditions sont soumises au droit belge. En cas de litige, les tribunaux de l'arrondissement judiciaire de Liège seront seuls compétents.</p>
+                            </div>
+                        </div>
+
+                        <div className="mt-16 pt-8 border-t border-slate-100 flex justify-center">
+                            <button onClick={() => setViewMode('quote')} className="px-8 py-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-600 transition-colors">
+                                J'ai lu et je reviens au devis
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-white font-sans selection:bg-indigo-200 selection:text-indigo-900 overflow-x-hidden">
             
@@ -584,50 +658,51 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </header>
 
-            {/* SECTION EXPERTISE */}
+            {/* SECTION EXPERTISE & VALEURS (RESTAURATION GRANDS VISUELS) */}
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-3xl mx-auto mb-16">
                         <h2 className="text-4xl font-bold text-slate-900 mb-6">L'expertise <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Skalia</span>.</h2>
                         <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner clarté en automatisant leurs processus avec l’intelligence artificielle.</p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+                    
+                    {/* CARTES VALEURS (ICONES COLORÉES) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
                         {SKALIA_EXPERTISE.map((item, i) => (
-                            <div key={i} className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:border-indigo-200 transition-colors group">
-                                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm mb-6 group-hover:scale-110 transition-transform">{item.icon}</div>
-                                <h3 className="font-bold text-slate-900 mb-3">{item.title}</h3>
-                                <p className="text-slate-500 text-sm leading-relaxed">{item.desc}</p>
+                            <div key={i} className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:border-indigo-200 transition-all group hover:-translate-y-1 hover:shadow-lg duration-300">
+                                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md mb-6 group-hover:scale-110 transition-transform group-hover:rotate-3">
+                                    {item.icon}
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-900 mb-3">{item.title}</h3>
+                                <p className="text-slate-500 leading-relaxed">{item.desc}</p>
                             </div>
                         ))}
                     </div>
 
-                    {/* RESTAURATION SECTION ÉQUIPE & VALEURS */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                        <div className="space-y-8">
-                            <h3 className="text-2xl font-bold text-slate-900">Une équipe dédiée à votre croissance</h3>
-                            <p className="text-slate-600 leading-relaxed">
-                                Derrière chaque automatisation se cachent des experts passionnés. Notre mission est de vous libérer des contraintes techniques pour que vous puissiez vous concentrer sur ce qui compte vraiment.
-                            </p>
-                            <div className="flex gap-4">
-                                {AGENCY_TEAM.map((member, i) => (
-                                    <div key={i} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100 pr-6">
-                                        <img src={member.img} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
-                                        <div>
-                                            <p className="font-bold text-sm text-slate-900">{member.name}</p>
-                                            <p className="text-xs text-slate-500">{member.role}</p>
-                                        </div>
-                                    </div>
-                                ))}
+                    {/* GRANDS VISUELS ÉQUIPE (RESTAURÉS) */}
+                    <div className="text-center mb-12">
+                        <h3 className="text-3xl font-bold text-slate-900">Une équipe dédiée à votre croissance</h3>
+                        <p className="text-slate-500 mt-2">Vos experts en automatisation.</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center justify-center max-w-4xl mx-auto">
+                        {AGENCY_TEAM.map((member, i) => (
+                            <div key={i} className="relative group overflow-hidden rounded-3xl h-[400px] w-full shadow-xl">
+                                <img 
+                                    src={member.img} 
+                                    alt={member.name} 
+                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 grayscale group-hover:grayscale-0" 
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent opacity-90 group-hover:opacity-80 transition-opacity"></div>
+                                <div className="absolute bottom-0 left-0 p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                                    <p className="text-white font-bold text-2xl mb-1">{member.name}</p>
+                                    <p className="text-indigo-300 font-medium text-lg flex items-center gap-2">
+                                        <div className="w-8 h-0.5 bg-indigo-500"></div>
+                                        {member.role}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-3xl rotate-3 opacity-10"></div>
-                            <img 
-                                src="https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e208badeaae7b477b5ee4_Design%20sans%20titre%20(17).png" 
-                                alt="Skalia Team Work" 
-                                className="relative rounded-3xl shadow-xl border border-slate-200 w-full object-cover h-64 md:h-80"
-                            />
-                        </div>
+                        ))}
                     </div>
                 </div>
             </section>
