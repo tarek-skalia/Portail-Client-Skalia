@@ -5,7 +5,8 @@ import {
     Check, Download, AlertCircle, FileText, Calendar, DollarSign, PenTool, 
     CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
     Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit,
-    ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid, Terminal, Activity, Server, Rocket, Crown
+    ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid, Terminal, Activity, Server, Rocket, Crown,
+    Eye, HeartHandshake, Lightbulb
 } from 'lucide-react';
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
@@ -30,21 +31,21 @@ const METHODOLOGY_STEPS = [
     { num: '04', title: 'Support', desc: 'Maintenance continue et ajustements post-lancement.' },
 ];
 
-const SKALIA_EXPERTISE = [
+const SKALIA_VALUES = [
     {
-        title: "Automatisation & Intégration",
-        desc: "Conception de systèmes complets qui connectent vos outils et optimisent vos processus de bout en bout.",
-        icon: <Zap size={24} />
+        title: "Transparence Totale",
+        desc: "Nous jouons cartes sur table. Pas de coûts cachés, pas de jargon technique inutile. Vous gardez la main sur vos systèmes.",
+        icon: <Eye size={24} />
     },
     {
-        title: "Agents IA sur mesure",
-        desc: "Développement d’agents intelligents capables de traiter vos tâches complexes comme de vrais collaborateurs.",
-        icon: <BrainCircuit size={24} />
+        title: "Partenariat Long Terme",
+        desc: "Nous ne sommes pas juste des exécutants. Nous nous positionnons comme votre pôle R&D externalisé pour vous accompagner dans la durée.",
+        icon: <HeartHandshake size={24} />
     },
     {
-        title: "Formation en entreprise",
-        desc: "Transmission des savoir-faire pour assurer l’adoption et l’utilisation optimale des solutions.",
-        icon: <Users size={24} />
+        title: "Innovation Pragmatique",
+        desc: "L'IA pour l'IA ne nous intéresse pas. Nous déployons des technologies avancées uniquement si elles apportent un ROI concret.",
+        icon: <Lightbulb size={24} />
     }
 ];
 
@@ -662,13 +663,13 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-3xl mx-auto mb-16">
-                        <h2 className="text-4xl font-bold text-slate-900 mb-6">L'expertise <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Skalia</span>.</h2>
+                        <h2 className="text-4xl font-bold text-slate-900 mb-6">Nos <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Valeurs</span>.</h2>
                         <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner clarté en automatisant leurs processus avec l’intelligence artificielle.</p>
                     </div>
                     
                     {/* CARTES VALEURS (ICONES COLORÉES) */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
-                        {SKALIA_EXPERTISE.map((item, i) => (
+                        {SKALIA_VALUES.map((item, i) => (
                             <div key={i} className="bg-slate-50 rounded-2xl p-8 border border-slate-100 hover:border-indigo-200 transition-all group hover:-translate-y-1 hover:shadow-lg duration-300">
                                 <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md mb-6 group-hover:scale-110 transition-transform group-hover:rotate-3">
                                     {item.icon}
@@ -679,30 +680,33 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         ))}
                     </div>
 
-                    {/* GRANDS VISUELS ÉQUIPE (RESTAURÉS) */}
-                    <div className="text-center mb-12">
-                        <h3 className="text-3xl font-bold text-slate-900">Une équipe dédiée à votre croissance</h3>
-                        <p className="text-slate-500 mt-2">Vos experts en automatisation.</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center justify-center max-w-4xl mx-auto">
-                        {AGENCY_TEAM.map((member, i) => (
-                            <div key={i} className="relative group overflow-hidden rounded-3xl h-[400px] w-full shadow-xl">
-                                <img 
-                                    src={member.img} 
-                                    alt={member.name} 
-                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 grayscale group-hover:grayscale-0" 
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent opacity-90 group-hover:opacity-80 transition-opacity"></div>
-                                <div className="absolute bottom-0 left-0 p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                                    <p className="text-white font-bold text-2xl mb-1">{member.name}</p>
-                                    <p className="text-indigo-300 font-medium text-lg flex items-center gap-2">
-                                        <div className="w-8 h-0.5 bg-indigo-500"></div>
-                                        {member.role}
-                                    </p>
-                                </div>
+                    {/* SECTION ÉQUIPE COMPACTE */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                        <div className="space-y-8">
+                            <h3 className="text-3xl font-bold text-slate-900">Une équipe dédiée à votre croissance</h3>
+                            <p className="text-slate-600 leading-relaxed text-lg">
+                                Derrière chaque automatisation se cachent des experts passionnés. Notre mission est de vous libérer des contraintes techniques pour que vous puissiez vous concentrer sur ce qui compte vraiment.
+                            </p>
+                            <div className="flex gap-4">
+                                {AGENCY_TEAM.map((member, i) => (
+                                    <div key={i} className="flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 pr-8 shadow-sm">
+                                        <img src={member.img} alt={member.name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" />
+                                        <div>
+                                            <p className="font-bold text-slate-900">{member.name}</p>
+                                            <p className="text-xs text-indigo-600 font-medium uppercase tracking-wide">{member.role}</p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                        </div>
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-[2.5rem] rotate-3 opacity-10"></div>
+                            <img 
+                                src="https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e208badeaae7b477b5ee4_Design%20sans%20titre%20(17).png" 
+                                alt="Skalia Team Work" 
+                                className="relative rounded-[2.5rem] shadow-2xl border border-slate-200 w-full object-cover h-[400px]"
+                            />
+                        </div>
                     </div>
                 </div>
             </section>
