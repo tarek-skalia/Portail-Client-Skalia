@@ -43,22 +43,25 @@ const SKALIA_KNOWHOW = [
     }
 ];
 
-// NOUVEAU CONTENU : VALEURS (Pour la section équipe)
+// NOUVEAU CONTENU : VALEURS AVEC COULEURS DISTINCTES
 const SKALIA_VALUES = [
     {
         label: "Réactivité",
-        color: "bg-slate-50 text-slate-700 border-slate-200",
-        icon: <Zap size={18} className="text-indigo-600" />
+        color: "bg-slate-50 text-slate-800 border-slate-200",
+        iconColor: "bg-amber-100 text-amber-600",
+        icon: <Zap size={18} />
     },
     {
         label: "Transparence",
-        color: "bg-slate-50 text-slate-700 border-slate-200",
-        icon: <Eye size={18} className="text-indigo-600" />
+        color: "bg-slate-50 text-slate-800 border-slate-200",
+        iconColor: "bg-blue-100 text-blue-600",
+        icon: <Eye size={18} />
     },
     {
         label: "Innovation",
-        color: "bg-slate-50 text-slate-700 border-slate-200",
-        icon: <Lightbulb size={18} className="text-indigo-600" />
+        color: "bg-slate-50 text-slate-800 border-slate-200",
+        iconColor: "bg-purple-100 text-purple-600",
+        icon: <Lightbulb size={18} />
     }
 ];
 
@@ -598,7 +601,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
                 <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10 w-full flex-1 flex flex-col justify-between py-12 md:py-16">
                     <div className="flex justify-between items-start animate-fade-in">
-                        <Logo className="w-12 h-12" classNameText="text-2xl" showText={true} />
+                        <Logo className="w-20 h-20" classNameText="text-4xl tracking-tighter" showText={true} />
                         <div className="text-right text-indigo-300/80 text-xs font-mono border border-white/10 px-3 py-1.5 rounded-lg bg-white/5 backdrop-blur-sm">
                             <p>REF: {quote.id.slice(0,8).toUpperCase()}</p>
                             <p>{new Date(quote.created_at).toLocaleDateString()}</p>
@@ -671,6 +674,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     <div className="bg-black/40 rounded-xl p-4 border border-white/10 font-mono text-[10px] space-y-1.5 text-indigo-200/80">
                                         <div className="flex gap-2"><span className="text-slate-500">[10:42:01]</span><span>Connecting to client API...</span></div>
                                         <div className="flex gap-2 text-emerald-400/80"><span className="text-slate-500">[10:42:02]</span><span>Connection established.</span></div>
+                                        <div className="flex gap-2 text-indigo-300/80"><span className="text-slate-500">[10:42:03]</span><span>Synchronizing data...</span></div>
                                     </div>
                                 </div>
                             </div>
@@ -736,12 +740,13 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         </div>
 
                         {/* COLONNE VALEURS (1/3) */}
-                        <div className="space-y-8 lg:pt-16">
+                        {/* Suppression du pt-16 pour aligner les titres */}
+                        <div className="space-y-8">
                             <h3 className="text-2xl font-bold text-slate-900 border-l-4 border-slate-900 pl-4">Nos valeurs</h3>
                             <div className="space-y-4">
                                 {SKALIA_VALUES.map((val, i) => (
                                     <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${val.color} bg-white shadow-sm hover:shadow-md`}>
-                                        <div className="p-2 rounded-lg bg-indigo-50">
+                                        <div className={`p-2 rounded-lg ${val.iconColor}`}>
                                             {val.icon}
                                         </div>
                                         <span className="font-bold text-lg text-slate-800">{val.label}</span>
@@ -763,7 +768,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             {/* SECTION METHODOLOGIE (DARK) */}
             <section className="py-24 bg-[#0F0A1F] text-white relative overflow-hidden">
                 <div className="max-w-7xl mx-auto px-6 relative z-10">
-                    <div className="text-center mb-16"><h2 className="text-3xl font-bold mb-4">Notre Méthodologie</h2><p className="text-indigo-300">Un processus clair en 4 étapes.</p></div>
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl md:text-4xl font-black mb-4 tracking-tight">Notre Méthodologie<span className="text-indigo-500">.</span></h2>
+                        <p className="text-indigo-300">Un processus clair en 4 étapes.</p>
+                    </div>
                     <div className="relative grid grid-cols-1 md:grid-cols-4 gap-8">
                         <div className="hidden md:block absolute top-8 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500/0 via-indigo-500 to-indigo-500/0 z-0"></div>
                         {METHODOLOGY_STEPS.map((step, i) => (
@@ -782,7 +790,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 <div className="max-w-5xl mx-auto px-6 relative z-10">
                     <div className="flex items-center gap-4 mb-12">
                         <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md border border-slate-100"><Target size={28} /></div>
-                        <div><h2 className="text-3xl font-bold text-slate-900">Le Projet</h2><p className="text-slate-500">Cadrage de la mission et objectifs.</p></div>
+                        <div>
+                            <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Le Projet<span className="text-indigo-500">.</span></h2>
+                            <p className="text-slate-500">Cadrage de la mission et objectifs.</p>
+                        </div>
                     </div>
                     <div className="bg-white rounded-[2rem] p-8 md:p-12 shadow-xl shadow-slate-100 border border-slate-100/80">
                         <RichDescription text={quote.description || "Aucune description détaillée."} />
@@ -793,7 +804,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             {/* SECTION PRIX - CONDITIONAL RENDERING */}
             <section className="py-24 bg-white shadow-[inset_0_20px_20px_-20px_rgba(0,0,0,0.05)]">
                 <div className="max-w-5xl mx-auto px-6">
-                    <div className="text-center mb-16"><h2 className="text-3xl font-bold text-slate-900 mb-4">Proposition Financière</h2></div>
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4 tracking-tight">Proposition Financière<span className="text-amber-400">.</span></h2>
+                    </div>
                     
                     {/* CONDITION D'AFFICHAGE DU PRIX */}
                     {isRetainer ? renderRetainerPricing() : renderStandardPricing()}
