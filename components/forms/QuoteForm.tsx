@@ -201,26 +201,38 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
           let finalProfileId: string | null = null;
           let finalLeadId: string | null = null;
           
+          // Variables pour stocker les infos du destinataire (que ce soit prospect ou client existant)
+          let finalRecipientEmail: string | null = null;
+          let finalRecipientName: string | null = null;
+          let finalRecipientCompany: string | null = null;
+
           if (clientMode === 'existing') {
               finalProfileId = cleanUuid(selectedClientId);
-              finalLeadId = null; 
+              finalLeadId = null;
+              
+              // RÉCUPÉRATION DES INFOS DU CLIENT EXISTANT POUR LES COPIER DANS LE DEVIS
+              // Cela permet d'avoir toujours les infos de contact dans la table quotes, même si le profil change ou RLS bloque
+              const existingClient = clients.find(c => c.id === selectedClientId);
+              if (existingClient) {
+                  finalRecipientEmail = existingClient.email;
+                  finalRecipientName = existingClient.name;
+                  finalRecipientCompany = existingClient.company;
+              }
           } else {
               finalProfileId = null; 
               finalLeadId = cleanUuid(selectedLeadId);
+              
+              finalRecipientEmail = prospectEmail;
+              finalRecipientName = prospectName;
+              finalRecipientCompany = prospectCompany;
           }
-
-          // Données Prospect
-          const isProspect = !finalProfileId;
-          const recipientEmail = isProspect ? prospectEmail : null;
-          const recipientName = isProspect ? prospectName : null;
-          const recipientCompany = isProspect ? prospectCompany : null;
 
           // Construction dynamique
           const basePayload: any = {
               profile_id: finalProfileId,
-              recipient_email: recipientEmail,
-              recipient_name: recipientName,
-              recipient_company: recipientCompany,
+              recipient_email: finalRecipientEmail, // IMPORTANT: Toujours rempli maintenant
+              recipient_name: finalRecipientName,
+              recipient_company: finalRecipientCompany,
               title: title || 'Devis sans titre',
               description,
               status: ['draft', 'sent', 'signed', 'rejected'].includes(status) ? status : 'draft',
@@ -357,6 +369,10 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
                         </select>
                         <Lock size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     </div>
+                    {/* INFO : On explique que l'email sera copié */}
+                    <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+                        <User size={12} /> Les informations du client (Email, Société) seront automatiquement copiées dans le devis pour la signature.
+                    </p>
                 </div>
             )}
 

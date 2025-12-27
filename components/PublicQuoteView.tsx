@@ -199,13 +199,24 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
             if (quoteError) throw quoteError;
 
+            // FALLBACK IMPORTANT : Si RLS bloque la lecture du profil mais qu'un ID est présent
+            if (quoteData.profile_id && !quoteData.profile) {
+                // Tentative de lecture directe au cas où (si le profil est public par exemple)
+                const { data: profileDirect } = await supabase.from('profiles').select('email, full_name, company_name').eq('id', quoteData.profile_id).single();
+                if (profileDirect) {
+                    quoteData.profile = profileDirect;
+                }
+            }
+
             const { data: itemsData } = await supabase.from('quote_items').select('*').eq('quote_id', quoteId);
 
             setQuote({ ...quoteData, items: itemsData || [] });
             
-            // On pré-remplit l'email au chargement avec gestion des formats
+            // Pré-remplissage sécurisé
+            // Priorité absolue : recipient_email (car copié par QuoteForm)
+            // Fallback : profile.email (si accessible)
             const profileData = Array.isArray(quoteData.profile) ? quoteData.profile[0] : quoteData.profile;
-            const targetEmail = profileData?.email || quoteData.recipient_email || '';
+            const targetEmail = quoteData.recipient_email || profileData?.email || '';
             setEmail(targetEmail);
 
             if (!hasTrackedRef.current && quoteData) {
@@ -231,7 +242,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     const getLockedEmail = () => {
         if (!quote) return null;
         const profileData = Array.isArray(quote.profile) ? quote.profile[0] : quote.profile;
-        return profileData?.email || quote.recipient_email || null;
+        // Priorité à recipient_email car il est toujours présent dans la table quotes grâce au fix
+        return quote.recipient_email || profileData?.email || null;
     };
 
     const lockedEmail = getLockedEmail();
@@ -242,11 +254,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setSignStep(1);
         setAuthError('');
         
-        // RE-FORCE LE PRE-REMPLISSAGE AU CLIC (pour s'assurer que le champ n'est pas vide)
-        if (quote) {
-            const profileData = Array.isArray(quote.profile) ? quote.profile[0] : quote.profile;
-            const targetEmail = profileData?.email || quote.recipient_email || '';
-            setEmail(targetEmail);
+        // RE-FORCE LE PRE-REMPLISSAGE AU CLIC
+        if (lockedEmail) {
+            setEmail(lockedEmail);
         }
     };
 
@@ -256,7 +266,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setAuthError('');
         setIsProcessing(true);
 
-        // VÉRIFICATION DE SÉCURITÉ : L'email saisi DOIT correspondre à l'email du devis
+        // VÉRIFICATION DE SÉCURITÉ STRICTE
         if (lockedEmail && email.toLowerCase().trim() !== lockedEmail.toLowerCase().trim()) {
             setAuthError(`Sécurité : Vous devez utiliser l'adresse email destinataire du devis (${lockedEmail}) pour signer.`);
             setIsProcessing(false);
