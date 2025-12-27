@@ -11,6 +11,9 @@ import {
 import Logo from './Logo';
 import { createClient } from '@supabase/supabase-js';
 
+// URL du Webhook N8N pour la facturation
+const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook/de8b8392-51b4-4a45-875e-f11c9b6a0f6e";
+
 const AGENCY_TEAM = [
     {
         name: 'Zakaria Jellouli',
@@ -200,8 +203,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
             setQuote({ ...quoteData, items: itemsData || [] });
             
-            // Si le devis a un email défini, on le pré-remplit mais on ne le verrouille pas totalement (l'utilisateur doit confirmer)
-            // Cependant, la logique OTP forcera à utiliser l'email qui reçoit le code.
+            // On pré-remplit l'email au chargement
             const targetEmail = quoteData.profile?.email || quoteData.recipient_email || '';
             setEmail(targetEmail);
 
@@ -228,6 +230,12 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setIsSigningModalOpen(true);
         setSignStep(1);
         setAuthError('');
+        
+        // RE-FORCE LE PRE-REMPLISSAGE AU CLIC (pour s'assurer que le champ n'est pas vide)
+        if (quote) {
+            const targetEmail = quote.profile?.email || quote.recipient_email || '';
+            setEmail(targetEmail);
+        }
     };
 
     // --- STEP 1: SEND OTP ---
@@ -323,23 +331,25 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             // 2. Création/MàJ du Profil
             const profileClient = supabase;
             
-            const profileData: any = {
-                id: userId,
-                email: email,
-                full_name: quote?.recipient_name || 'Client',
-                company_name: quote?.recipient_company || 'Société',
-                avatar_initials: (quote?.recipient_name || 'CL').substring(0,2).toUpperCase(),
-                role: 'client',
-                updated_at: new Date().toISOString()
-            };
-
-            // Pour un client existant qui signe, on force l'onboarding à terminé (4)
-            // Pour éviter qu'il retombe sur l'écran "Signature du Devis" de l'onboarding
             if (isExistingClient) {
-                profileData.onboarding_step = 4;
+                // CLIENT EXISTANT : On met juste à jour l'étape d'onboarding, on NE TOUCHE PAS aux noms/prénoms
+                await profileClient.from('profiles').update({
+                    onboarding_step: 4,
+                    updated_at: new Date().toISOString()
+                }).eq('id', userId);
+            } else {
+                // NOUVEAU PROSPECT : On crée le profil complet
+                const profileData: any = {
+                    id: userId,
+                    email: email,
+                    full_name: quote?.recipient_name || 'Client',
+                    company_name: quote?.recipient_company || 'Société',
+                    avatar_initials: (quote?.recipient_name || 'CL').substring(0,2).toUpperCase(),
+                    role: 'client',
+                    updated_at: new Date().toISOString()
+                };
+                await profileClient.from('profiles').upsert(profileData);
             }
-
-            await profileClient.from('profiles').upsert(profileData);
 
             // 3. Constitution de la Preuve Juridique (Audit Trail)
             const auditTrail = {
@@ -380,6 +390,106 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     created_at: new Date().toISOString()
                 }));
                 await supabase.from('client_subscriptions').insert(subscriptionsPayload);
+            }
+
+            // --- TRIGGER N8N POUR CLIENTS EXISTANTS (SKIP ONBOARDING) ---
+            if (isExistingClient) {
+                // On récupère les infos de facturation complètes du profil pour le payload
+                const { data: fullProfile } = await supabase.from('profiles').select('*').eq('id', userId).single();
+                
+                if (fullProfile) {
+                    const clientPayload = {
+                        email: fullProfile.email || email,
+                        name: fullProfile.full_name || quote?.recipient_name,
+                        company: fullProfile.company_name || quote?.recipient_company,
+                        supabase_user_id: userId,
+                        vat_number: fullProfile.vat_number || '',
+                        phone: fullProfile.phone || '',
+                        address_line1: fullProfile.address || '',
+                        // Fallback champs vides si l'adresse est unifiée
+                        address_postal_code: '', 
+                        address_city: '',
+                        address_country: ''
+                    };
+
+                    const taxRate = quote?.payment_terms?.tax_rate || 0;
+                    const isRetainer = quote?.payment_terms?.quote_type === 'retainer';
+
+                    if (isRetainer) {
+                        // On récupère l'abonnement qu'on vient de créer
+                        const { data: subs } = await supabase.from('client_subscriptions')
+                            .select('*')
+                            .eq('user_id', userId)
+                            .eq('status', 'pending')
+                            .order('created_at', { ascending: false }) // Le plus récent
+                            .limit(1);
+                        
+                        const subscription = subs && subs.length > 0 ? subs[0] : null;
+
+                        if (subscription) {
+                            const n8nPayload = {
+                                mode: 'subscription_start',
+                                client: clientPayload,
+                                subscription: {
+                                    id: subscription.id,
+                                    name: subscription.service_name,
+                                    amount: subscription.amount,
+                                    interval: subscription.billing_cycle === 'monthly' ? 'month' : 'year',
+                                    currency: 'eur',
+                                    tax_rate: taxRate,
+                                    price_includes_tax: false
+                                }
+                            };
+
+                            // Envoi N8N Fire & Forget
+                            await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
+                                method: 'POST',
+                                mode: 'no-cors',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(n8nPayload)
+                            });
+
+                            // Activation locale immédiate car on suppose que N8N fera le job
+                            await supabase.from('client_subscriptions')
+                                .update({ status: 'active', start_date: new Date().toISOString() })
+                                .eq('id', subscription.id);
+                        }
+                    } else {
+                        // Projet Standard (One-Shot Invoice)
+                        const invoiceItems = quote?.items.filter(i => i.billing_frequency === 'once') || [];
+                        if (invoiceItems.length > 0) {
+                            const invoiceAmount = invoiceItems.reduce((acc, item) => acc + (item.unit_price * item.quantity), 0);
+                            const totalWithTax = invoiceAmount * (1 + taxRate / 100);
+                            
+                            const issueDateStr = new Date().toISOString().split('T')[0];
+                            const dueDateObj = new Date();
+                            dueDateObj.setDate(dueDateObj.getDate() + 7);
+                            const dueDateStr = dueDateObj.toISOString().split('T')[0];
+
+                            const n8nPayload = {
+                                client: clientPayload,
+                                invoice: {
+                                    projectName: quote?.title,
+                                    issueDate: issueDateStr,
+                                    dueDate: dueDateStr,
+                                    amount: totalWithTax,
+                                    quote_id: quote?.id,
+                                    currency: 'eur',
+                                    tax_rate: taxRate,
+                                    status: 'pending'
+                                },
+                                items: invoiceItems
+                            };
+
+                            await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
+                                method: 'POST',
+                                mode: 'no-cors',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(n8nPayload)
+                            });
+                        }
+                    }
+                }
             }
 
             // 6. Update CRM Status (si lié)
