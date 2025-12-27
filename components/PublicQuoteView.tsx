@@ -73,7 +73,7 @@ const METHODOLOGY_STEPS = [
     { num: '04', title: 'Support', desc: 'Maintenance continue et ajustements post-lancement.' },
 ];
 
-const formatCurrency = (val: number) => val.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const formatCurrency = (val: number) => val.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const RichDescription: React.FC<{ text: string }> = ({ text }) => {
     if (!text) return <p className="text-slate-500 italic">Aucune description détaillée.</p>;
