@@ -204,7 +204,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             setQuote({ ...quoteData, items: itemsData || [] });
             
             // On pré-remplit l'email au chargement
-            const targetEmail = quoteData.profile?.email || quoteData.recipient_email || '';
+            const profileData = Array.isArray(quoteData.profile) ? quoteData.profile[0] : quoteData.profile;
+            const targetEmail = profileData?.email || quoteData.recipient_email || '';
             setEmail(targetEmail);
 
             if (!hasTrackedRef.current && quoteData) {
@@ -233,7 +234,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         
         // RE-FORCE LE PRE-REMPLISSAGE AU CLIC (pour s'assurer que le champ n'est pas vide)
         if (quote) {
-            const targetEmail = quote.profile?.email || quote.recipient_email || '';
+            const profileData = Array.isArray(quote.profile) ? quote.profile[0] : quote.profile;
+            const targetEmail = profileData?.email || quote.recipient_email || '';
             setEmail(targetEmail);
         }
     };
@@ -245,7 +247,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setIsProcessing(true);
 
         // VÉRIFICATION DE SÉCURITÉ : L'email saisi DOIT correspondre à l'email du devis
-        const requiredEmail = quote?.profile?.email || quote?.recipient_email;
+        const profileData = Array.isArray(quote?.profile) ? quote?.profile[0] : quote?.profile;
+        const requiredEmail = profileData?.email || quote?.recipient_email;
+        
         if (requiredEmail && email.toLowerCase().trim() !== requiredEmail.toLowerCase().trim()) {
             setAuthError(`Sécurité : Vous devez utiliser l'adresse email destinataire du devis (${requiredEmail}) pour signer.`);
             setIsProcessing(false);
@@ -541,6 +545,11 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     
     // Détection si client existant pour le mode affichage
     const isExistingClient = !!quote.profile_id;
+    
+    // Détermination de l'email verrouillé
+    const profileData = Array.isArray(quote.profile) ? quote.profile[0] : quote.profile;
+    const fixedEmail = profileData?.email || quote.recipient_email;
+    const isEmailLocked = !!fixedEmail;
 
     // --- RENDERERS ---
     const renderStandardPricing = () => (
@@ -931,13 +940,18 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Email Professionnel</label>
                                         <div className="relative">
-                                            <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                            {isEmailLocked ? <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" /> : <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />}
                                             <input 
                                                 type="email" 
                                                 required 
                                                 value={email} 
+                                                readOnly={isEmailLocked}
                                                 onChange={e => setEmail(e.target.value)} 
-                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800" 
+                                                className={`w-full pl-12 pr-4 py-3.5 border rounded-xl outline-none text-sm font-bold transition-all ${
+                                                    isEmailLocked 
+                                                    ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed focus:ring-0' 
+                                                    : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-2 focus:ring-indigo-500'
+                                                }`}
                                                 placeholder="nom@entreprise.com" 
                                             />
                                         </div>
@@ -953,7 +967,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 <form onSubmit={handleVerifyOtp} className="space-y-5">
                                     <div className="text-center mb-4">
                                         <p className="text-sm font-medium text-slate-600">Code envoyé à <strong className="text-slate-900">{email}</strong></p>
-                                        <button type="button" onClick={() => setSignStep(1)} className="text-xs text-indigo-500 underline mt-1">Modifier l'email</button>
+                                        {!isEmailLocked && <button type="button" onClick={() => setSignStep(1)} className="text-xs text-indigo-500 underline mt-1">Modifier l'email</button>}
                                     </div>
                                     
                                     <div>
