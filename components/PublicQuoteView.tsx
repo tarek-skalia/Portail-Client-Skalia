@@ -203,7 +203,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
             setQuote({ ...quoteData, items: itemsData || [] });
             
-            // On pré-remplit l'email au chargement
+            // On pré-remplit l'email au chargement avec gestion des formats
             const profileData = Array.isArray(quoteData.profile) ? quoteData.profile[0] : quoteData.profile;
             const targetEmail = profileData?.email || quoteData.recipient_email || '';
             setEmail(targetEmail);
@@ -227,6 +227,16 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         }
     };
 
+    // Calcul si l'email est verrouillé
+    const getLockedEmail = () => {
+        if (!quote) return null;
+        const profileData = Array.isArray(quote.profile) ? quote.profile[0] : quote.profile;
+        return profileData?.email || quote.recipient_email || null;
+    };
+
+    const lockedEmail = getLockedEmail();
+    const isEmailLocked = !!lockedEmail;
+
     const handleOpenSignModal = () => {
         setIsSigningModalOpen(true);
         setSignStep(1);
@@ -247,11 +257,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setIsProcessing(true);
 
         // VÉRIFICATION DE SÉCURITÉ : L'email saisi DOIT correspondre à l'email du devis
-        const profileData = Array.isArray(quote?.profile) ? quote?.profile[0] : quote?.profile;
-        const requiredEmail = profileData?.email || quote?.recipient_email;
-        
-        if (requiredEmail && email.toLowerCase().trim() !== requiredEmail.toLowerCase().trim()) {
-            setAuthError(`Sécurité : Vous devez utiliser l'adresse email destinataire du devis (${requiredEmail}) pour signer.`);
+        if (lockedEmail && email.toLowerCase().trim() !== lockedEmail.toLowerCase().trim()) {
+            setAuthError(`Sécurité : Vous devez utiliser l'adresse email destinataire du devis (${lockedEmail}) pour signer.`);
             setIsProcessing(false);
             return;
         }
@@ -545,11 +552,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
     
     // Détection si client existant pour le mode affichage
     const isExistingClient = !!quote.profile_id;
-    
-    // Détermination de l'email verrouillé
-    const profileData = Array.isArray(quote.profile) ? quote.profile[0] : quote.profile;
-    const fixedEmail = profileData?.email || quote.recipient_email;
-    const isEmailLocked = !!fixedEmail;
 
     // --- RENDERERS ---
     const renderStandardPricing = () => (
