@@ -52,6 +52,28 @@ const GlobalQuotes: React.FC = () => {
       toast.success("Lien copié", "Lien public du devis dans le presse-papier.");
   };
 
+  // NOUVELLE FONCTION : Passer en "Envoyé"
+  const handleMarkAsSent = async (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      try {
+          const { error } = await supabase
+              .from('quotes')
+              .update({ 
+                  status: 'sent', 
+                  updated_at: new Date().toISOString() 
+              })
+              .eq('id', id);
+
+          if (error) throw error;
+          
+          toast.success("Statut mis à jour", "Le devis est marqué comme 'Envoyé'. L'automatisation va se déclencher.");
+          fetchQuotes(); // Rafraichissement immédiat
+      } catch (err) {
+          console.error(err);
+          toast.error("Erreur", "Impossible de mettre à jour le statut.");
+      }
+  };
+
   const getStatusBadge = (status: string) => {
       switch (status) {
           case 'draft': return <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded text-xs font-bold border border-slate-200 flex items-center gap-1"><Clock size={10} /> Brouillon</span>;
@@ -173,12 +195,23 @@ const GlobalQuotes: React.FC = () => {
                                     {subText && (
                                         <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-100 text-[10px] font-bold text-indigo-600">
                                             <RefreshCw size={10} />
-                                            {subText}
+                                            <span>{subText}</span>
                                         </div>
                                     )}
                                 </div>
 
                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {/* BOUTON RAPIDE : ENVOYER (Uniquement si Draft) */}
+                                    {quote.status === 'draft' && (
+                                        <button 
+                                            onClick={(e) => handleMarkAsSent(e, quote.id)}
+                                            className="p-2 text-blue-600 hover:text-white hover:bg-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:shadow-md transition-all group/send"
+                                            title="Marquer comme Envoyé (Déclenche l'envoi)"
+                                        >
+                                            <Send size={16} className="group-hover/send:translate-x-0.5 group-hover/send:-translate-y-0.5 transition-transform" />
+                                        </button>
+                                    )}
+
                                     <button onClick={() => handleCopyLink(quote.id)} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Copier lien public"><Copy size={16} /></button>
                                     <a href={`/?quote_id=${quote.id}`} target="_blank" className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Voir"><ExternalLink size={16} /></a>
                                     <button onClick={() => { setEditingQuote(quote); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all" title="Modifier"><Edit3 size={16} /></button>
