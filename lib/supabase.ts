@@ -71,6 +71,7 @@ export interface Database {
           recipient_email: string | null
           recipient_name: string | null
           recipient_company: string | null
+          sender_name: string | null
           title: string
           description: string | null
           status: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid'
@@ -88,6 +89,7 @@ export interface Database {
           recipient_email?: string | null
           recipient_name?: string | null
           recipient_company?: string | null
+          sender_name?: string | null
           title: string
           description?: string | null
           status?: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid'
@@ -105,6 +107,7 @@ export interface Database {
           recipient_email?: string | null
           recipient_name?: string | null
           recipient_company?: string | null
+          sender_name?: string | null
           title?: string
           description?: string | null
           status?: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid'

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
-import { Plus, Trash2, Calculator, Save, User, FileText, Calendar, Lock, Users, UserPlus, RefreshCw, Layers, DollarSign, MapPin, Hash, Percent, Clock, Briefcase, Infinity } from 'lucide-react';
+import { Plus, Trash2, Calculator, Save, User, FileText, Calendar, Lock, Users, UserPlus, RefreshCw, Layers, DollarSign, MapPin, Hash, Percent, Clock, Briefcase, Infinity, UserCircle } from 'lucide-react';
 import { Lead } from '../../types';
 
 interface QuoteFormProps {
@@ -58,6 +58,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
   const [validUntil, setValidUntil] = useState('');
   const [deliveryDelay, setDeliveryDelay] = useState('');
   const [taxRate, setTaxRate] = useState<number>(0); 
+  const [senderName, setSenderName] = useState('Tarek Zreik'); // NOUVEAU
   
   // Items
   const [items, setItems] = useState([
@@ -85,6 +86,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
           setDescription(initialData.description || initialData.notes || '');
           setStatus(['draft', 'sent', 'signed', 'rejected'].includes(initialData.status) ? initialData.status : 'draft');
           setDeliveryDelay(initialData.delivery_delay || '');
+          setSenderName(initialData.sender_name || 'Tarek Zreik'); // Init Sender
           
           if (initialData.valid_until) {
               setValidUntil(initialData.valid_until.split('T')[0]);
@@ -233,6 +235,7 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
               recipient_email: finalRecipientEmail, // IMPORTANT: Toujours rempli maintenant
               recipient_name: finalRecipientName,
               recipient_company: finalRecipientCompany,
+              sender_name: senderName, // NOUVEAU
               title: title || 'Devis sans titre',
               description,
               status: ['draft', 'sent', 'signed', 'rejected'].includes(status) ? status : 'draft',
@@ -327,6 +330,21 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
             >
                 <Infinity size={16} /> Accompagnement (Abonnement)
             </button>
+        </div>
+
+        {/* NOUVEAU: SÉLECTION ÉMETTEUR (Placé avant la sélection client pour le contexte) */}
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-2">
+                <UserCircle size={14} /> Responsable / Émetteur du devis
+            </label>
+            <select
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+                <option value="Tarek Zreik">Tarek Zreik</option>
+                <option value="Zakaria Jellouli">Zakaria Jellouli</option>
+            </select>
         </div>
 
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">

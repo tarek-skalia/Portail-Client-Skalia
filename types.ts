@@ -240,6 +240,7 @@ export interface Quote {
     recipient_email?: string;
     recipient_name?: string;
     recipient_company?: string;
+    sender_name?: string; // NOUVEAU CHAMP
     
     title: string;
     description: string;
