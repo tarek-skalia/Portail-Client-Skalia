@@ -73,6 +73,7 @@ const METHODOLOGY_STEPS = [
     { num: '04', title: 'Support', desc: 'Maintenance continue et ajustements post-lancement.' },
 ];
 
+// FIX: Force l'affichage de 2 décimales (ex: 3 021,37 €)
 const formatCurrency = (val: number) => val.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const RichDescription: React.FC<{ text: string }> = ({ text }) => {
