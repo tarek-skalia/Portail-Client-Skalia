@@ -403,6 +403,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         name: fullProfile.full_name || quote?.recipient_name,
                         company: fullProfile.company_name || quote?.recipient_company,
                         supabase_user_id: userId,
+                        stripe_customer_id: fullProfile.stripe_customer_id || null, // ADDED HERE
                         vat_number: fullProfile.vat_number || '',
                         phone: fullProfile.phone || '',
                         address_line1: fullProfile.address || '',
