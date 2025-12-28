@@ -5,14 +5,14 @@ import Logo from './Logo';
 import { 
     Check, Crown, Timer, Rocket, ChevronLeft, ArrowDown, Cpu, Terminal, 
     CheckCircle2, Activity, Server, Zap, ShieldCheck, PenTool, Loader2, 
-    Lock, Mail, Key, Fingerprint, AlertCircle, ArrowRight
+    Lock, Mail, Key, Fingerprint, AlertCircle, ArrowRight, GraduationCap
 } from 'lucide-react';
 
 // Constants
 const SKALIA_KNOWHOW = [
-    { icon: <Cpu size={24} />, title: "Automation", desc: "Optimisation des processus métiers." },
-    { icon: <Zap size={24} />, title: "AI Integration", desc: "Solutions d'intelligence artificielle sur mesure." },
-    { icon: <Activity size={24} />, title: "Performance", desc: "Suivi et amélioration continue des KPIs." }
+    { icon: <Cpu size={24} />, title: "Automatisation & intégration avancée", desc: "Conception de systèmes complets qui connectent vos outils et optimisent vos processus de bout en bout." },
+    { icon: <Zap size={24} />, title: "Agents IA sur mesure", desc: "Développement d’agents intelligents capables de traiter vos tâches complexes comme de vrais collaborateurs digitaux." },
+    { icon: <GraduationCap size={24} />, title: "Formation en entreprise", desc: "Transmission des savoir-faire pour assurer l’adoption et l’utilisation optimale des solutions." }
 ];
 
 const AGENCY_TEAM = [
@@ -461,7 +461,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-4xl mx-auto mb-16">
                         <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6 tracking-tight">Skalia.</h2>
-                        <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise spécialisée dans l'automatisation et l'intelligence artificielle, nous transformons vos processus complexes en systèmes fluides et autonomes.</p>
+                        <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise, Skalia aide les entreprises à supprimer les tâches répétitives et gagner clarté en automatisant leurs processus avec l’intelligence artificielle. Notre approche pragmatique et sur mesure transforme la complexité en solutions simples, eﬃcaces et orientées résultats.</p>
                     </div>
                     <div className="text-center mb-10"><h3 className="text-2xl font-bold text-slate-900 flex items-center justify-center gap-3"><span className="w-8 h-1 bg-slate-900 rounded-full"></span>Savoir-faire</h3></div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
