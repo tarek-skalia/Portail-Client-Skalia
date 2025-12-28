@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { 
@@ -926,6 +925,13 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Conditions de démarrage</p>
                                 <p className="text-base text-slate-800">{termsType === '100_percent' ? '100% à la commande' : termsType === '50_50' ? 'Acompte 50% à la commande' : 'Acompte 30% à la commande'}</p>
                             </div>
+                            {/* Inserted Delivery Delay Here */}
+                            {quote.delivery_delay && (
+                                <div className="text-center">
+                                    <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Délai de livraison estimé</p>
+                                    <p className="text-base text-slate-800">{quote.delivery_delay}</p>
+                                </div>
+                            )}
                             <div className="text-center md:text-right">
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total à régler maintenant (TTC)</p>
                                 <p className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">{formatCurrency(totalDueNowTTC)}</p>
