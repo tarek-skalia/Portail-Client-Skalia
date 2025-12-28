@@ -460,7 +460,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     interval: subscription.billing_cycle === 'monthly' ? 'month' : 'year',
                                     currency: 'eur',
                                     tax_rate: taxRate,
-                                    price_includes_tax: false
+                                    price_includes_tax: false,
+                                    duration: quote?.delivery_delay || 'Indéterminée' // AJOUT DEMANDÉ
                                 }
                             };
 
@@ -785,10 +786,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 </div>
                             </div>
                             
-                            {/* --- HERO CARD --- */}
+                            {/* --- HERO CARD (RESTAURÉ) --- */}
                             <div className="hidden lg:flex justify-end animate-fade-in-up delay-200 relative perspective-1000">
                                 <div className="relative w-96 h-[500px] bg-gradient-to-br from-[#1E1B2E] to-[#141220] border border-white/10 rounded-3xl p-8 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group flex flex-col gap-6 overflow-hidden">
-                                    {/* ... (Hero Card Content Unchanged) ... */}
                                     <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent rounded-3xl pointer-events-none"></div>
                                     <div className="flex items-center justify-between border-b border-white/10 pb-6 shrink-0">
                                         <div className="flex items-center gap-4">
@@ -806,6 +806,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                             <div className="flex items-center gap-3"><Terminal size={12} className="text-slate-500 shrink-0" /><p className="text-slate-400">Initializing core modules...</p></div>
                                             <div className="flex items-center gap-3"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /><p className="text-white">AI Models loaded successfully</p></div>
                                             <div className="flex items-center gap-3"><Activity size={12} className="text-indigo-400 shrink-0" /><p className="text-indigo-100">Connecting to API Gateway...</p></div>
+                                            <div className="flex items-center gap-3"><Server size={12} className="text-purple-400 shrink-0" /><p className="text-purple-200">Database synchronization...</p></div>
                                         </div>
                                     </div>
                                 </div>
@@ -820,7 +821,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-4xl mx-auto mb-16">
                         <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6 tracking-tight">Skalia.</h2>
-                        <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise...</p>
+                        <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise spécialisée dans l'automatisation et l'intelligence artificielle, nous transformons vos processus complexes en systèmes fluides et autonomes.</p>
                     </div>
                     {/* ... (Grid Savoir-faire, Team, Values) ... */}
                     <div className="text-center mb-10"><h3 className="text-2xl font-bold text-slate-900 flex items-center justify-center gap-3"><span className="w-8 h-1 bg-slate-900 rounded-full"></span>Savoir-faire</h3></div>
@@ -832,6 +833,43 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 <p className="text-slate-500 leading-relaxed">{item.desc}</p>
                             </div>
                         ))}
+                    </div>
+
+                    {/* TEAM & VALUES (Restauré) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                        {/* TEAM */}
+                        <div>
+                            <h3 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3"><span className="w-8 h-1 bg-slate-900 rounded-full"></span>L'Équipe</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {AGENCY_TEAM.map((member, i) => (
+                                    <div key={i} className="group relative overflow-hidden rounded-2xl aspect-[4/5] shadow-lg">
+                                        <img src={member.img} alt={member.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end p-6">
+                                            <p className="text-white font-bold text-lg">{member.name}</p>
+                                            <p className="text-indigo-300 text-sm font-medium">{member.role}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* VALUES */}
+                        <div className="h-full flex flex-col justify-center">
+                            <h3 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3"><span className="w-8 h-1 bg-slate-900 rounded-full"></span>Nos Valeurs</h3>
+                            <div className="space-y-6">
+                                {SKALIA_VALUES.map((val, i) => (
+                                    <div key={i} className={`p-6 rounded-2xl border flex items-center gap-6 shadow-sm transition-all hover:shadow-md ${val.color}`}>
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${val.iconColor}`}>
+                                            {val.icon}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-lg mb-1">{val.label}</h4>
+                                            <p className="text-sm opacity-80">Un engagement fort pour votre réussite.</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
