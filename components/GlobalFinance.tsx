@@ -122,6 +122,7 @@ const GlobalFinance: React.FC = () => {
               startDate: sub.start_date,
               nextBillingDate: sub.next_billing_date,
               stripeSubscriptionId: sub.stripe_subscription_id,
+              taxRate: sub.tax_rate || 0, // Récupération du taux stocké
               createdAt: sub.created_at
           }));
 
@@ -143,17 +144,27 @@ const GlobalFinance: React.FC = () => {
       
       if (!profile) throw new Error("Profil client introuvable pour notification N8N");
 
+      // Détermination intelligente du MODE (Création vs Update/Resume)
+      // Si on demande d'activer et qu'on n'a pas d'ID Stripe => C'est une création
+      // Sinon => C'est une mise à jour de statut (resume, pause, cancel)
+      let mode = 'update_status';
+      if (targetStatus === 'active' && !sub.stripeSubscriptionId) {
+          mode = 'subscription_start'; // Le même mot clé que lors de la signature du devis
+      }
+
       const payload = {
-          action: 'update_status', // Action standardisée pour le switch N8N
+          mode: mode, // Indicateur crucial pour le switch N8N
+          action: 'update_status', // Rétro-compatibilité si le switch n'utilise pas encore "mode"
           target_status: targetStatus,
           subscription: {
               id: sub.id,
-              name: sub.service_name || sub.serviceName, // Support des deux formats (raw DB ou mappé)
+              name: sub.service_name || sub.serviceName, 
               amount: sub.amount,
               interval: (sub.billing_cycle || sub.billingCycle) === 'monthly' ? 'month' : 'year',
               currency: sub.currency || 'eur',
               status: sub.status, // Ancien statut
-              tax_rate: taxRate // Ajout du taux de TVA pour la création
+              stripe_id: sub.stripeSubscriptionId, // Pour que N8N sache quoi reprendre
+              tax_rate: sub.taxRate || taxRate // Utilisation de la valeur stockée ou passée
           },
           client: {
               email: profile.email,
@@ -211,7 +222,7 @@ const GlobalFinance: React.FC = () => {
           amount: sub.amount,
           billingCycle: sub.billingCycle,
           status: sub.status,
-          taxRate: 0 // Valeur par défaut car non stockée en base pour l'instant
+          taxRate: sub.taxRate || 0 // Pré-remplir avec la valeur stockée
       });
       setIsSubModalOpen(true);
   };
@@ -226,6 +237,7 @@ const GlobalFinance: React.FC = () => {
               amount: subFormData.amount,
               billing_cycle: subFormData.billingCycle,
               status: subFormData.status,
+              tax_rate: subFormData.taxRate, // Sauvegarde en base
               currency: 'EUR'
           };
 
@@ -249,10 +261,15 @@ const GlobalFinance: React.FC = () => {
           }
 
           // LOGIQUE N8N CRÉATION MANUELLE
-          // Si le statut choisi n'est PAS pending, on envoie le webhook immédiatement.
           if (savedSub && subFormData.status !== 'pending') {
               try {
-                  await triggerN8NStatusUpdate(savedSub, subFormData.status, subFormData.clientId, subFormData.taxRate);
+                  // On passe l'objet mappé pour respecter la structure attendue par triggerN8NStatusUpdate
+                  const mappedSub = {
+                      ...savedSub,
+                      stripeSubscriptionId: savedSub.stripe_subscription_id,
+                      taxRate: savedSub.tax_rate
+                  };
+                  await triggerN8NStatusUpdate(mappedSub, subFormData.status, subFormData.clientId, subFormData.taxRate);
                   toast.info("Synchro N8N", `Envoi de la demande de statut : ${subFormData.status}`);
               } catch (n8nError) {
                   console.error("Erreur N8N Creation", n8nError);
@@ -282,8 +299,8 @@ const GlobalFinance: React.FC = () => {
       setProcessingSubId(sub.id);
 
       try {
-          // 1. Déclenchement N8N
-          // Pour un changement de statut, on n'a pas besoin de passer la TVA (gérée par Stripe ou déjà configurée)
+          // 1. Déclenchement N8N Intelligent
+          // On passe l'objet complet qui contient déjà le taxRate (grâce au fetchSubscriptions)
           await triggerN8NStatusUpdate(sub, newStatus, sub.clientId);
 
           // 2. Mise à jour Locale Supabase

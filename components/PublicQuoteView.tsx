@@ -403,6 +403,9 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             const isRetainerQuote = quote?.payment_terms?.quote_type === 'retainer';
             const recurringItems = quote?.items.filter(i => i.billing_frequency !== 'once') || [];
             
+            // TAX RATE HANDLING : On récupère le taux du devis
+            const taxRate = quote?.payment_terms?.tax_rate || 0;
+
             if (recurringItems.length > 0) {
                 const subscriptionsPayload = recurringItems.map((item: any) => ({
                     user_id: userId,
@@ -412,6 +415,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     billing_cycle: item.billing_frequency,
                     status: isRetainerQuote ? 'active' : 'pending', // <--- CHANGEMENT ICI
                     start_date: isRetainerQuote ? new Date().toISOString() : null, // Date de début immédiate
+                    tax_rate: taxRate, // <--- SAUVEGARDE DU TAUX DE TVA
                     created_at: new Date().toISOString()
                 }));
                 await supabase.from('client_subscriptions').insert(subscriptionsPayload);
@@ -437,8 +441,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         address_city: '',
                         address_country: ''
                     };
-
-                    const taxRate = quote?.payment_terms?.tax_rate || 0;
 
                     if (isRetainerQuote) {
                         // On récupère l'abonnement qu'on vient de créer

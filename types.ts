@@ -163,6 +163,7 @@ export interface ClientSubscription {
   startDate?: string;
   nextBillingDate?: string;
   stripeSubscriptionId?: string;
+  taxRate?: number; // Nouveau : Pour stocker la TVA lors de la création
   createdAt: string;
 }
 
@@ -226,6 +227,7 @@ export interface QuotePaymentTerms {
     deposit_percentage?: number;
     custom_label?: string;
     tax_rate?: number;
+    quote_type?: 'project' | 'retainer';
     billing_address?: string;
     vat_number?: string;
     audit_trail?: any;
