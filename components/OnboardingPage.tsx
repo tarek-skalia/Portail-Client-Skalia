@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Client, Quote, ClientSubscription } from '../types';
@@ -164,9 +165,9 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
               client: clientPayload,
               subscription: subscription ? {
                   id: subscription.id,
-                  name: subscription.service_name,
+                  name: subscription.serviceName, // CORRECTION: serviceName au lieu de service_name
                   amount: subscription.amount,
-                  interval: subscription.billing_cycle === 'monthly' ? 'month' : 'year',
+                  interval: subscription.billingCycle === 'monthly' ? 'month' : 'year', // CORRECTION: billingCycle
                   currency: 'eur',
                   tax_rate: taxRate, 
                   price_includes_tax: false,
