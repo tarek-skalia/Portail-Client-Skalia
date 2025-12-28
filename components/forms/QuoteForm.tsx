@@ -459,13 +459,16 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
             </div>
             
             <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12} /> Délai Livraison</label>
+                {/* CHANGEMENT DYNAMIQUE DU LABEL ICI */}
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                    <Clock size={12} /> {quoteType === 'retainer' ? 'Durée du contrat' : 'Délai Livraison'}
+                </label>
                 <input 
                     type="text" 
                     value={deliveryDelay} 
                     onChange={e => setDeliveryDelay(e.target.value)} 
                     className="w-full px-3 py-2 border rounded-lg outline-none text-sm"
-                    placeholder={quoteType === 'retainer' ? "Immédiat" : "Ex: 3 semaines"}
+                    placeholder={quoteType === 'retainer' ? "Ex: 6 mois renouvelable" : "Ex: 3 semaines"}
                 />
             </div>
             <div>
