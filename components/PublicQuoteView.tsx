@@ -399,7 +399,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             if (signError) throw signError;
 
             // 5. Création des abonnements si nécessaire (Recurring Items)
+            // MODIF : Statut Active immédiat pour Retainer
+            const isRetainerQuote = quote?.payment_terms?.quote_type === 'retainer';
             const recurringItems = quote?.items.filter(i => i.billing_frequency !== 'once') || [];
+            
             if (recurringItems.length > 0) {
                 const subscriptionsPayload = recurringItems.map((item: any) => ({
                     user_id: userId,
@@ -407,7 +410,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     amount: item.unit_price * item.quantity,
                     currency: 'EUR',
                     billing_cycle: item.billing_frequency,
-                    status: 'pending',
+                    status: isRetainerQuote ? 'active' : 'pending', // <--- CHANGEMENT ICI
+                    start_date: isRetainerQuote ? new Date().toISOString() : null, // Date de début immédiate
                     created_at: new Date().toISOString()
                 }));
                 await supabase.from('client_subscriptions').insert(subscriptionsPayload);
@@ -435,14 +439,13 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     };
 
                     const taxRate = quote?.payment_terms?.tax_rate || 0;
-                    const isRetainer = quote?.payment_terms?.quote_type === 'retainer';
 
-                    if (isRetainer) {
+                    if (isRetainerQuote) {
                         // On récupère l'abonnement qu'on vient de créer
+                        // AJUSTEMENT : On ne filtre plus par 'pending' car il est potentiellement 'active'
                         const { data: subs } = await supabase.from('client_subscriptions')
                             .select('*')
                             .eq('user_id', userId)
-                            .eq('status', 'pending')
                             .order('created_at', { ascending: false }) // Le plus récent
                             .limit(1);
                         
@@ -471,10 +474,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 body: JSON.stringify(n8nPayload)
                             });
 
-                            // Activation locale immédiate car on suppose que N8N fera le job
-                            await supabase.from('client_subscriptions')
-                                .update({ status: 'active', start_date: new Date().toISOString() })
-                                .eq('id', subscription.id);
+                            // L'abonnement est déjà activé à l'insertion (étape 5), pas besoin d'update
                         }
                     } else {
                         // Projet Standard (One-Shot Invoice)

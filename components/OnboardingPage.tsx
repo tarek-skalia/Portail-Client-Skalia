@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
@@ -245,8 +244,13 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
 
               // --- LOGIQUE DISTINCTE : RETAINER VS PROJET ---
               if (isRetainer) {
-                  // Récupération de l'abonnement en attente créé à la signature
-                  const { data: subs } = await supabase.from('client_subscriptions').select('*').eq('user_id', currentUser.id).eq('status', 'pending').limit(1);
+                  // Récupération de l'abonnement le plus récent (peut être déjà active ou pending)
+                  const { data: subs } = await supabase.from('client_subscriptions')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                  
                   const subscription = subs && subs.length > 0 ? subs[0] : null;
 
                   const n8nPayload = {
@@ -272,8 +276,10 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ currentUser, onComplete
                           body: JSON.stringify(n8nPayload)
                       });
                       
-                      // Activation locale immédiate
-                      await supabase.from('client_subscriptions').update({ status: 'active', start_date: new Date().toISOString() }).eq('id', subscription.id);
+                      // Si l'abonnement était en pending, on le passe en active. S'il est déjà active, c'est sans effet (idempotent).
+                      if (subscription.status !== 'active') {
+                          await supabase.from('client_subscriptions').update({ status: 'active', start_date: new Date().toISOString() }).eq('id', subscription.id);
+                      }
                   }
 
               } else {
