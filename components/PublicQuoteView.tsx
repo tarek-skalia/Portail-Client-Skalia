@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Rocket, FileSignature, Download, CheckCircle2, XCircle, Clock, Check, X, Loader2, Briefcase, Infinity, RefreshCw, Calendar, Mail, User, Building, MapPin } from 'lucide-react';
+import { Rocket, FileSignature, Download, CheckCircle2, XCircle, Clock, Check, X, Loader2, Briefcase, Infinity, RefreshCw, Calendar, Mail, User, Building, MapPin, FileText } from 'lucide-react';
 import Logo from './Logo';
 import { useToast } from './ToastProvider';
 
