@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../ToastProvider';
 import { useAdmin } from '../AdminContext';
-import { Plus, Trash2, Calculator, Save, User, FileText, Calendar, Lock, Users, UserPlus, RefreshCw, Layers, DollarSign, MapPin, Hash, Percent, Clock, Briefcase, Infinity, UserCircle, Timer } from 'lucide-react';
+import { Plus, Trash2, Calculator, Save, User, FileText, Calendar, Lock, Users, UserPlus, RefreshCw, Layers, DollarSign, MapPin, Hash, Percent, Clock, Briefcase, Infinity, UserCircle } from 'lucide-react';
 import { Lead } from '../../types';
 
 interface QuoteFormProps {
@@ -459,19 +459,13 @@ const QuoteForm: React.FC<QuoteFormProps> = ({ onSuccess, onCancel, initialData 
             </div>
             
             <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
-                    {quoteType === 'retainer' ? (
-                        <><Timer size={12} /> Durée du contrat</>
-                    ) : (
-                        <><Clock size={12} /> Délai Livraison</>
-                    )}
-                </label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><Clock size={12} /> Délai Livraison</label>
                 <input 
                     type="text" 
                     value={deliveryDelay} 
                     onChange={e => setDeliveryDelay(e.target.value)} 
                     className="w-full px-3 py-2 border rounded-lg outline-none text-sm"
-                    placeholder={quoteType === 'retainer' ? "Ex: 12 mois" : "Ex: 3 semaines"}
+                    placeholder={quoteType === 'retainer' ? "Immédiat" : "Ex: 3 semaines"}
                 />
             </div>
             <div>
