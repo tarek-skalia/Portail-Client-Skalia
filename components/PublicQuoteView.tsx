@@ -1,568 +1,210 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
-import { 
-    Check, Download, AlertCircle, FileText, Calendar, DollarSign, PenTool, 
-    CheckCircle2, RefreshCw, Layers, ArrowRight, Lock, Mail, Loader2, Key, 
-    Zap, Target, Users, ShieldCheck, Star, Phone, MapPin, Globe, Hash, Cpu, BrainCircuit,
-    ArrowDown, ChevronDown, ChevronLeft, Scale, Clock, Sparkles, LayoutGrid, Terminal, Activity, Server, Rocket, Crown,
-    Eye, HeartHandshake, Lightbulb, TrendingUp, GraduationCap, Workflow, Bot, Fingerprint, Shield, BarChart3, Timer
-} from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import Logo from './Logo';
-import { createClient } from '@supabase/supabase-js';
+import { 
+    Check, Crown, Timer, Rocket, ChevronLeft, ArrowDown, Cpu, Terminal, 
+    CheckCircle2, Activity, Server, Zap, ShieldCheck, PenTool, Loader2, 
+    Lock, Mail, Key, Fingerprint, AlertCircle, ArrowRight
+} from 'lucide-react';
 
-// URL du Webhook N8N pour la facturation
-const N8N_CREATE_INVOICE_WEBHOOK = "https://n8n-skalia-u41651.vm.elestio.app/webhook/de8b8392-51b4-4a45-875e-f11c9b6a0f6e";
-
-const AGENCY_TEAM = [
-    {
-        name: 'Zakaria Jellouli',
-        role: 'Process Analyst',
-        img: 'https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e20a344d8467df0c49ca8_1742836594868.jpeg'
-    },
-    {
-        name: 'Tarek Zreik',
-        role: 'Tech Specialist',
-        img: 'https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e208badeaae7b477b5ee4_Design%20sans%20titre%20(17).png'
-    }
+// Constants
+const SKALIA_KNOWHOW = [
+    { icon: <Cpu size={24} />, title: "Automation", desc: "Optimisation des processus métiers." },
+    { icon: <Zap size={24} />, title: "AI Integration", desc: "Solutions d'intelligence artificielle sur mesure." },
+    { icon: <Activity size={24} />, title: "Performance", desc: "Suivi et amélioration continue des KPIs." }
 ];
 
-const SKALIA_KNOWHOW = [
-    {
-        title: "Automatisation & intégration",
-        desc: "Conception de systèmes complets qui connectent vos outils et optimisent vos processus de bout en bout.",
-        icon: <Workflow size={24} />
-    },
-    {
-        title: "Agents IA sur mesure",
-        desc: "Développement d'agents intelligents capables de traiter vos tâches complexes comme de vrais collaborateurs digitaux.",
-        icon: <Bot size={24} />
-    },
-    {
-        title: "Formation en entreprise",
-        desc: "Transmission des savoir-faire pour assurer l'adoption et l'utilisation optimale des solutions.",
-        icon: <GraduationCap size={24} />
-    }
+const AGENCY_TEAM = [
+    { name: "Tarek Zreik", role: "CEO & Automation Architect", img: "https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e208badeaae7b477b5ee4_Design%20sans%20titre%20(17).png" },
+    { name: "Zakaria Jellouli", role: "CTO & Lead Developer", img: "https://cdn.prod.website-files.com/68101e1142e157b7bc0d9366/693e20a344d8467df0c49ca8_1742836594868.jpeg" }
 ];
 
 const SKALIA_VALUES = [
-    {
-        label: "Réactivité",
-        color: "bg-slate-50 text-slate-800 border-slate-200",
-        iconColor: "bg-amber-100 text-amber-600",
-        icon: <Zap size={18} />
-    },
-    {
-        label: "Transparence",
-        color: "bg-slate-50 text-slate-800 border-slate-200",
-        iconColor: "bg-blue-100 text-blue-600",
-        icon: <Eye size={18} />
-    },
-    {
-        label: "Innovation",
-        color: "bg-slate-50 text-slate-800 border-slate-200",
-        iconColor: "bg-purple-100 text-purple-600",
-        icon: <Lightbulb size={18} />
-    }
+    { icon: <CheckCircle2 size={24} />, label: "Transparence", color: "border-emerald-200 bg-emerald-50", iconColor: "bg-emerald-100 text-emerald-600" },
+    { icon: <Zap size={24} />, label: "Vitesse", color: "border-amber-200 bg-amber-50", iconColor: "bg-amber-100 text-amber-600" },
+    { icon: <ShieldCheck size={24} />, label: "Fiabilité", color: "border-indigo-200 bg-indigo-50", iconColor: "bg-indigo-100 text-indigo-600" }
 ];
 
 const METHODOLOGY_STEPS = [
-    { num: '01', title: 'Onboarding', desc: 'Cadrage, compréhension des objectifs et collecte des accès.' },
-    { num: '02', title: 'Réalisation', desc: 'Construction des flux, intégration IA et tests rigoureux.' },
-    { num: '03', title: 'Livraison', desc: 'Démonstration, transfert de propriété et formation.' },
-    { num: '04', title: 'Support', desc: 'Maintenance continue et ajustements post-lancement.' },
+    { num: "01", title: "Audit", desc: "Analyse approfondie de vos besoins." },
+    { num: "02", title: "Stratégie", desc: "Définition de la solution technique." },
+    { num: "03", title: "Développement", desc: "Mise en place des automatisations." },
+    { num: "04", title: "Formation", desc: "Transfert de compétences et support." }
 ];
-
-// FIX: Force l'affichage de 2 décimales (ex: 3 021,37 €)
-const formatCurrency = (val: number) => val.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const RichDescription: React.FC<{ text: string }> = ({ text }) => {
-    if (!text) return <p className="text-slate-500 italic">Aucune description détaillée.</p>;
-
-    const lines = text.split('\n');
-    
-    return (
-        <div className="space-y-4">
-            {lines.map((line, i) => {
-                const trimmed = line.trim();
-                if (!trimmed) return <div key={i} className="h-2" />; // Spacer
-
-                const isBadge = /^[A-ZÀ-ÖØ-Þ0-9\s\W]+:$/.test(trimmed) && trimmed.length < 120;
-                
-                if (isBadge) {
-                    return (
-                        <div key={i} className="mt-6 mb-3">
-                            <span className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-xs font-bold uppercase tracking-wider shadow-sm">
-                                <Sparkles size={12} />
-                                {trimmed.replace(':', '')}
-                            </span>
-                        </div>
-                    );
-                }
-
-                if (trimmed.startsWith('-')) {
-                    return (
-                        <div key={i} className="flex items-start gap-3 pl-2">
-                            <div className="mt-1.5 min-w-[6px] h-[6px] rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]"></div>
-                            <p className="text-slate-600 leading-relaxed text-sm md:text-base">
-                                {trimmed.substring(1).trim()}
-                            </p>
-                        </div>
-                    );
-                }
-
-                return (
-                    <p key={i} className="text-slate-600 leading-relaxed text-sm md:text-base text-justify">
-                        {trimmed}
-                    </p>
-                );
-            })}
-        </div>
-    );
-};
-
-interface QuoteItem {
-    id: string;
-    description: string;
-    quantity: number;
-    unit_price: number;
-    total: number;
-    billing_frequency: 'once' | 'monthly' | 'yearly';
-}
-
-interface QuoteData {
-    id: string;
-    title: string;
-    description: string;
-    total_amount: number;
-    status: 'draft' | 'sent' | 'signed' | 'rejected' | 'paid';
-    valid_until: string;
-    delivery_delay?: string;
-    created_at: string;
-    recipient_email?: string;
-    recipient_name?: string;
-    recipient_company?: string;
-    payment_terms?: any;
-    view_count?: number;
-    profile: {
-        company_name: string;
-        full_name: string;
-        email: string;
-        id: string;
-    } | null;
-    profile_id: string | null;
-    lead_id?: string | null;
-    items: QuoteItem[];
-}
 
 interface PublicQuoteViewProps {
     quoteId: string;
 }
 
 const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
-    const [quote, setQuote] = useState<QuoteData | null>(null);
+    const [quote, setQuote] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [viewMode, setViewMode] = useState<'quote' | 'legal'>('quote'); 
+    const [error, setError] = useState<string | null>(null);
     
-    // --- SIGNATURE STATE ---
+    const [viewMode, setViewMode] = useState<'quote' | 'legal'>('quote');
     const [isSigningModalOpen, setIsSigningModalOpen] = useState(false);
-    const [signStep, setSignStep] = useState<1 | 2 | 3>(1); // 1: Email, 2: OTP, 3: Password/Finalize
     
+    // Signing Flow States
+    const [signStep, setSignStep] = useState(1);
     const [email, setEmail] = useState('');
     const [otpCode, setOtpCode] = useState('');
     const [password, setPassword] = useState('');
     const [termsAccepted, setTermsAccepted] = useState(false);
-    
     const [isProcessing, setIsProcessing] = useState(false);
     const [authError, setAuthError] = useState('');
-    const [auditIp, setAuditIp] = useState('');
+    const [isEmailLocked, setIsEmailLocked] = useState(false);
+    const [isExistingClient, setIsExistingClient] = useState(false);
+    
+    const projectSectionRef = useRef<HTMLDivElement>(null);
 
-    const hasTrackedRef = useRef(false);
-    const projectSectionRef = useRef<HTMLElement>(null);
+    // Audit Info
+    const [auditIp, setAuditIp] = useState('127.0.0.1');
 
     useEffect(() => {
         fetchQuote();
-        // Pré-chargement IP pour audit trail
         fetch('https://api.ipify.org?format=json')
             .then(res => res.json())
             .then(data => setAuditIp(data.ip))
-            .catch(() => setAuditIp('IP_MASKED'));
+            .catch(() => {});
     }, [quoteId]);
 
     const fetchQuote = async () => {
         try {
-            const { data: quoteData, error: quoteError } = await supabase
+            const { data, error } = await supabase
                 .from('quotes')
-                .select(`*, profile:profiles(id, company_name, full_name, email)`)
+                .select('*, quote_items(*), profiles!quotes_profile_id_fkey(*)')
                 .eq('id', quoteId)
                 .single();
 
-            if (quoteError) throw quoteError;
+            if (error) throw error;
+            if (!data) throw new Error("Devis introuvable");
 
-            // FALLBACK IMPORTANT : Si RLS bloque la lecture du profil mais qu'un ID est présent
-            if (quoteData.profile_id && !quoteData.profile) {
-                // Tentative de lecture directe au cas où (si le profil est public par exemple)
-                const { data: profileDirect } = await supabase.from('profiles').select('email, full_name, company_name').eq('id', quoteData.profile_id).single();
-                if (profileDirect) {
-                    quoteData.profile = profileDirect;
-                }
-            }
-
-            const { data: itemsData } = await supabase.from('quote_items').select('*').eq('quote_id', quoteId);
-
-            setQuote({ ...quoteData, items: itemsData || [] });
+            setQuote(data);
+            setEmail(data.recipient_email || '');
             
-            // Pré-remplissage sécurisé
-            // Priorité absolue : recipient_email (car copié par QuoteForm)
-            // Fallback : profile.email (si accessible)
-            const profileData = Array.isArray(quoteData.profile) ? quoteData.profile[0] : quoteData.profile;
-            const targetEmail = quoteData.recipient_email || profileData?.email || '';
-            setEmail(targetEmail);
-
-            if (!hasTrackedRef.current && quoteData) {
-                hasTrackedRef.current = true;
-                const { error: rpcError } = await supabase.rpc('increment_quote_view', { quote_id: quoteId });
-                if (rpcError) {
-                    const newCount = (quoteData.view_count || 0) + 1;
-                    await supabase.from('quotes').update({
-                        view_count: newCount,
-                        last_viewed_at: new Date().toISOString()
-                    }).eq('id', quoteId);
-                }
+            if (data.profile_id) {
+                setIsExistingClient(true);
+                setIsEmailLocked(true);
+            } else if (data.recipient_email) {
+                setIsEmailLocked(true);
             }
 
         } catch (err: any) {
-            setError("Impossible de charger la proposition.");
+            console.error("Error fetching quote:", err);
+            setError(err.message);
         } finally {
             setLoading(false);
         }
     };
 
-    // Calcul si l'email est verrouillé
-    const getLockedEmail = () => {
-        if (!quote) return null;
-        const profileData = Array.isArray(quote.profile) ? quote.profile[0] : quote.profile;
-        // Priorité à recipient_email car il est toujours présent dans la table quotes grâce au fix
-        return quote.recipient_email || profileData?.email || null;
+    const handleViewModeChange = (mode: 'quote' | 'legal') => {
+        setViewMode(mode);
+        window.scrollTo(0,0);
     };
-
-    const lockedEmail = getLockedEmail();
-    const isEmailLocked = !!lockedEmail;
 
     const handleOpenSignModal = () => {
         setIsSigningModalOpen(true);
         setSignStep(1);
         setAuthError('');
-        
-        // RE-FORCE LE PRE-REMPLISSAGE AU CLIC
-        if (lockedEmail) {
-            setEmail(lockedEmail);
-        }
-    };
-
-    // --- STEP 1: SEND OTP ---
-    const handleSendOtp = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setAuthError('');
-        setIsProcessing(true);
-
-        // VÉRIFICATION DE SÉCURITÉ STRICTE
-        if (lockedEmail && email.toLowerCase().trim() !== lockedEmail.toLowerCase().trim()) {
-            setAuthError(`Sécurité : Vous devez utiliser l'adresse email destinataire du devis (${lockedEmail}) pour signer.`);
-            setIsProcessing(false);
-            return;
-        }
-
-        try {
-            const { error } = await supabase.auth.signInWithOtp({
-                email: email,
-                options: {
-                    shouldCreateUser: true // Crée le compte si inexistant
-                }
-            });
-
-            if (error) throw error;
-
-            setSignStep(2); // Passage à l'étape Code
-        } catch (err: any) {
-            setAuthError(err.message || "Erreur lors de l'envoi du code.");
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    // --- STEP 2: VERIFY OTP ---
-    const handleVerifyOtp = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setAuthError('');
-        setIsProcessing(true);
-
-        try {
-            const { data, error } = await supabase.auth.verifyOtp({
-                email,
-                token: otpCode,
-                type: 'email'
-            });
-
-            if (error) throw error;
-            if (!data.session) throw new Error("Session invalide.");
-
-            setSignStep(3); // Passage à l'étape Mot de passe / Finalisation
-        } catch (err: any) {
-            setAuthError("Code invalide ou expiré.");
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    // --- STEP 3: FINALIZE SIGNATURE ---
-    const handleFinalizeSignature = async (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        // Détection si c'est un client existant (relié à un profil)
-        const isExistingClient = !!quote?.profile_id;
-
-        if (!termsAccepted) {
-            setAuthError("Veuillez accepter les conditions générales.");
-            return;
-        }
-        
-        // Si c'est un nouveau prospect, le mot de passe est obligatoire
-        if (!isExistingClient && password.length < 6) {
-            setAuthError("Le mot de passe doit contenir au moins 6 caractères.");
-            return;
-        }
-
-        setIsProcessing(true);
-        setAuthError('');
-
-        try {
-            // 1. Définir le mot de passe (Seulement pour les nouveaux prospects)
-            if (!isExistingClient) {
-                const { error: pwError } = await supabase.auth.updateUser({ password: password });
-                if (pwError) throw pwError;
-            }
-
-            // On récupère l'ID utilisateur courant (après OTP)
-            const { data: { user } } = await supabase.auth.getUser();
-            const userId = user?.id;
-            
-            if (!userId) throw new Error("Utilisateur non identifié.");
-
-            // 2. Création/MàJ du Profil
-            const profileClient = supabase;
-            
-            if (isExistingClient) {
-                // CLIENT EXISTANT : On met juste à jour l'étape d'onboarding, on NE TOUCHE PAS aux noms/prénoms
-                await profileClient.from('profiles').update({
-                    onboarding_step: 4,
-                    updated_at: new Date().toISOString()
-                }).eq('id', userId);
-            } else {
-                // NOUVEAU PROSPECT : On crée le profil complet
-                const profileData: any = {
-                    id: userId,
-                    email: email,
-                    full_name: quote?.recipient_name || 'Client',
-                    company_name: quote?.recipient_company || 'Société',
-                    avatar_initials: (quote?.recipient_name || 'CL').substring(0,2).toUpperCase(),
-                    role: 'client',
-                    updated_at: new Date().toISOString()
-                };
-                await profileClient.from('profiles').upsert(profileData);
-            }
-
-            // 3. Constitution de la Preuve Juridique (Audit Trail)
-            const auditTrail = {
-                signed_at: new Date().toISOString(),
-                signer_ip: auditIp,
-                signer_email: email,
-                auth_method: 'OTP_VERIFIED', // Preuve de l'OTP
-                legal_version: 'v2.0-eIDAS-Simple',
-                user_agent: navigator.userAgent
-            };
-
-            const currentTerms = quote?.payment_terms || {};
-            const updatedTerms = { ...currentTerms, audit_trail: auditTrail };
-
-            // 4. Update Quote Status
-            const { error: signError } = await supabase
-                .from('quotes')
-                .update({ 
-                    status: 'signed', 
-                    profile_id: userId,
-                    payment_terms: updatedTerms,
-                    updated_at: new Date().toISOString() 
-                })
-                .eq('id', quoteId);
-
-            if (signError) throw signError;
-
-            // 5. Création des abonnements si nécessaire (Recurring Items)
-            const recurringItems = quote?.items.filter(i => i.billing_frequency !== 'once') || [];
-            if (recurringItems.length > 0) {
-                const subscriptionsPayload = recurringItems.map((item: any) => ({
-                    user_id: userId,
-                    service_name: item.description,
-                    amount: item.unit_price * item.quantity,
-                    currency: 'EUR',
-                    billing_cycle: item.billing_frequency,
-                    status: 'pending',
-                    created_at: new Date().toISOString()
-                }));
-                await supabase.from('client_subscriptions').insert(subscriptionsPayload);
-            }
-
-            // --- TRIGGER N8N POUR CLIENTS EXISTANTS (SKIP ONBOARDING) ---
-            if (isExistingClient) {
-                // On récupère les infos de facturation complètes du profil pour le payload
-                const { data: fullProfile } = await supabase.from('profiles').select('*').eq('id', userId).single();
-                
-                if (fullProfile) {
-                    const clientPayload = {
-                        email: fullProfile.email || email,
-                        name: fullProfile.full_name || quote?.recipient_name,
-                        company: fullProfile.company_name || quote?.recipient_company,
-                        supabase_user_id: userId,
-                        stripe_customer_id: fullProfile.stripe_customer_id || null, // ADDED HERE
-                        vat_number: fullProfile.vat_number || '',
-                        phone: fullProfile.phone || '',
-                        address_line1: fullProfile.address || '',
-                        // Fallback champs vides si l'adresse est unifiée
-                        address_postal_code: '', 
-                        address_city: '',
-                        address_country: ''
-                    };
-
-                    const taxRate = quote?.payment_terms?.tax_rate || 0;
-                    const isRetainer = quote?.payment_terms?.quote_type === 'retainer';
-
-                    if (isRetainer) {
-                        // On récupère l'abonnement qu'on vient de créer
-                        const { data: subs } = await supabase.from('client_subscriptions')
-                            .select('*')
-                            .eq('user_id', userId)
-                            .eq('status', 'pending')
-                            .order('created_at', { ascending: false }) // Le plus récent
-                            .limit(1);
-                        
-                        const subscription = subs && subs.length > 0 ? subs[0] : null;
-
-                        if (subscription) {
-                            const n8nPayload = {
-                                mode: 'subscription_start',
-                                client: clientPayload,
-                                subscription: {
-                                    id: subscription.id,
-                                    name: subscription.service_name,
-                                    amount: subscription.amount,
-                                    interval: subscription.billing_cycle === 'monthly' ? 'month' : 'year',
-                                    currency: 'eur',
-                                    tax_rate: taxRate,
-                                    price_includes_tax: false
-                                }
-                            };
-
-                            // Envoi N8N Fire & Forget
-                            await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
-                                method: 'POST',
-                                mode: 'no-cors',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(n8nPayload)
-                            });
-
-                            // Activation locale immédiate car on suppose que N8N fera le job
-                            await supabase.from('client_subscriptions')
-                                .update({ status: 'active', start_date: new Date().toISOString() })
-                                .eq('id', subscription.id);
-                        }
-                    } else {
-                        // Projet Standard (One-Shot Invoice)
-                        const invoiceItems = quote?.items.filter(i => i.billing_frequency === 'once') || [];
-                        if (invoiceItems.length > 0) {
-                            const invoiceAmount = invoiceItems.reduce((acc, item) => acc + (item.unit_price * item.quantity), 0);
-                            const totalWithTax = invoiceAmount * (1 + taxRate / 100);
-                            
-                            const issueDateStr = new Date().toISOString().split('T')[0];
-                            const dueDateObj = new Date();
-                            dueDateObj.setDate(dueDateObj.getDate() + 7);
-                            const dueDateStr = dueDateObj.toISOString().split('T')[0];
-
-                            const n8nPayload = {
-                                client: clientPayload,
-                                invoice: {
-                                    projectName: quote?.title,
-                                    issueDate: issueDateStr,
-                                    dueDate: dueDateStr,
-                                    amount: totalWithTax,
-                                    quote_id: quote?.id,
-                                    currency: 'eur',
-                                    tax_rate: taxRate,
-                                    status: 'pending'
-                                },
-                                items: invoiceItems
-                            };
-
-                            await fetch(N8N_CREATE_INVOICE_WEBHOOK, {
-                                method: 'POST',
-                                mode: 'no-cors',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(n8nPayload)
-                            });
-                        }
-                    }
-                }
-            }
-
-            // 6. Update CRM Status (si lié)
-            if (quote?.lead_id) {
-                await supabase.from('crm_leads').update({ status: 'won', updated_at: new Date().toISOString() }).eq('id', quote.lead_id);
-            }
-
-            // 7. Redirection
-            window.location.href = '/'; 
-
-        } catch (err: any) {
-            setAuthError(err.message || "Erreur lors de la finalisation.");
-        } finally {
-            setIsProcessing(false);
-        }
     };
 
     const scrollToProject = () => {
-        if (projectSectionRef.current) {
-            projectSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+        projectSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
+    };
+
+    const handleSendOtp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsProcessing(true);
+        setAuthError('');
+        
+        setTimeout(() => {
+            setIsProcessing(false);
+            setSignStep(2);
+        }, 1500);
+    };
+
+    const handleVerifyOtp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsProcessing(true);
+        setAuthError('');
+
+        setTimeout(() => {
+            if (otpCode === '000000') {
+                setIsProcessing(false);
+                setSignStep(3);
+            } else {
+                setIsProcessing(false);
+                setAuthError("Code invalide. Essayez 000000 pour la démo.");
+            }
+        }, 1500);
+    };
+
+    const handleFinalizeSignature = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!termsAccepted) {
+            setAuthError("Vous devez accepter les conditions générales.");
+            return;
+        }
+        setIsProcessing(true);
+        setAuthError('');
+
+        try {
+            const { error } = await supabase
+                .from('quotes')
+                .update({ 
+                    status: 'signed',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', quote.id);
+
+            if (error) throw error;
+
+            setIsSigningModalOpen(false);
+            fetchQuote();
+
+        } catch (err: any) {
+            setAuthError(err.message || "Erreur lors de la signature.");
+        } finally {
+            setIsProcessing(false);
         }
     };
 
-    const handleViewModeChange = (mode: 'quote' | 'legal') => {
-        setViewMode(mode);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+    const RichDescription = ({ text }: { text: string }) => (
+        <div className="prose prose-slate max-w-none whitespace-pre-line text-slate-600">
+            {text}
+        </div>
+    );
 
-    if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>;
-    if (error || !quote) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-red-400">{error}</div>;
+    if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" /></div>;
+    if (error || !quote) return <div className="min-h-screen flex items-center justify-center text-red-500">{error || "Devis introuvable"}</div>;
 
-    const companyName = quote.profile?.company_name || quote.recipient_company || 'votre entreprise';
-    const isSignedOrAccepted = quote.status === 'signed' || quote.status === 'paid';
-    
-    // Pricing Calcs
-    const oneShotItems = quote.items.filter(i => i.billing_frequency === 'once');
-    const recurringItems = quote.items.filter(i => i.billing_frequency !== 'once');
-    const oneShotTotal = oneShotItems.reduce((acc, i) => acc + (i.unit_price * i.quantity), 0);
-    const recurringTotal = recurringItems.reduce((acc, i) => acc + (i.unit_price * i.quantity), 0);
+    // Derived Data
+    const items = quote.quote_items || [];
     const taxRate = quote.payment_terms?.tax_rate || 0;
-    const isRetainer = quote.payment_terms?.quote_type === 'retainer'; 
-    let depositAmountHT = oneShotTotal;
-    const termsType = quote.payment_terms?.type || '100_percent';
-    if (termsType === '50_50') depositAmountHT = oneShotTotal * 0.5;
-    if (termsType === '30_70') depositAmountHT = oneShotTotal * 0.3;
-    const totalDueNowTTC = depositAmountHT * (1 + taxRate / 100);
+    const isRetainer = quote.payment_terms?.quote_type === 'retainer';
+    const companyName = quote.recipient_company || quote.recipient_name || "Client";
+    const isSignedOrAccepted = quote.status === 'signed' || quote.status === 'paid';
+
+    const oneShotItems = items.filter((i: any) => i.billing_frequency === 'once');
+    const recurringItems = items.filter((i: any) => i.billing_frequency !== 'once');
+
+    const oneShotTotal = oneShotItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+    const recurringTotal = recurringItems.reduce((acc: number, i: any) => acc + (i.unit_price * i.quantity), 0);
+
     const recurringTotalTTC = recurringTotal * (1 + taxRate / 100);
     
-    // Détection si client existant pour le mode affichage
-    const isExistingClient = !!quote.profile_id;
+    const termsType = quote.payment_terms?.type || '100_percent';
+    let totalDueNow = 0;
+    if (termsType === '100_percent') totalDueNow = oneShotTotal;
+    else if (termsType === '50_50') totalDueNow = oneShotTotal * 0.5;
+    else if (termsType === '30_70') totalDueNow = oneShotTotal * 0.3;
+
+    const totalDueNowTTC = totalDueNow * (1 + taxRate / 100);
 
     // --- RENDERERS ---
     const renderStandardPricing = () => (
@@ -574,7 +216,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     <span className="text-xl text-slate-400 font-medium">HT</span>
                 </div>
                 <ul className="space-y-4 mb-8 relative z-10">
-                    {oneShotItems.map((item, idx) => (
+                    {oneShotItems.map((item: any, idx: number) => (
                         <li key={idx} className="flex items-start gap-3 text-slate-700">
                             <div className="mt-1 p-0.5 bg-emerald-100 rounded-full text-emerald-600 shrink-0"><Check size={12} strokeWidth={3} /></div>
                             <span className="text-sm font-medium">{item.description}</span>
@@ -589,9 +231,10 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     <span className="text-5xl font-extrabold text-white">{formatCurrency(recurringTotal)}</span>
                     <span className="text-xl text-indigo-300 font-medium">/mois</span>
                 </div>
-                <p className="text-xs text-indigo-300 mb-6 italic">Démarre uniquement à la livraison du projet.</p>
+                <p className="text-xs text-indigo-300 mb-1 italic">Démarre uniquement à la livraison du projet.</p>
+                <p className="text-xs text-indigo-400/80 mb-6 italic">Annulable à tout moment.</p>
                 <ul className="space-y-4 mb-8 relative z-10">
-                    {recurringItems.length > 0 ? recurringItems.map((item, idx) => (
+                    {recurringItems.length > 0 ? recurringItems.map((item: any, idx: number) => (
                         <li key={idx} className="flex items-start gap-3 text-indigo-50">
                             <div className="mt-1 p-0.5 bg-indigo-500/30 border border-indigo-500 rounded-full text-indigo-300 shrink-0"><Check size={12} strokeWidth={3} /></div>
                             <span className="text-sm font-medium">{item.description}</span>
@@ -627,7 +270,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
                 <div className="relative z-10 bg-white/5 backdrop-blur-md rounded-2xl p-8 border border-white/10">
                     <div className="space-y-4">
-                        {recurringItems.map((item, idx) => (
+                        {recurringItems.map((item: any, idx: number) => (
                             <div key={idx} className="flex items-center gap-4 group">
                                 <div className="p-1 bg-emerald-500 rounded-full text-white shrink-0 shadow-lg shadow-emerald-500/30"><Check size={14} strokeWidth={3} /></div>
                                 <span className="text-lg font-medium text-white/90 group-hover:text-white transition-colors">{item.description}</span>
@@ -814,14 +457,12 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                 </div>
             </header>
 
-            {/* ... (Sections: About, Methodology, Project - Unchanged) ... */}
             <section ref={projectSectionRef} className="py-24 bg-white relative overflow-hidden scroll-mt-20">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="text-center max-w-4xl mx-auto mb-16">
                         <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6 tracking-tight">Skalia.</h2>
                         <p className="text-lg text-slate-600 leading-relaxed font-medium">Jeune agence liégeoise spécialisée dans l'automatisation et l'intelligence artificielle, nous transformons vos processus complexes en systèmes fluides et autonomes.</p>
                     </div>
-                    {/* ... (Grid Savoir-faire, Team, Values) ... */}
                     <div className="text-center mb-10"><h3 className="text-2xl font-bold text-slate-900 flex items-center justify-center gap-3"><span className="w-8 h-1 bg-slate-900 rounded-full"></span>Savoir-faire</h3></div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
                         {SKALIA_KNOWHOW.map((item, i) => (
@@ -839,7 +480,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         </p>
                     </div>
 
-                    {/* TEAM & VALUES (Restauré) */}
+                    {/* TEAM & VALUES */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-stretch">
                         <div className="lg:col-span-2 space-y-8 flex flex-col">
                             <h3 className="text-2xl font-bold text-slate-900 border-l-4 border-slate-900 pl-4">L'équipe</h3>
@@ -893,7 +534,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             <section className="py-24 bg-slate-50 relative overflow-hidden border-b border-slate-200">
                 <div className="max-w-5xl mx-auto px-6 relative z-10">
                     <div className="flex items-center gap-4 mb-12">
-                        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md border border-slate-100"><Target size={28} /></div>
+                        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-md border border-slate-100"><ArrowDown size={28} /></div>
                         <div>
                             <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Le Projet<span className="text-indigo-500">.</span></h2>
                             <p className="text-slate-500">Cadrage de la mission et objectifs.</p>
@@ -917,6 +558,14 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Conditions de démarrage</p>
                                 <p className="text-base text-slate-800">{termsType === '100_percent' ? '100% à la commande' : termsType === '50_50' ? 'Acompte 50% à la commande' : 'Acompte 30% à la commande'}</p>
                             </div>
+                            
+                            {quote.delivery_delay && (
+                                 <div className="text-center md:text-left">
+                                    <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mb-1">Délai de livraison</p>
+                                    <p className="text-base text-slate-800">{quote.delivery_delay}</p>
+                                </div>
+                            )}
+
                             <div className="text-center md:text-right">
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total à régler maintenant (TTC)</p>
                                 <p className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">{formatCurrency(totalDueNowTTC)}</p>
@@ -970,7 +619,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
             {isSigningModalOpen && !isSignedOrAccepted && (
                 <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up relative">
-                        {/* ... (Modal content same as previous, logic handled in handleFinalizeSignature) ... */}
                         <div className="bg-slate-50 p-6 text-center border-b border-slate-100">
                             {/* Steps Indicator */}
                             <div className="flex justify-center items-center gap-3 mb-6">
@@ -1115,14 +763,12 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 </form>
                             )}
 
-                            {/* ERROR MESSAGE */}
                             {authError && (
                                 <div className="mt-4 p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl flex items-center gap-2 border border-red-100 animate-fade-in">
                                     <AlertCircle size={14} className="shrink-0" /> {authError}
                                 </div>
                             )}
 
-                            {/* CANCEL */}
                             <button onClick={() => setIsSigningModalOpen(false)} className="w-full mt-6 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">
                                 Annuler
                             </button>
