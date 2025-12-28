@@ -460,8 +460,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                     interval: subscription.billing_cycle === 'monthly' ? 'month' : 'year',
                                     currency: 'eur',
                                     tax_rate: taxRate,
-                                    price_includes_tax: false,
-                                    duration: quote?.delivery_delay || 'Indéterminée' // AJOUT DEMANDÉ
+                                    price_includes_tax: false
                                 }
                             };
 
@@ -766,15 +765,6 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 <h1 className="text-5xl md:text-7xl font-bold leading-none tracking-tight mb-8 animate-fade-in-up delay-100">
                                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-indigo-300">{quote.title}</span>
                                 </h1>
-                                
-                                {/* AFFICHAGE DURÉE DANS HEADER */}
-                                {isRetainer && quote.delivery_delay && (
-                                    <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/10 mb-6 w-fit animate-fade-in-up delay-150">
-                                        <Timer size={16} className="text-indigo-300" />
-                                        <span className="text-sm font-medium text-white">Durée d'engagement : <span className="font-bold">{quote.delivery_delay}</span></span>
-                                    </div>
-                                )}
-
                                 <div className="flex items-center gap-4 animate-fade-in-up delay-200 mb-10">
                                     <div className="h-px w-16 bg-indigo-500"></div>
                                     <p className="text-2xl md:text-3xl text-indigo-200 font-light">Pour <span className="font-bold text-white">{companyName}</span></p>
@@ -786,7 +776,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                 </div>
                             </div>
                             
-                            {/* --- HERO CARD (RESTAURÉ) --- */}
+                            {/* --- HERO CARD --- */}
                             <div className="hidden lg:flex justify-end animate-fade-in-up delay-200 relative perspective-1000">
                                 <div className="relative w-96 h-[500px] bg-gradient-to-br from-[#1E1B2E] to-[#141220] border border-white/10 rounded-3xl p-8 shadow-2xl transform rotate-y-6 rotate-z-2 animate-float hover:rotate-0 transition-all duration-700 group flex flex-col gap-6 overflow-hidden">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent rounded-3xl pointer-events-none"></div>
@@ -806,8 +796,16 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                                             <div className="flex items-center gap-3"><Terminal size={12} className="text-slate-500 shrink-0" /><p className="text-slate-400">Initializing core modules...</p></div>
                                             <div className="flex items-center gap-3"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /><p className="text-white">AI Models loaded successfully</p></div>
                                             <div className="flex items-center gap-3"><Activity size={12} className="text-indigo-400 shrink-0" /><p className="text-indigo-100">Connecting to API Gateway...</p></div>
-                                            <div className="flex items-center gap-3"><Server size={12} className="text-purple-400 shrink-0" /><p className="text-purple-200">Database synchronization...</p></div>
+                                            <div className="flex items-center gap-3"><Server size={12} className="text-slate-500 shrink-0" /><p className="text-slate-400">Database synchronization</p></div>
+                                            <div className="flex items-center gap-3"><Zap size={12} className="text-amber-400 shrink-0" /><p className="text-amber-100">Optimization: +240% speed</p></div>
+                                            <div className="flex items-center gap-3"><ShieldCheck size={12} className="text-emerald-500 shrink-0" /><p className="text-white">Security protocols active</p></div>
+                                            <div className="flex items-center gap-3 animate-pulse"><div className="w-2 h-2 bg-indigo-500 rounded-full"></div><p className="text-indigo-300">Waiting for user input...</p></div>
                                         </div>
+                                    </div>
+                                    <div className="h-12 flex items-end gap-1 opacity-50 shrink-0">
+                                        {[40, 60, 30, 80, 50, 90, 70, 40, 60, 80, 50, 100].map((h, i) => (
+                                            <div key={i} className="flex-1 bg-indigo-500/50 rounded-t-sm transition-all duration-1000" style={{ height: `${h}%` }}></div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
@@ -835,37 +833,36 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         ))}
                     </div>
 
+                    <div className="text-center max-w-3xl mx-auto mb-16">
+                        <p className="text-xl md:text-2xl text-slate-800 font-bold leading-relaxed">
+                            "Nous ne sommes pas de simples exécutants techniques. Nous sommes des entrepreneurs qui parlent votre langage : ROI, marge et croissance."
+                        </p>
+                    </div>
+
                     {/* TEAM & VALUES (Restauré) */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-                        {/* TEAM */}
-                        <div>
-                            <h3 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3"><span className="w-8 h-1 bg-slate-900 rounded-full"></span>L'Équipe</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-stretch">
+                        <div className="lg:col-span-2 space-y-8 flex flex-col">
+                            <h3 className="text-2xl font-bold text-slate-900 border-l-4 border-slate-900 pl-4">L'équipe</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 flex-1">
                                 {AGENCY_TEAM.map((member, i) => (
-                                    <div key={i} className="group relative overflow-hidden rounded-2xl aspect-[4/5] shadow-lg">
-                                        <img src={member.img} alt={member.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end p-6">
-                                            <p className="text-white font-bold text-lg">{member.name}</p>
-                                            <p className="text-indigo-300 text-sm font-medium">{member.role}</p>
+                                    <div key={i} className="relative group overflow-hidden rounded-2xl h-[340px] w-full shadow-xl transition-all duration-300 hover:shadow-2xl">
+                                        <img src={member.img} alt={member.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent opacity-80"></div>
+                                        <div className="absolute bottom-0 left-0 p-8 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                                            <p className="text-white font-bold text-2xl mb-1">{member.name}</p>
+                                            <p className="text-indigo-300 font-medium text-lg flex items-center gap-2"><div className="w-8 h-0.5 bg-indigo-500"></div>{member.role}</p>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
-
-                        {/* VALUES */}
-                        <div className="h-full flex flex-col justify-center">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3"><span className="w-8 h-1 bg-slate-900 rounded-full"></span>Nos Valeurs</h3>
-                            <div className="space-y-6">
+                        <div className="space-y-8 flex flex-col h-full">
+                            <h3 className="text-2xl font-bold text-slate-900 border-l-4 border-slate-900 pl-4">Nos valeurs</h3>
+                            <div className="flex flex-col justify-between flex-1 gap-4">
                                 {SKALIA_VALUES.map((val, i) => (
-                                    <div key={i} className={`p-6 rounded-2xl border flex items-center gap-6 shadow-sm transition-all hover:shadow-md ${val.color}`}>
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${val.iconColor}`}>
-                                            {val.icon}
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-lg mb-1">{val.label}</h4>
-                                            <p className="text-sm opacity-80">Un engagement fort pour votre réussite.</p>
-                                        </div>
+                                    <div key={i} className={`flex-1 flex items-center gap-4 p-6 rounded-xl border transition-all ${val.color} bg-white shadow-sm hover:shadow-md hover:-translate-y-1`}>
+                                        <div className={`p-3 rounded-lg ${val.iconColor}`}>{val.icon}</div>
+                                        <span className="font-bold text-lg text-slate-800">{val.label}</span>
                                     </div>
                                 ))}
                             </div>
@@ -881,6 +878,7 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                         <p className="text-indigo-300">Un processus clair en 4 étapes.</p>
                     </div>
                     <div className="relative grid grid-cols-1 md:grid-cols-4 gap-8">
+                        <div className="hidden md:block absolute top-8 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500/0 via-indigo-500 to-indigo-500/0 z-0"></div>
                         {METHODOLOGY_STEPS.map((step, i) => (
                             <div key={i} className="relative z-10 flex flex-col items-center text-center group">
                                 <div className="w-16 h-16 rounded-full bg-[#0F0A1F] border-2 border-indigo-500 flex items-center justify-center text-xl font-bold text-white shadow-[0_0_20px_rgba(99,102,241,0.4)] mb-6 group-hover:scale-110 transition-transform duration-300">{step.num}</div>
