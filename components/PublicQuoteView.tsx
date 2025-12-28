@@ -122,10 +122,23 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setIsProcessing(true);
         setAuthError('');
         
-        setTimeout(() => {
+        try {
+            const { error } = await supabase.auth.signInWithOtp({
+                email: email,
+                options: {
+                    shouldCreateUser: true
+                }
+            });
+
+            if (error) throw error;
+
             setIsProcessing(false);
             setSignStep(2);
-        }, 1500);
+        } catch (err: any) {
+            console.error(err);
+            setIsProcessing(false);
+            setAuthError(err.message || "Erreur lors de l'envoi du code.");
+        }
     };
 
     const handleVerifyOtp = async (e: React.FormEvent) => {
@@ -133,15 +146,22 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setIsProcessing(true);
         setAuthError('');
 
-        setTimeout(() => {
-            if (otpCode === '000000') {
-                setIsProcessing(false);
-                setSignStep(3);
-            } else {
-                setIsProcessing(false);
-                setAuthError("Code invalide. Essayez 000000 pour la démo.");
-            }
-        }, 1500);
+        try {
+            const { error } = await supabase.auth.verifyOtp({
+                email: email,
+                token: otpCode,
+                type: 'email'
+            });
+
+            if (error) throw error;
+
+            setIsProcessing(false);
+            setSignStep(3);
+        } catch (err: any) {
+            console.error(err);
+            setIsProcessing(false);
+            setAuthError("Code invalide ou expiré.");
+        }
     };
 
     const handleFinalizeSignature = async (e: React.FormEvent) => {
@@ -154,6 +174,15 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
         setAuthError('');
 
         try {
+            // 1. Définition du mot de passe si nouveau compte
+            if (!isExistingClient && password) {
+                const { error: pwdError } = await supabase.auth.updateUser({
+                    password: password
+                });
+                if (pwdError) throw pwdError;
+            }
+
+            // 2. Mise à jour du devis
             const { error } = await supabase
                 .from('quotes')
                 .update({ 
@@ -164,10 +193,31 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
 
             if (error) throw error;
 
+            // 3. Mise à jour ou création du profil client lié
+            if (!isExistingClient) {
+                 const { data: { user } } = await supabase.auth.getUser();
+                 if (user) {
+                     // On crée/met à jour le profil avec les infos du devis
+                     await supabase.from('profiles').upsert({
+                         id: user.id,
+                         email: email,
+                         full_name: quote.recipient_name || 'Client',
+                         company_name: quote.recipient_company || 'Société',
+                         role: 'client',
+                         onboarding_step: 1, // Déclenche l'onboarding
+                         updated_at: new Date().toISOString()
+                     }, { onConflict: 'id' });
+                     
+                     // On lie le devis au nouveau user ID
+                     await supabase.from('quotes').update({ profile_id: user.id }).eq('id', quote.id);
+                 }
+            }
+
             setIsSigningModalOpen(false);
             fetchQuote();
 
         } catch (err: any) {
+            console.error(err);
             setAuthError(err.message || "Erreur lors de la signature.");
         } finally {
             setIsProcessing(false);
