@@ -588,7 +588,8 @@ const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ quoteId }) => {
                     <span className="text-5xl font-extrabold text-white">{formatCurrency(recurringTotal)}</span>
                     <span className="text-xl text-indigo-300 font-medium">/mois</span>
                 </div>
-                <p className="text-xs text-indigo-300 mb-6 italic">Démarre uniquement à la livraison du projet.</p>
+                <p className="text-xs text-indigo-300 italic mb-1">Démarre uniquement à la livraison du projet.</p>
+                <p className="text-xs text-indigo-300 mb-6 italic">Annulable à tout moment</p>
                 <ul className="space-y-4 mb-8 relative z-10">
                     {recurringItems.length > 0 ? recurringItems.map((item, idx) => (
                         <li key={idx} className="flex items-start gap-3 text-indigo-50">
