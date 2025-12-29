@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Invoice, ClientSubscription } from '../types';
@@ -5,6 +6,7 @@ import { useAdmin } from './AdminContext';
 import { DollarSign, TrendingUp, AlertTriangle, Search, Filter, Plus, Edit3, Trash2, Users, RefreshCw, PlayCircle, PauseCircle, StopCircle, CheckCircle2, Clock, Loader2, Wallet, HelpCircle, XCircle, Percent } from 'lucide-react';
 import Skeleton from './Skeleton';
 import InvoiceSlideOver from './InvoiceSlideOver';
+import SubscriptionSlideOver from './SubscriptionSlideOver'; // Import du nouveau composant
 import Modal from './ui/Modal';
 import InvoiceForm from './forms/InvoiceForm';
 import { useToast } from './ToastProvider';
@@ -37,6 +39,10 @@ const GlobalFinance: React.FC = () => {
       status: 'pending',
       taxRate: 0
   });
+  
+  // SlideOver Subscription
+  const [selectedSubscription, setSelectedSubscription] = useState<ClientSubscription | null>(null);
+  const [isSubSlideOverOpen, setIsSubSlideOverOpen] = useState(false);
   
   // Processing State pour les actions asynchrones (Activation N8N)
   const [processingSubId, setProcessingSubId] = useState<string | null>(null);
@@ -201,6 +207,11 @@ const GlobalFinance: React.FC = () => {
 
   // --- SUBSCRIPTION ACTIONS ---
 
+  const handleOpenSubscription = (sub: ClientSubscription) => {
+      setSelectedSubscription(sub);
+      setIsSubSlideOverOpen(true);
+  };
+
   const handleCreateSub = () => {
       setEditingSub(null);
       setSubFormData({
@@ -214,7 +225,8 @@ const GlobalFinance: React.FC = () => {
       setIsSubModalOpen(true);
   };
 
-  const handleEditSub = (sub: ClientSubscription) => {
+  const handleEditSub = (e: React.MouseEvent, sub: ClientSubscription) => {
+      e.stopPropagation(); // Stop propagation to avoid opening SlideOver
       setEditingSub(sub);
       setSubFormData({
           clientId: sub.clientId,
@@ -287,7 +299,8 @@ const GlobalFinance: React.FC = () => {
   };
 
   // --- GESTION CHANGEMENT STATUT (Pause, Cancel, Activate) ---
-  const handleStatusChange = async (sub: ClientSubscription, newStatus: 'active' | 'paused' | 'cancelled') => {
+  const handleStatusChange = async (e: React.MouseEvent, sub: ClientSubscription, newStatus: 'active' | 'paused' | 'cancelled') => {
+      e.stopPropagation(); // Stop propagation
       const actionLabels = {
           'active': 'Activer / Reprendre',
           'paused': 'Mettre en pause',
@@ -326,7 +339,7 @@ const GlobalFinance: React.FC = () => {
   };
 
   const handleDeleteSub = (e: React.MouseEvent, id: string) => {
-      e.stopPropagation();
+      e.stopPropagation(); // Stop propagation
       setDeleteType('subscription');
       setDeleteId(id);
   };
@@ -415,7 +428,7 @@ const GlobalFinance: React.FC = () => {
 
         {/* KPI CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* ... KPIs (Inchangés) ... */}
+            {/* ... KPIs ... */}
             <div className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-sm flex items-center justify-between group relative cursor-help hover:shadow-md transition-shadow">
                 <div><p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1 flex items-center gap-1">Total Encaissé <HelpCircle size={10} className="text-slate-300" /></p><p className="text-2xl font-extrabold text-slate-900">{totalRevenue.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</p></div><div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><DollarSign size={20} /></div>
             </div>
@@ -436,7 +449,7 @@ const GlobalFinance: React.FC = () => {
             <button onClick={() => setActiveTab('subscriptions')} className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'subscriptions' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>Abonnements{activeTab === 'subscriptions' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}</button>
         </div>
 
-        {/* --- INVOICES VIEW (Inchangé) --- */}
+        {/* --- INVOICES VIEW --- */}
         {activeTab === 'invoices' && (
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-fade-in">
                 <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -496,7 +509,11 @@ const GlobalFinance: React.FC = () => {
                         const isProcessing = processingSubId === sub.id;
                         
                         return (
-                            <div key={sub.id} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors items-center group min-h-[60px]">
+                            <div 
+                                key={sub.id} 
+                                onClick={() => handleOpenSubscription(sub)} // Ajout du clic pour ouvrir le SlideOver
+                                className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors items-center group min-h-[60px] cursor-pointer"
+                            >
                                 <div className="col-span-3 font-bold text-slate-800 truncate text-sm">
                                     {sub.serviceName}
                                     <div className="text-[10px] text-slate-400 font-normal uppercase flex items-center gap-1 mt-0.5"><RefreshCw size={10} /> {sub.billingCycle}</div>
@@ -520,12 +537,12 @@ const GlobalFinance: React.FC = () => {
                                 </div>
                                 <div className="col-span-2 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                     
-                                    {/* --- BOUTONS ACTIONS INTELLIGENTS --- */}
+                                    {/* --- BOUTONS ACTIONS INTELLIGENTS (Préservés mais avec stopPropagation) --- */}
                                     
                                     {/* 1. ACTIVATION (Si Pending) */}
                                     {sub.status === 'pending' && (
                                         <button 
-                                            onClick={() => handleStatusChange(sub, 'active')}
+                                            onClick={(e) => handleStatusChange(e, sub, 'active')}
                                             className="p-1.5 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-100"
                                             title="Activer"
                                             disabled={isProcessing}
@@ -537,7 +554,7 @@ const GlobalFinance: React.FC = () => {
                                     {/* 2. REPRENDRE (Si Paused) */}
                                     {sub.status === 'paused' && (
                                         <button 
-                                            onClick={() => handleStatusChange(sub, 'active')}
+                                            onClick={(e) => handleStatusChange(e, sub, 'active')}
                                             className="p-1.5 bg-indigo-50 border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-100"
                                             title="Reprendre"
                                             disabled={isProcessing}
@@ -549,7 +566,7 @@ const GlobalFinance: React.FC = () => {
                                     {/* 3. PAUSE (Si Active) */}
                                     {sub.status === 'active' && (
                                         <button 
-                                            onClick={() => handleStatusChange(sub, 'paused')}
+                                            onClick={(e) => handleStatusChange(e, sub, 'paused')}
                                             className="p-1.5 bg-amber-50 border border-amber-200 text-amber-600 rounded-lg hover:bg-amber-100"
                                             title="Mettre en pause"
                                             disabled={isProcessing}
@@ -561,7 +578,7 @@ const GlobalFinance: React.FC = () => {
                                     {/* 4. ANNULER / ARRÊTER (Si Active ou Paused) */}
                                     {['active', 'paused'].includes(sub.status) && (
                                         <button 
-                                            onClick={() => handleStatusChange(sub, 'cancelled')}
+                                            onClick={(e) => handleStatusChange(e, sub, 'cancelled')}
                                             className="p-1.5 bg-red-50 border border-red-200 text-red-600 rounded-lg hover:bg-red-100"
                                             title="Annuler l'abonnement"
                                             disabled={isProcessing}
@@ -570,9 +587,9 @@ const GlobalFinance: React.FC = () => {
                                         </button>
                                     )}
 
-                                    {/* EDIT & DELETE (Toujours dispos) */}
+                                    {/* EDIT & DELETE */}
                                     <button 
-                                        onClick={() => handleEditSub(sub)}
+                                        onClick={(e) => handleEditSub(e, sub)}
                                         className="p-1.5 bg-white border border-slate-200 text-indigo-600 rounded-lg hover:bg-indigo-50"
                                         title="Modifier"
                                     >
@@ -598,11 +615,18 @@ const GlobalFinance: React.FC = () => {
 
     </div>
 
-    {/* INVOICE MODALS */}
+    {/* INVOICE SLIDEOVER */}
     <InvoiceSlideOver 
         isOpen={isSlideOverOpen}
         onClose={() => setIsSlideOverOpen(false)}
         invoice={selectedInvoice}
+    />
+
+    {/* SUBSCRIPTION SLIDEOVER (NEW) */}
+    <SubscriptionSlideOver 
+        isOpen={isSubSlideOverOpen}
+        onClose={() => setIsSubSlideOverOpen(false)}
+        subscription={selectedSubscription}
     />
 
     <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingInvoice ? "Modifier Facture" : "Nouvelle Facture"}>
@@ -616,7 +640,7 @@ const GlobalFinance: React.FC = () => {
         />
     </Modal>
 
-    {/* SUBSCRIPTION MODAL */}
+    {/* SUBSCRIPTION MODAL (FORM EDIT/CREATE) */}
     <Modal isOpen={isSubModalOpen} onClose={() => setIsSubModalOpen(false)} title={editingSub ? "Modifier Abonnement" : "Nouvel Abonnement"}>
         <form onSubmit={handleSubmitSub} className="space-y-6 pt-2">
             <div>
